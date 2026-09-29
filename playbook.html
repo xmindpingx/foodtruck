@@ -1,0 +1,1200 @@
+<title>El Otro Lado — Launch Playbook</title>
+<style>
+/* Layout: sticky sidebar nav + main content columns, stacks to single on phone */
+:root {
+  --bg: #faf8f5;
+  --bg2: #ffffff;
+  --border: #e2ddd6;
+  --fg: #1a1510;
+  --fg2: #4a4035;
+  --accent: #c0392b;
+  --accent2: #e67e22;
+  --green: #1e7a4a;
+  --green-bg: #eaf5ee;
+  --red-bg: #fdf0ee;
+  --yellow-bg: #fff8ec;
+  --tag-fee: #2c5282;
+  --tag-fee-bg: #ebf4ff;
+  --sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16130f; --bg2: #201c17; --border: #332e27;
+    --fg: #f0ebe3; --fg2: #b0a898;
+    --accent: #e55a4a; --accent2: #f0952a;
+    --green: #3acf76; --green-bg: #0d2e1a;
+    --red-bg: #2a110d; --yellow-bg: #2a1f0a;
+    --tag-fee: #90cdf4; --tag-fee-bg: #1a2c40;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16130f; --bg2: #201c17; --border: #332e27;
+  --fg: #f0ebe3; --fg2: #b0a898;
+  --accent: #e55a4a; --accent2: #f0952a;
+  --green: #3acf76; --green-bg: #0d2e1a;
+  --red-bg: #2a110d; --yellow-bg: #2a1f0a;
+  --tag-fee: #90cdf4; --tag-fee-bg: #1a2c40;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.6;
+}
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Playfair+Display:wght@700;900&display=swap');
+
+/* Hero */
+.hero {
+  background: var(--accent);
+  color: #fff;
+  padding: 28px 24px 22px;
+  position: relative;
+  overflow: hidden;
+}
+.hero::after {
+  content: '🌮';
+  position: absolute; right: 20px; top: 10px;
+  font-size: 64px; opacity: 0.18;
+  transform: rotate(-12deg);
+}
+.hero h1 {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(24px, 5vw, 38px);
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -0.5px;
+}
+.hero .sub {
+  font-size: 13px;
+  opacity: 0.88;
+  margin-top: 6px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+/* Nav tabs */
+.tabs {
+  display: flex;
+  overflow-x: auto;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  gap: 0;
+  scrollbar-width: none;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  padding: 12px 16px;
+  font: 600 13px/1 var(--sans);
+  color: var(--fg2);
+  cursor: pointer;
+  white-space: nowrap;
+  letter-spacing: 0.2px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.tab-btn:hover { color: var(--fg); }
+
+/* Content */
+.main { padding: 20px 16px 60px; max-width: 900px; margin: 0 auto; }
+.section { display: none; }
+.section.active { display: block; }
+
+/* Reusable */
+h2 {
+  font-family: 'Playfair Display', serif;
+  font-size: 22px; font-weight: 700;
+  color: var(--accent);
+  margin: 0 0 16px;
+  text-wrap: balance;
+}
+h3 {
+  font-size: 14px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.8px;
+  color: var(--fg2);
+  margin: 24px 0 10px;
+}
+h3:first-child { margin-top: 0; }
+p { margin-bottom: 10px; color: var(--fg); }
+strong { font-weight: 600; }
+a { color: var(--accent); text-decoration: underline; }
+
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.card-title {
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-right: 4px;
+}
+.badge-red { background: var(--red-bg); color: var(--accent); }
+.badge-yellow { background: var(--yellow-bg); color: #854d0e; }
+.badge-green { background: var(--green-bg); color: var(--green); }
+.badge-blue { background: var(--tag-fee-bg); color: var(--tag-fee); }
+
+/* Step list */
+.step-list { list-style: none; counter-reset: steps; }
+.step-list li {
+  counter-increment: steps;
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+  align-items: start;
+}
+.step-list li::before {
+  content: counter(steps);
+  background: var(--accent);
+  color: #fff;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  font: 700 13px/28px var(--sans);
+  text-align: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.step-detail { font-size: 13.5px; }
+.step-detail .label { font-weight: 700; margin-right: 4px; }
+.step-detail .fee { color: var(--tag-fee); font-weight: 600; font-family: var(--mono); font-size: 12px; }
+.step-detail .note { color: var(--fg2); font-size: 12.5px; display: block; margin-top: 2px; }
+
+/* Table */
+.tbl-wrap { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 16px; }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th {
+  background: var(--bg2);
+  text-align: left; padding: 9px 12px;
+  font-weight: 700; font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.6px;
+  color: var(--fg2);
+  border-bottom: 2px solid var(--border);
+}
+td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+tr:nth-child(even) td { background: var(--bg); }
+
+/* Template */
+.tmpl {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent2);
+  border-radius: 6px;
+  padding: 16px 16px 12px;
+  margin-bottom: 16px;
+  font-size: 13.5px;
+  white-space: pre-wrap;
+  font-family: var(--mono);
+  line-height: 1.65;
+  overflow-x: auto;
+}
+.tmpl-label {
+  font: 700 11px/1 var(--sans);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--accent2);
+  margin-bottom: 10px;
+}
+.copy-btn {
+  background: var(--border);
+  border: none;
+  border-radius: 4px;
+  padding: 5px 12px;
+  font: 600 12px var(--sans);
+  cursor: pointer;
+  color: var(--fg);
+  float: right;
+  margin-top: -2px;
+}
+.copy-btn:hover { background: var(--accent); color: #fff; }
+
+/* Equipment grid */
+.eq-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.eq-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+}
+.eq-card .name { font-weight: 700; font-size: 14px; }
+.eq-card .spec { font-size: 12px; color: var(--fg2); margin-top: 2px; }
+.eq-card .why { font-size: 11.5px; color: var(--green); margin-top: 4px; font-style: italic; }
+
+/* Layout diagram */
+.layout-svg-wrap { overflow-x: auto; }
+.note-box {
+  background: var(--yellow-bg);
+  border: 1px solid #f0952a40;
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin: 12px 0;
+  color: #7c4a00;
+}
+:root[data-theme="dark"] .note-box,
+@media (prefers-color-scheme:dark) { :root:not([data-theme="light"]) .note-box { color: #f0c060; } }
+
+/* Commissary */
+.comm-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.comm-card h4 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+
+/* Grant */
+.grant-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  border-left: 4px solid var(--green);
+}
+.grant-card h4 { font-size: 15px; font-weight: 700; margin-bottom: 2px; }
+.grant-card .amt { font-family: var(--mono); font-weight: 700; color: var(--green); font-size: 14px; }
+
+</style>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&family=Playfair+Display:wght@700;900&display=swap">
+
+<div class="hero">
+  <div class="sub">EL OTRO LADO — 1990 GMC Step-Van • Mesa, AZ • Maricopa County</div>
+  <h1>Food Truck Launch Playbook</h1>
+  <div class="sub">Repairs → Permits → Templates → Equipment → Station Layout</div>
+</div>
+
+<nav class="tabs" role="tablist">
+  <button class="tab-btn active" onclick="show('repairs')">1 · Repairs</button>
+  <button class="tab-btn" onclick="show('permits')">2 · Permits</button>
+  <button class="tab-btn" onclick="show('templates')">3 · Templates</button>
+  <button class="tab-btn" onclick="show('commissary')">4 · Commissary</button>
+  <button class="tab-btn" onclick="show('grants')">5 · Grants</button>
+  <button class="tab-btn" onclick="show('equipment')">6 · Equipment</button>
+  <button class="tab-btn" onclick="show('layout')">7 · Layout</button>
+</nav>
+
+<div class="main">
+
+<!-- ===== 1. REPAIRS ===== -->
+<div id="repairs" class="section active">
+<h2>Repair & Fix List</h2>
+<p style="color:var(--fg2);font-size:13px;">Based on photo review of vehicle. Items marked <span class="badge badge-red">MUST FIX</span> block county or fire inspection. <span class="badge badge-yellow">BEFORE OPEN</span> must be done before service. <span class="badge badge-green">SOON</span> = within 60 days of opening.</p>
+
+<h3>ELECTRICAL — Cab & Chassis</h3>
+<div class="card">
+  <div class="card-title"><span class="badge badge-red">MUST FIX</span> Exposed/loose wiring under cab dash</div>
+  <p>Hanging blue butt-connector wires and white plug visible under dashboard. Toggle switches have hand-written labels. Fire marshal will note any exposed conductors in the cab.<br>
+  <strong>Action:</strong> Route and loom all hanging wires; secure with wire ties; label switches with legible permanent labels. Verify all cab grounds are tight.</p>
+</div>
+<div class="card">
+  <div class="card-title"><span class="badge badge-red">MUST FIX</span> Awning light panels — no lens covers</div>
+  <p>4 fluorescent tubes are bare (no diffuser/lens), dirty, and caulk around fixture is cracked/peeling. (User confirmed these need rewiring.)<br>
+  <strong>Action:</strong> Install replacement LED strip lights with weather-rated fixture covers (or swap tubes for LED strips + cover panels). Re-caulk mounting seam with food-grade silicone. Verify on GFCI circuit.</p>
+</div>
+<div class="card">
+  <div class="card-title"><span class="badge badge-yellow">BEFORE OPEN</span> Speaker wiring</div>
+  <p>Head unit wiring harness photographed but speakers not connected. User noted wiring speakers alongside awning lights.<br>
+  <strong>Action:</strong> Run speaker wire through loom alongside light wiring; connect to head-unit harness (Yellow=+12V, Black=GND, Red=ACC). Secure inside conduit so no bare wires visible in food area.</p>
+</div>
+<div class="card">
+  <div class="card-title"><span class="badge badge-red">MUST FIX</span> Service window — gas strut loose wires</div>
+  <p>Red and blue wires taped along service-window gas strut; loose black wires with exposed butt connector hanging at window opening. County health inspector and fire marshal both flag loose wires in food prep area.<br>
+  <strong>Action:</strong> Secure all wires in loom or raceway away from food-contact surfaces and customer window opening.</p>
+</div>
+<div class="card">
+  <div class="card-title"><span class="badge badge-red">MUST FIX</span> Frayed wire bundle — refrigeration controls</div>
+  <p>Frayed woven sleeve exposing colored conductors at refrigeration control panel (Ranco controller area).<br>
+  <strong>Action:</strong> Replace sleeve with split-loom conduit; secure all conductors; verify no bare copper exposed.</p>
+</div>
+
+<h3>BATTERY BANK</h3>
+<div class="card">
+  <div class="card-title"><span class="badge badge-red">MUST FIX</span> Corroded battery terminals + broken tray</div>
+  <p>Heavy green/white corrosion on at least 2 terminals; broken battery-tray edge; no hold-down strap visible; debris including a 3-prong plug in the tray.<br>
+  <strong>Action:</strong> Clean terminals with baking soda solution + wire brush; apply anti-corrosion spray; replace broken tray or repair with metal patch; install hold-down strap (fire code requires secured batteries); remove all foreign debris.</p>
+</div>
+<div class="card">
+  <div class="card-title"><span class="badge badge-yellow">BEFORE OPEN</span> Rusted junction box / electrical box — refrigeration bay</div>
+  <p>Heavily rusted electrical box at refrigeration controls. Corrosion can compromise connections inside.<br>
+  <strong>Action:</strong> Open box; inspect terminals; treat or replace box if rust is through-wall; ensure IP-rated cover latches properly.</p>
+</div>
+
+<h3>REFRIGERATION UNIT</h3>
+<div class="card">
+  <div class="card-title"><span class="badge badge-yellow">BEFORE OPEN</span> Compressor shell rust + performance verification</div>
+  <p>Condensing unit (AKA4460YXA / Copeland-style hermetic) has heavy rust on lower shell. Blue filter-drier and sight glass present. Unit may be functional but must hold food at required temperatures.<br>
+  <strong>Action:</strong> Have a refrigeration tech check refrigerant charge, verify sight glass is clear (not bubbling), confirm unit holds 41°F or below. Replace filter-drier if last service unknown. Paint or treat shell rust to prevent further degradation. This is a county requirement — unit must demonstrate it holds temp.</p>
+</div>
+
+<h3>SERVICE WINDOW</h3>
+<div class="card">
+  <div class="card-title"><span class="badge badge-red">MUST FIX</span> Plexiglass / barrier installation</div>
+  <p>User confirmed plexiglass is on order. County health code requires an approved barrier between food prep area and customers. Existing window must have a self-closing cover (the hinged plexi panels visible in photos).<br>
+  <strong>Action:</strong> Install ordered plexiglass panels. Ensure hinges are not rusted (replace the 2 rusted hinges visible on existing plexi panels). Panel must be openable only from inside. Max opening 324 sq in per Maricopa County rules.</p>
+</div>
+<div class="card">
+  <div class="card-title"><span class="badge badge-red">MUST FIX</span> Rusty hinges on service window panels</div>
+  <p>2 clearly rusted hinges on existing hinged plexi panels.<br>
+  <strong>Action:</strong> Replace with stainless steel hinges. Food-zone hardware must be non-corroding.</p>
+</div>
+<div class="card">
+  <div class="card-title"><span class="badge badge-red">MUST FIX</span> Screen required on service window</div>
+  <p>Maricopa County requires a screen on any opening to the exterior (pest exclusion). No screen visible in photos.<br>
+  <strong>Action:</strong> Install 16-mesh or finer screen on service window, mounted so it can be used when the plexiglass is open. Magnetic or sliding screen works.</p>
+</div>
+
+<h3>INTERIOR FOOD AREA</h3>
+<div class="card">
+  <div class="card-title"><span class="badge badge-red">MUST FIX</span> Griddle — rust/residue, wood board on counter</div>
+  <p>Griddle surface shows rust-colored residue. Dark wood plank on counter observed — wood is a prohibited surface in food prep areas (porous, cannot be sanitized per Maricopa County food code).<br>
+  <strong>Action:</strong> Deep-clean and re-season griddle; if rust is pitted through, replace griddle plate. Remove all wood items from food prep surfaces. Replace with stainless or approved NSF-listed material only.</p>
+</div>
+<div class="card">
+  <div class="card-title"><span class="badge badge-red">MUST FIX</span> Personal items / non-food items in food cabinets</div>
+  <p>Personal drink cups, wallet-type item, and tools (rusted hinge brackets, fryer-basket handle, scraper) stored in equipment wells and cabinets that will be food areas. Health inspector will flag immediately.<br>
+  <strong>Action:</strong> Remove all personal items. Designate separate locked storage for tools/personal. Dedicate all stainless wells and cabinets to food-only use.</p>
+</div>
+<div class="card">
+  <div class="card-title"><span class="badge badge-yellow">BEFORE OPEN</span> Stagnant water / residue in wells</div>
+  <p>Dirty water and residue visible in at least one well cover area; brown debris flakes in a stainless basin.<br>
+  <strong>Action:</strong> Full clean and sanitize of all wells and basins. Remove old water. Ensure drain hoses are functional and connected.</p>
+</div>
+<div class="card">
+  <div class="card-title"><span class="badge badge-yellow">BEFORE OPEN</span> Peeling paint/adhesive on walls</div>
+  <p>Blue-painted wall around service window has peeling paint and adhesive residue. Peeling surfaces cannot be sanitized.<br>
+  <strong>Action:</strong> Strip loose paint/adhesive; repaint with food-safe, light-colored, washable paint (or apply stainless or FRP panels). All interior walls in food zone must be smooth, light-colored, and easily cleanable.</p>
+</div>
+<div class="card">
+  <div class="card-title"><span class="badge badge-red">MUST FIX</span> Bare copper wire coil in food area</div>
+  <p>Bare copper wire coil hanging on pipe inside the main food compartment (visible near serving window area).<br>
+  <strong>Action:</strong> Remove all loose wire from food prep area.</p>
+</div>
+
+<h3>EXTERIOR / VEHICLE</h3>
+<div class="card">
+  <div class="card-title"><span class="badge badge-green">SOON</span> Rear bumper rust + body crack</div>
+  <p>Rust beside rear bumper bracket; crack in front body panel near amber turn signal.<br>
+  <strong>Action:</strong> Cosmetic—treat rust with converter and paint. Not an inspection blocker for food permit but required for DMV compliance.</p>
+</div>
+<div class="card">
+  <div class="card-title"><span class="badge badge-yellow">BEFORE OPEN</span> Cracked side mirror glass</div>
+  <p>Driver-side mirror cracked (held with tape).<br>
+  <strong>Action:</strong> Replace mirror glass—AZ law requires functional mirrors. A cop can cite this in transit.</p>
+</div>
+<div class="card">
+  <div class="card-title"><span class="badge badge-green">SOON</span> Rusted driver seat mount bracket</div>
+  <p>Heavy rust on driver seat floor bracket.<br>
+  <strong>Action:</strong> Treat/repaint; verify bolts are secure. Safety item but not a food-permit blocker.</p>
+</div>
+<div class="card">
+  <div class="card-title"><span class="badge badge-green">SOON</span> Soot staining on rear stainless panel</div>
+  <p>Dark soot-like staining in rear compartment upper-right stainless panel.<br>
+  <strong>Action:</strong> Clean. If from exhaust/fire source, identify and correct source first.</p>
+</div>
+</div>
+
+<!-- ===== 2. PERMITS ===== -->
+<div id="permits" class="section">
+<h2>Permitting Roadmap</h2>
+<p style="color:var(--fg2);font-size:13px;">Complete these in order. Do not skip ahead — county plan review must happen before you operate. All fees verified from official sources as of mid-2026.</p>
+
+<h3>STEP-BY-STEP IN ORDER</h3>
+<ol class="step-list">
+  <li>
+    <div class="step-detail">
+      <span class="label">Form Your LLC</span> <span class="fee">$50 AZ ACC filing fee</span>
+      <span class="note">File online at azcc.gov → Corporations Division. Takes 3–5 business days. You need an LLC name, a statutory agent ($0 if you are your own agent), and an AZ address. Your EIN from IRS.gov is free and instant (call or online). Get both before applying for any license.</span>
+    </div>
+  </li>
+  <li>
+    <div class="step-detail">
+      <span class="label">Arizona Transaction Privilege Tax (TPT) License</span> <span class="fee">$12 state fee</span>
+      <span class="note">Apply at AZTaxes.gov. Select "Restaurant" under retail. This is your state sales tax license. Combined Mesa rate = 8.30% on food sales (effective Jan 1, 2026). You must have this before the city license.</span>
+    </div>
+  </li>
+  <li>
+    <div class="step-detail">
+      <span class="label">Food Handler Cards — All Food Workers</span> <span class="fee">~$15–25 per person</span>
+      <span class="note">Maricopa County requires a Food Handler Card for everyone who handles food. Take the online course at foodhandlers.com or maricopa.gov/eh (about 90 min). The Certified Food Manager (ServSafe or equivalent) is required for the permit holder. ServSafe exam: $15 online or ~$36 in-person.</span>
+    </div>
+  </li>
+  <li>
+    <div class="step-detail">
+      <span class="label">Sign Commissary Agreement</span> <span class="fee">$0 form fee (commissary rental separate)</span>
+      <span class="note">Maricopa County requires a signed Commissary Agreement on file before issuing a mobile food permit. Must be an inspected, licensed commissary. See Commissary tab for options. Get the agreement signed by the commissary operator before you submit county paperwork.</span>
+    </div>
+  </li>
+  <li>
+    <div class="step-detail">
+      <span class="label">Maricopa County Mobile Food Permit — Plan Review</span> <span class="fee">$165 new/change-of-ownership fee</span>
+      <span class="note">Submit to Maricopa County Environmental Services (EHS): maricopa.gov/ehs. You are a Type III (cook from raw on truck). Submit: completed plan review application, commissary agreement, menu, equipment list, floor plan sketch of truck with equipment placement, proof of certified food manager. They will schedule an on-site inspection after review. Phone: (602) 506-6616.</span>
+    </div>
+  </li>
+  <li>
+    <div class="step-detail">
+      <span class="label">Maricopa County On-Site Health Inspection</span> <span class="fee">Included in $165</span>
+      <span class="note">Inspector comes to the truck. All repairs on Tab 1 marked MUST FIX must be done before this inspection. They verify: food temps, equipment NSF-listed, no wood surfaces, proper handwash sink, 3-compartment sink, hot/cold running water, pest exclusion screens, service window cover, clean interior. Pass = county permit issued.</span>
+    </div>
+  </li>
+  <li>
+    <div class="step-detail">
+      <span class="label">Mesa Mobile Food Vendor License</span> <span class="fee">$50 initial + $20/yr renewal</span>
+      <span class="note">HB2118 that would have eliminated this was vetoed June 19, 2026. Mesa still requires it. Apply at Mesa City Hall, 20 E. Main St, or online at mesaaz.gov. Bring: county permit, TPT license, LLC docs, EIN. Must renew annually. Phone: (480) 644-2351.</span>
+    </div>
+  </li>
+  <li>
+    <div class="step-detail">
+      <span class="label">Mesa Fire Department Inspection</span> <span class="fee">Call for current fee — typically $0–100</span>
+      <span class="note">Required per 2018 IFC Section 319 for mobile food units with cooking equipment. They inspect: fire suppression system (K-Class, UL300 listed), all cooking equipment clearances, LP gas connections (if gas), electrical, ventilation hood. Schedule AFTER county permit is in hand. Call Mesa Fire at (480) 644-2642. If you have an Ansul or similar system, have it serviced (tag must show within 6 months).</span>
+    </div>
+  </li>
+  <li>
+    <div class="step-detail">
+      <span class="label">AZ Dept of Revenue — Register for Withholding (if paying employees)</span> <span class="fee">$0</span>
+      <span class="note">At AZTaxes.gov, register for employer withholding tax. If it is only you and family (sole member LLC / partnership), may not apply immediately — confirm with your CPA.</span>
+    </div>
+  </li>
+</ol>
+
+<h3>TOTAL MINIMUM PERMIT COST ESTIMATE</h3>
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>Item</th><th>Fee</th></tr></thead>
+<tbody>
+<tr><td>AZ LLC formation (ACC)</td><td>$50</td></tr>
+<tr><td>EIN from IRS</td><td>$0</td></tr>
+<tr><td>AZ TPT License</td><td>$12</td></tr>
+<tr><td>Food Handler Cards (2 people × ~$20)</td><td>~$40</td></tr>
+<tr><td>ServSafe Manager Exam</td><td>$15–36</td></tr>
+<tr><td>Maricopa County Plan Review + Permit</td><td>$165</td></tr>
+<tr><td>Mesa Mobile Food Vendor License</td><td>$50</td></tr>
+<tr><td>Mesa Fire Inspection</td><td>TBD (call)</td></tr>
+<tr><td style="font-weight:700;">TOTAL</td><td style="font-weight:700;">~$332–353 + fire</td></tr>
+</tbody>
+</table>
+</div>
+<p style="font-size:12.5px;color:var(--fg2);">This does not include commissary rental, vehicle insurance, or propane/gas inspection fees.</p>
+</div>
+
+<!-- ===== 3. TEMPLATES ===== -->
+<div id="templates" class="section">
+<h2>Communication Templates</h2>
+<p style="color:var(--fg2);font-size:13px;">Fill in brackets [ ] with your information before sending. All are plain text — paste into email or print on letterhead.</p>
+
+<h3>A — Maricopa County EHS: Plan Review Cover Letter</h3>
+<div class="tmpl-label">EMAIL / COVER LETTER — COUNTY PLAN REVIEW <button class="copy-btn" onclick="copyTmpl('tmpl1')">Copy</button></div>
+<div class="tmpl" id="tmpl1">Subject: Mobile Food Unit Plan Review Application — [YOUR LLC NAME]
+
+To: Maricopa County Environmental Services, Plan Review Division
+Environmental Health Division, 1001 N Central Ave, Suite 100, Phoenix, AZ 85004
+Phone: (602) 506-6616
+
+Date: [DATE]
+
+Dear Plan Review Coordinator,
+
+I am submitting a plan review application for a mobile food unit (Type III — cooking
+from raw on vehicle) to be operated by [YOUR LLC NAME], EIN [XX-XXXXXXX].
+
+VEHICLE INFORMATION
+  Make/Model: 1990 GMC Step-Van
+  VIN: [VIN NUMBER]
+  Approximate Interior Dimensions: [LENGTH] ft × [WIDTH] ft
+
+OPERATOR INFORMATION
+  Owner: [YOUR FULL NAME]
+  LLC: [LLC NAME]
+  Address: [YOUR ADDRESS], Mesa, AZ [ZIP]
+  Phone: [YOUR PHONE]
+  Email: [YOUR EMAIL]
+  Certified Food Manager: [NAME], Certificate #[NUMBER], Exp [DATE]
+
+DOCUMENTS ENCLOSED / ATTACHED
+  [ ] Completed Plan Review Application form (maricopa.gov/ehs)
+  [ ] Signed Commissary Agreement with [COMMISSARY NAME]
+  [ ] Menu (attached)
+  [ ] Equipment list with NSF numbers (attached)
+  [ ] Truck floor plan sketch with equipment placement (attached)
+  [ ] Proof of Certified Food Manager certificate
+
+MENU SUMMARY
+Authentic Hispanic menu: burritos, tacos, tostadas, chorizo and eggs, served
+to order. All cooking performed on-vehicle (griddle, stovetop). Raw meat and
+eggs cooked to required internal temperatures.
+
+Please advise if any additional information is needed. I can be reached at
+[PHONE] or [EMAIL].
+
+Sincerely,
+[YOUR NAME]
+[LLC NAME]
+[PHONE] | [EMAIL]</div>
+
+<h3>B — Mesa City: Mobile Vendor License Request</h3>
+<div class="tmpl-label">EMAIL — MESA CITY CLERK <button class="copy-btn" onclick="copyTmpl('tmpl2')">Copy</button></div>
+<div class="tmpl" id="tmpl2">Subject: Mobile Food Vendor License Application — [YOUR LLC NAME]
+
+To: City of Mesa, Business License Division
+20 E. Main St., Mesa, AZ 85201
+Phone: (480) 644-2351
+
+Date: [DATE]
+
+Dear Business License Division,
+
+I am applying for a Mobile Food Vendor License for the following business:
+
+Business Name: [LLC NAME / DBA NAME]
+Owner Name: [YOUR NAME]
+LLC / Entity: [LLC NAME], EIN [XX-XXXXXXX]
+Primary Contact: [NAME], [PHONE], [EMAIL]
+Mailing Address: [ADDRESS], Mesa, AZ [ZIP]
+
+VEHICLE
+  1990 GMC Step-Van, License Plate: [PLATE #], VIN: [VIN]
+
+DOCUMENTS ATTACHED
+  [ ] Maricopa County Mobile Food Permit (copy)
+  [ ] AZ TPT License (copy)
+  [ ] AZ LLC Certificate (copy)
+  [ ] EIN Confirmation Letter
+
+I intend to operate within City of Mesa limits serving authentic Hispanic street
+food. I have obtained my Maricopa County permit and am in full compliance with
+all food safety requirements.
+
+Please let me know what additional steps or fees are required to complete
+my application. I can be reached at [PHONE] or [EMAIL].
+
+Sincerely,
+[YOUR NAME]
+[LLC NAME]</div>
+
+<h3>C — Mesa Fire Department: Inspection Scheduling Request</h3>
+<div class="tmpl-label">EMAIL / PHONE SCRIPT — MESA FIRE <button class="copy-btn" onclick="copyTmpl('tmpl3')">Copy</button></div>
+<div class="tmpl" id="tmpl3">Subject: Mobile Food Unit Fire Inspection Request — [YOUR LLC NAME]
+
+To: City of Mesa Fire and Medical Department, Fire Prevention Division
+Phone: (480) 644-2642
+
+Date: [DATE]
+
+Dear Fire Prevention Division,
+
+I am requesting a fire inspection for a mobile food unit per 2018 IFC Section 319.
+My Maricopa County Mobile Food Permit has been issued (copy attached).
+
+UNIT INFORMATION
+  Vehicle: 1990 GMC Step-Van
+  VIN: [VIN]
+  Owner/Operator: [YOUR NAME], [LLC NAME]
+  Contact: [PHONE], [EMAIL]
+
+COOKING EQUIPMENT ON VEHICLE (for inspector reference)
+  - Commercial griddle (gas / electric — specify: [TYPE])
+  - Stovetop burner(s) — [NUMBER] burners
+  - Hood ventilation system
+  - Fire suppression system: [Ansul / Amerex / other — tag date: DATE]
+
+My preferred inspection windows are:
+  [ ] [DATE/TIME OPTION 1]
+  [ ] [DATE/TIME OPTION 2]
+  [ ] [DATE/TIME OPTION 3]
+
+Please confirm the current inspection fee and any forms I need to bring.
+
+Sincerely,
+[YOUR NAME]
+[LLC NAME]
+[PHONE] | [EMAIL]</div>
+
+<h3>D — Commissary Agreement Request (to commissary operator)</h3>
+<div class="tmpl-label">EMAIL — TO COMMISSARY <button class="copy-btn" onclick="copyTmpl('tmpl4')">Copy</button></div>
+<div class="tmpl" id="tmpl4">Subject: Commissary Agreement Request — Mobile Food Operator
+
+Date: [DATE]
+
+Hi,
+
+I am a mobile food operator in Mesa, AZ applying for a Maricopa County Mobile
+Food Permit. I am reaching out to discuss using your facility as my commissary.
+
+ABOUT MY OPERATION
+  Business: [LLC NAME / DBA]
+  Menu: Authentic Hispanic street food (burritos, tacos, tostadas, chorizo/eggs)
+  Type III mobile food unit (cooking raw on vehicle)
+  Planned service days: [DAYS/WEEK, e.g., Tue–Sat]
+  Estimated start date: [DATE]
+
+SERVICES I NEED FROM COMMISSARY
+  - Daily reporting / sign-in log access
+  - Fresh water fill (potable)
+  - Wastewater dump (gray water)
+  - Food storage access (refrigerated if available)
+  - Equipment washing (3-compartment sink or equivalent)
+
+Maricopa County requires a signed Commissary Agreement form on file before
+my permit is issued. I would need your facility's license number, address,
+and an authorized signature on the county form.
+
+Could we schedule a brief call or visit to discuss rates and availability?
+
+Thank you,
+[YOUR NAME]
+[LLC NAME]
+[PHONE] | [EMAIL]</div>
+</div>
+
+<!-- ===== 4. COMMISSARY ===== -->
+<div id="commissary" class="section">
+<h2>Commissary Options — Mesa / East Valley</h2>
+<p style="color:var(--fg2);font-size:13px;">Maricopa County requires daily reporting to a licensed commissary. You must have a signed Commissary Agreement before your county permit is issued. Call to confirm current availability and pricing — rates change frequently.</p>
+
+<div class="note-box">⚠️ <strong>Requirement:</strong> Commissary must be a Maricopa County-permitted food establishment. They must sign the county Commissary Agreement form and provide their permit number. The agreement must list services provided (water fill, dump, storage, etc.).</div>
+
+<div class="comm-card">
+  <h4>BLT Kitchens East Mesa</h4>
+  <p><strong>Location:</strong> Power Rd & Southern Ave area, Mesa, AZ</p>
+  <p><strong>Type:</strong> Shared commercial kitchen / commissary built for food trucks</p>
+  <p><strong>Services likely offered:</strong> Water fill, gray water dump, storage, walk-in cooler access, prep space</p>
+  <p><strong>Contact:</strong> Search "BLT Kitchens Mesa" or call ahead — verify they are currently accepting food truck commissary clients and confirm their Maricopa County permit number</p>
+  <p><strong>Estimated cost:</strong> Call for current rates</p>
+</div>
+
+<div class="comm-card">
+  <h4>Our Community Kitchen</h4>
+  <p><strong>Location:</strong> 2655 W. Guadalupe Rd, Mesa, AZ 85202</p>
+  <p><strong>Type:</strong> Non-profit shared commercial kitchen — serves food businesses and non-profits</p>
+  <p><strong>Why it fits:</strong> Typically offers lower rates than private commissaries; mission-aligned with small food businesses; may have flexible scheduling</p>
+  <p><strong>Contact:</strong> Call before going — confirm they service mobile food trucks as commissary clients and can sign Maricopa County agreement</p>
+  <p><strong>Phone:</strong> Search "Our Community Kitchen Mesa AZ" for current number</p>
+</div>
+
+<div class="comm-card">
+  <h4>Local Restaurant (Approach Independently)</h4>
+  <p><strong>How it works:</strong> Any Maricopa County-permitted restaurant can serve as your commissary if they agree to let you use their facility for water fill, dump, and storage. Many restaurants do this for a monthly fee ($100–300/mo is common).</p>
+  <p><strong>What to ask:</strong> "Are you willing to sign a Maricopa County Commissary Agreement as our commissary location? We need daily water fill, gray water dump, and storage access."</p>
+  <p><strong>Tip:</strong> Try Hispanic restaurants that may already understand food truck culture and want to support a new business in the community.</p>
+</div>
+
+<h3>WHAT THE COMMISSARY AGREEMENT FORM REQUIRES</h3>
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>Field</th><th>What It Means</th></tr></thead>
+<tbody>
+<tr><td>Commissary name + permit number</td><td>The licensed facility's county permit — you verify this is current</td></tr>
+<tr><td>Services provided (check boxes)</td><td>Water fill, gray water dump, storage, equipment washing — all you actually use</td></tr>
+<tr><td>Authorized commissary signature</td><td>Owner or manager of the commissary must sign</td></tr>
+<tr><td>Daily reporting log</td><td>You or employee signs in at commissary each operating day</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+
+<!-- ===== 5. GRANTS ===== -->
+<div id="grants" class="section">
+<h2>Grants & Financial Assistance</h2>
+<p style="color:var(--fg2);font-size:13px;">Listed in order of most accessible to least. Focus on the top 3 first — they are free to apply and respond faster.</p>
+
+<div class="grant-card">
+  <h4>SCORE Mentorship (Free)</h4>
+  <div class="amt">$0 cost — invaluable</div>
+  <p><strong>What it is:</strong> Free mentorship from retired business executives. They help with business plans, financials, loan packaging, and connecting to local resources. East Valley chapter is active.</p>
+  <p><strong>How to apply:</strong> score.org → "Find a Mentor" → select Mesa/Chandler location</p>
+  <p><strong>Timeline:</strong> Match within 1–2 weeks. Ongoing free meetings.</p>
+</div>
+
+<div class="grant-card">
+  <h4>Arizona Small Business Development Center (AZ SBDC)</h4>
+  <div class="amt">Free advising + loan packaging help</div>
+  <p><strong>What it is:</strong> Free one-on-one consulting at Mesa Community College campus. They will help you build the business plan, project cash flow, and prepare a loan application for any of the below.</p>
+  <p><strong>Contact:</strong> mesacc.edu/sbdc or (480) 784-0590</p>
+  <p><strong>Timeline:</strong> Get an appointment within 1–2 weeks.</p>
+</div>
+
+<div class="grant-card">
+  <h4>Prestamos CDFI (SBA Microloan)</h4>
+  <div class="amt">Up to $50,000</div>
+  <p><strong>What it is:</strong> SBA-backed microlender focused on Latino entrepreneurs in AZ. Flexible underwriting — they work with new businesses and people without perfect credit. Lower rates than commercial banks.</p>
+  <p><strong>Contact:</strong> prestamosloans.org | (602) 252-1822 | Phoenix office serves entire metro</p>
+  <p><strong>Requirements:</strong> Business plan, cash flow projections, personal ID. They will help you prepare if needed.</p>
+  <p><strong>Timeline:</strong> Decision in 2–4 weeks after complete application.</p>
+</div>
+
+<div class="grant-card">
+  <h4>SBA Microloan Program (via local intermediary)</h4>
+  <div class="amt">Up to $50,000</div>
+  <p><strong>What it is:</strong> SBA provides funds to non-profit intermediaries (like Prestamos) who lend to small businesses. Interest typically 8–13%. No collateral required for smaller amounts.</p>
+  <p><strong>How to access:</strong> Through Prestamos (above) or other AZ SBA intermediaries. Find at sba.gov/funding-programs/loans/microloans.</p>
+</div>
+
+<div class="grant-card">
+  <h4>City of Mesa Small Business Grant (check for current round)</h4>
+  <div class="amt">Amounts vary — check mesaaz.gov</div>
+  <p><strong>What it is:</strong> Mesa periodically opens small business grant rounds, sometimes focused on underserved communities or specific districts. Not always open — watch the city website.</p>
+  <p><strong>Contact:</strong> Mesa Economic Development, (480) 644-3233, mesaaz.gov/business</p>
+</div>
+
+<div class="grant-card">
+  <h4>Arizona Community Foundation — Small Business Grants</h4>
+  <div class="amt">Typically $2,500–$10,000</div>
+  <p><strong>What it is:</strong> Various grant programs through AZ Community Foundation, some focused on minority-owned businesses and food entrepreneurs.</p>
+  <p><strong>Contact:</strong> azfoundation.org</p>
+  <p><strong>Tip:</strong> Check the AZ Hispanic Chamber (azhcc.com) for grant listings specifically for Hispanic entrepreneurs.</p>
+</div>
+
+<div class="grant-card">
+  <h4>AZ Hispanic Chamber of Commerce — Resources</h4>
+  <div class="amt">Varies — access to lenders + grant alerts</div>
+  <p><strong>What it is:</strong> The AZHCC connects Hispanic business owners to lenders, grants, and networking. They often know about grant windows before they are widely publicized.</p>
+  <p><strong>Contact:</strong> azhcc.com | (602) 252-1022</p>
+</div>
+
+<div class="note-box">💡 <strong>Fastest path to cash:</strong> Call Prestamos first (they are used to helping new businesses) + book an SBDC appointment simultaneously. Have your menu, truck info, and a rough monthly expense estimate ready for both calls.</div>
+</div>
+
+<!-- ===== 6. EQUIPMENT ===== -->
+<div id="equipment" class="section">
+<h2>Equipment & Supplies Buy List</h2>
+<p style="color:var(--fg2);font-size:13px;">Everything not clearly confirmed present on the truck. NSF-listed items required by Maricopa County. Quantities are for a 50-order-per-shift Hispanic menu (burritos, tacos, tostadas, chorizo+eggs).</p>
+
+<h3>COOKING — CORE</h3>
+<div class="eq-grid">
+  <div class="eq-card">
+    <div class="name">Commercial Griddle</div>
+    <div class="spec">36" or 48" wide; NSF-listed; natural gas or propane; manual or thermostatic control</div>
+    <div class="why">Primary cook surface for chorizo, eggs, meat. Already may be on truck — verify NSF tag.</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Countertop Range / Burner</div>
+    <div class="spec">2-burner commercial (NSF); 60,000–90,000 BTU; fits under hood</div>
+    <div class="why">Heating beans, rice, sauces, water for sanitation</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Commercial Hood + Exhaust Fan</div>
+    <div class="spec">Must cover all cooking equipment; Type I (grease-rated); UL-listed</div>
+    <div class="why">Required by fire code over any open flame or high-heat cooking</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">K-Class Fire Suppression System</div>
+    <div class="spec">UL 300 listed; must cover hood; serviced within 6 months (tag required)</div>
+    <div class="why">Required by Mesa Fire IFC 319 for cooking with grease</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">K-Class Portable Fire Extinguisher</div>
+    <div class="spec">Minimum 1.5 gallon K-class; wall-mounted in accessible location</div>
+    <div class="why">Required in addition to suppression system</div>
+  </div>
+</div>
+
+<h3>REFRIGERATION / FOOD HOLDING</h3>
+<div class="eq-grid">
+  <div class="eq-card">
+    <div class="name">Undercounter Refrigerator</div>
+    <div class="spec">NSF-listed; holds 33–38°F; min 5 cu ft; for raw meat/eggs separate from prepped food</div>
+    <div class="why">Raw animal proteins must be stored below ready-to-eat food</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Prep Cooler / Cold Rail Insert</div>
+    <div class="spec">36"–48" refrigerated prep rail, NSF; holds toppings and prepped ingredients at 41°F or below</div>
+    <div class="why">For salsa, pico, cheese, sour cream, guac at service line — must stay cold during service</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Hotel Pans (1/3 size × 6)</div>
+    <div class="spec">Stainless, NSF; 4" depth; lids for each</div>
+    <div class="why">Toppings: pico, onion/cilantro, cheese, sour cream, jalapeños, salsa</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Hotel Pans (1/6 size × 4)</div>
+    <div class="spec">Stainless, NSF; 4" depth</div>
+    <div class="why">Smaller batch items: chorizo, guacamole, lime wedges</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Food-Grade Containers w/ Lids (6 qt × 6)</div>
+    <div class="spec">Cambro or equivalent; NSF; clear or white; label + date tape</div>
+    <div class="why">Prepped salsas, marinated meats, cooked beans for transport from commissary</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Squeeze Bottles (8 × 12 oz)</div>
+    <div class="spec">NSF; wide-mouth; labeled</div>
+    <div class="why">Salsa roja, salsa verde, crema, hot sauce at service — clean, controlled portioning</div>
+  </div>
+</div>
+
+<h3>FOOD PREP TOOLS</h3>
+<div class="eq-grid">
+  <div class="eq-card">
+    <div class="name">Cutting Boards</div>
+    <div class="spec">NSF; minimum 3 boards color-coded: red (raw meat), yellow (poultry/eggs), green (produce)</div>
+    <div class="why">County requires no cross-contamination; color coding is the standard practice</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Chef's Knives (3)</div>
+    <div class="spec">8" or 10" chef knife, serrated bread knife, paring knife; NSF handles</div>
+    <div class="why">Chopping onion, cilantro, avocado, tomatoes</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Stainless Tongs (6 pr)</div>
+    <div class="spec">12" and 9"; NSF</div>
+    <div class="why">Handling meat, tortillas, tacos at griddle; never touch cooked food with hands</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Spatulas / Turner (4)</div>
+    <div class="spec">Commercial fish spatula or burger turner; high-heat rated; NSF</div>
+    <div class="why">Griddle work — turning chorizo, eggs, carne</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Ladles (2 × 2 oz, 2 × 4 oz)</div>
+    <div class="spec">Stainless, NSF; hook handle</div>
+    <div class="why">Portioning beans, rice, salsas</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Tortilla Press / Warmer</div>
+    <div class="spec">Commercial tortilla warmer / foil warmer; or heated tortilla press if making fresh</div>
+    <div class="why">Keeping corn and flour tortillas warm and pliable during service</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Comal (if making fresh tortillas)</div>
+    <div class="spec">22"+ cast iron or steel comal; griddle-sized</div>
+    <div class="why">Optional — if you will press and cook tortillas to order</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Digital Instant-Read Thermometer (2)</div>
+    <div class="spec">NSF; reads to 220°F; ±1°F; with sanitizable probe</div>
+    <div class="why">Required by county — must verify internal temp of all cooked meat and eggs (165°F for poultry, 145°F for pork, 160°F for ground beef)</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Mixing Bowls (stainless, 3 sizes × 2 each)</div>
+    <div class="spec">8 qt, 5 qt, 3 qt; NSF</div>
+    <div class="why">Mixing fillings, holding prepped ingredients, tossing</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Portion Scoops (#12, #16, #24)</div>
+    <div class="spec">Stainless, NSF</div>
+    <div class="why">Consistent meat and filling portions — keeps costs predictable</div>
+  </div>
+</div>
+
+<h3>WATER / SANITATION SYSTEMS</h3>
+<div class="eq-grid">
+  <div class="eq-card">
+    <div class="name">3-Compartment Sink</div>
+    <div class="spec">NSF; minimum 3 compartments each 10"×14"×10" deep; with drain boards</div>
+    <div class="why">Required by county for wash/rinse/sanitize cycle on all equipment and utensils</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Handwashing Sink (dedicated)</div>
+    <div class="spec">NSF; separate from 3-compartment; self-contained or plumbed; with paper towels + soap</div>
+    <div class="why">Required by county — a dedicated handwash sink is non-negotiable; 3-comp sink does NOT count</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Fresh Water Tank</div>
+    <div class="spec">Minimum 30 gallons; NSF food-grade plastic; with pump or gravity feed to sinks</div>
+    <div class="why">County requires sufficient potable water for entire shift without resupply (or access to municipal)</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Gray Water Tank</div>
+    <div class="spec">Minimum 15% larger than fresh water tank (so min ~35 gal); sealed; separate from fresh</div>
+    <div class="why">County requires captured gray water — cannot dump on ground</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Water Heater (on-demand)</div>
+    <div class="spec">Propane or 12V demand water heater; must deliver 110°F minimum at handwash sink</div>
+    <div class="why">County requires hot water at handwash sink; cold water only = failed inspection</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Sanitizer Test Strips</div>
+    <div class="spec">Chlorine and/or quaternary ammonium; 100–200 strips</div>
+    <div class="why">Required to verify sanitizer concentration in 3-comp sink (50–100 ppm chlorine)</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">NSF Dish Soap</div>
+    <div class="spec">Commercial degreaser / dish detergent; food-safe</div>
+    <div class="why">3-comp sink wash step</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Unscented Bleach / Sanitizer Concentrate</div>
+    <div class="spec">Food-safe chlorine sanitizer; 1 gal</div>
+    <div class="why">3-comp sanitize step and surface sanitizing</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Hand Soap (liquid, unscented)</div>
+    <div class="spec">NSF or food-safe; dispenser at handwash sink</div>
+    <div class="why">County inspects handwash sink for soap and towels</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Paper Towels (roll × 4)</div>
+    <div class="spec">Standard; at handwash sink</div>
+    <div class="why">Required at handwash sink — cloth towels not permitted</div>
+  </div>
+</div>
+
+<h3>PACKAGING & SERVICE</h3>
+<div class="eq-grid">
+  <div class="eq-card">
+    <div class="name">Foil Sheets / Foil Wraps (case)</div>
+    <div class="spec">12"×10.75" dry wax or foil wrap; 1000/case</div>
+    <div class="why">Wrapping burritos for hand-held service</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Taco Holders / Boats (case)</div>
+    <div class="spec">Pulp or plastic taco tray; 3-slot; 500/case</div>
+    <div class="why">Serving tacos without mess — professional presentation</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Tostada Flat Trays</div>
+    <div class="spec">Open-top clamshell or flat tray; compostable or foam 5"×5"; 500/case</div>
+    <div class="why">Holding tostadas without toppings sliding off</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Napkins (5000/case)</div>
+    <div class="spec">1-ply dispenser napkins</div>
+    <div class="why">Essential at service window</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Condiment Packets (salsa, hot sauce)</div>
+    <div class="spec">Tapatio or Valentina 3/8 oz packets; or Cholula; 500/case</div>
+    <div class="why">Table-side sauces if not putting in squeeze bottles</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Disposable Gloves (box × 4)</div>
+    <div class="spec">Nitrile, food-safe, various sizes; 100/box</div>
+    <div class="why">Required when handling ready-to-eat food without further cooking</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Toothpicks / Cup of Sauce Cups (2 oz × 200)</div>
+    <div class="spec">2 oz portion cups with lids</div>
+    <div class="why">Sides of salsa/crema to go</div>
+  </div>
+</div>
+
+<h3>LOGS & COMPLIANCE PAPERWORK</h3>
+<div class="eq-grid">
+  <div class="eq-card">
+    <div class="name">Temperature Log Book</div>
+    <div class="spec">Daily; record fridge temps AM/PM and internal cook temps throughout shift</div>
+    <div class="why">County inspectors may ask to see logs; proves due diligence</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Commissary Daily Sign-In Log</div>
+    <div class="spec">Date, time in, time out, services used; signed per county agreement</div>
+    <div class="why">Required by Maricopa County commissary agreement</div>
+  </div>
+  <div class="eq-card">
+    <div class="name">Cleaning & Sanitizing Schedule</div>
+    <div class="spec">Posted in truck; daily/weekly cleaning tasks checked off</div>
+    <div class="why">Shows inspector the operation is managed proactively</div>
+  </div>
+</div>
+</div>
+
+<!-- ===== 7. LAYOUT ===== -->
+<div id="layout" class="section">
+<h2>Station Layout — El Otro Lado</h2>
+<p style="color:var(--fg2);font-size:13px;">1990 GMC step-van. Interior approximately 14 ft long × 7 ft wide × 6 ft ceiling. Single service window on passenger side. Rear doors. All dimensions approximate — tape your actual truck before purchasing.</p>
+
+<div class="note-box">📐 <strong>Tape your truck first.</strong> Before buying equipment, run masking tape on the counter marking where each station goes. Confirm the griddle + hood + suppression system all clear the ceiling. Verify the 3-comp and handwash sinks drain to your gray water tank.</div>
+
+<h3>LAYOUT DIAGRAM — TOP VIEW</h3>
+<div class="layout-svg-wrap">
+<svg viewBox="0 0 760 320" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:760px;display:block;margin:0 auto;">
+  <defs>
+    <style>
+      .wall { fill: #c0392b; }
+      .counter { fill: #b0c4de; stroke: #5a7fa0; stroke-width:1.5; }
+      .equip { fill: #f0f8ff; stroke: #2c5282; stroke-width:1.5; rx:4; }
+      .walkway { fill: #f5f5f0; }
+      .window-area { fill: #fff3cd; stroke: #f0952a; stroke-width:1.5; }
+      .label { font: 600 9px 'IBM Plex Sans', sans-serif; fill: #1a1510; text-anchor: middle; }
+      .label-sm { font: 500 8px 'IBM Plex Sans', sans-serif; fill: #4a4035; text-anchor: middle; }
+      .arrow { stroke: #888; stroke-width:1; fill: none; }
+      .dim { font: 400 8px 'IBM Plex Mono', monospace; fill: #888; text-anchor: middle; }
+    </style>
+  </defs>
+  <!-- Truck outline -->
+  <rect x="40" y="20" width="680" height="280" rx="10" fill="#e8e8e0" stroke="#888" stroke-width="2"/>
+  <!-- Driver cab -->
+  <rect x="40" y="20" width="100" height="280" rx="10" fill="#d0cfc8" stroke="#999" stroke-width="1.5"/>
+  <text x="90" y="165" class="label" transform="rotate(-90,90,165)">CAB (not food area)</text>
+  <!-- Left wall (driver/curb side) -->
+  <!-- Right wall (passenger / service window) -->
+  <!-- Service window marker -->
+  <rect x="360" y="260" width="160" height="38" fill="#fff3cd" stroke="#f0952a" stroke-width="2"/>
+  <text x="440" y="282" class="label">SERVICE WINDOW</text>
+  <text x="440" y="292" class="label-sm">(passenger side)</text>
+
+  <!-- Counter top along rear (driver) side -->
+  <!-- Zone A: Handwash sink — near cab partition -->
+  <rect x="150" y="32" width="80" height="70" rx="4" fill="#c8e6ff" stroke="#2c5282" stroke-width="1.5"/>
+  <text x="190" y="65" class="label">HANDWASH</text>
+  <text x="190" y="76" class="label">SINK</text>
+  <text x="190" y="86" class="label-sm">dedicated only</text>
+
+  <!-- Zone B: 3-comp sink -->
+  <rect x="235" y="32" width="130" height="70" rx="4" fill="#c8e6ff" stroke="#2c5282" stroke-width="1.5"/>
+  <text x="300" y="60" class="label">3-COMP SINK</text>
+  <text x="300" y="72" class="label-sm">Wash · Rinse · Sanitize</text>
+
+  <!-- Zone C: Under-counter Fridge raw -->
+  <rect x="150" y="110" width="80" height="60" rx="4" fill="#dce8ff" stroke="#2c5282" stroke-width="1.5"/>
+  <text x="190" y="136" class="label">FRIDGE</text>
+  <text x="190" y="147" class="label-sm">raw meat/eggs</text>
+  <text x="190" y="157" class="label-sm">41°F or below</text>
+
+  <!-- Zone D: Prep cooler / cold rail -->
+  <rect x="235" y="110" width="200" height="60" rx="4" fill="#dce8ff" stroke="#2c5282" stroke-width="1.5"/>
+  <text x="335" y="135" class="label">REFRIGERATED PREP RAIL</text>
+  <text x="335" y="147" class="label-sm">toppings: pico · cheese · crema · guac · salsa</text>
+  <text x="335" y="157" class="label-sm">held at 41°F or below during all service</text>
+
+  <!-- Zone E: Griddle station — center/main -->
+  <rect x="440" y="32" width="200" height="140" rx="4" fill="#ffe8e0" stroke="#c0392b" stroke-width="2"/>
+  <text x="540" y="80" class="label" style="font-size:10px;">🔥 GRIDDLE STATION</text>
+  <text x="540" y="95" class="label-sm">Commercial griddle (36–48")</text>
+  <text x="540" y="108" class="label-sm">Cooking: chorizo · eggs · carne</text>
+  <text x="540" y="120" class="label-sm">Hood suppression above</text>
+  <text x="540" y="133" class="label-sm">Thermometer + tongs within reach</text>
+  <text x="540" y="146" class="label-sm">Keep raw + cooked zones SEPARATE</text>
+  <text x="540" y="157" class="label-sm">Color-coded boards: red (raw) green (produce)</text>
+
+  <!-- Range burner -->
+  <rect x="645" y="32" width="85" height="80" rx="4" fill="#ffe8e0" stroke="#c0392b" stroke-width="1.5"/>
+  <text x="687" y="65" class="label">RANGE</text>
+  <text x="687" y="76" class="label-sm">2-burner</text>
+  <text x="687" y="87" class="label-sm">beans/rice</text>
+
+  <!-- Cold holding / completed orders -->
+  <rect x="645" y="120" width="85" height="52" rx="4" fill="#dce8ff" stroke="#2c5282" stroke-width="1.5"/>
+  <text x="687" y="143" class="label">PASS</text>
+  <text x="687" y="154" class="label-sm">completed</text>
+  <text x="687" y="164" class="label-sm">orders</text>
+
+  <!-- Walkway (operator zone) -->
+  <rect x="150" y="178" width="580" height="72" rx="0" fill="#f0f0ec" stroke="#ccc" stroke-width:"1"/>
+  <text x="440" y="218" class="label" style="fill:#aaa;font-size:9px;">OPERATOR WALKWAY (~30–36" wide)</text>
+
+  <!-- Service counter / window counter -->
+  <rect x="150" y="254" width="200" height="36" rx="4" fill="#fffbe8" stroke="#f0952a" stroke-width="1.5"/>
+  <text x="250" y="276" class="label">SERVICE COUNTER</text>
+
+  <!-- Squeeze bottles / order pickup -->
+  <rect x="355" y="254" width="115" height="36" rx="4" fill="#fffbe8" stroke="#f0952a" stroke-width="1.5"/>
+  <text x="412" y="270" class="label">SQUEEZE BOTTLES</text>
+  <text x="412" y="280" class="label-sm">salsas · crema · hot sauce</text>
+
+  <!-- Packaging area -->
+  <rect x="475" y="254" width="120" height="36" rx="4" fill="#eaffea" stroke="#1e7a4a" stroke-width="1.5"/>
+  <text x="535" y="270" class="label">PACKAGING</text>
+  <text x="535" y="280" class="label-sm">foil · trays · napkins</text>
+
+  <!-- Storage rear -->
+  <rect x="600" y="254" width="130" height="36" rx="4" fill="#f0e8f8" stroke="#888" stroke-width="1.5"/>
+  <text x="665" y="270" class="label">DRY STORAGE</text>
+  <text x="665" y="280" class="label-sm">tortillas · spices · paper</text>
+
+  <!-- Dimension labels -->
+  <text x="440" y="310" class="dim">← Interior approximately 14 ft (168") →</text>
+  <text x="25" y="165" class="dim" transform="rotate(-90,25,165)">~7 ft</text>
+</svg>
+</div>
+
+<h3>FLOW SEQUENCE DURING SERVICE</h3>
+<ol class="step-list">
+  <li><div class="step-detail"><span class="label">Order taken</span> <span class="note">At service window or written slip — call out to cook station</span></div></li>
+  <li><div class="step-detail"><span class="label">Protein pulled from raw fridge</span> <span class="note">Using color-coded board; immediately onto hot griddle. Never touch cooked food after touching raw.</span></div></li>
+  <li><div class="step-detail"><span class="label">Protein cooked to temp</span> <span class="note">Chorizo: 160°F internal; eggs: cook to 160°F (hard cooked for food safety); carne: per county requirements</span></div></li>
+  <li><div class="step-detail"><span class="label">Tortilla warmed</span> <span class="note">Comal or griddle; 15–30 seconds per side; kept in foil-lined insulated tortilla warmer</span></div></li>
+  <li><div class="step-detail"><span class="label">Assembly at service counter</span> <span class="note">Protein + toppings from cold rail → burrito/taco/tostada built; cheese, onion, cilantro, salsa added</span></div></li>
+  <li><div class="step-detail"><span class="label">Wrap/tray and hand off</span> <span class="note">Burrito wrapped in foil; tacos in taco boat; tostada in flat tray; passed through window to customer</span></div></li>
+  <li><div class="step-detail"><span class="label">After each order — wipe and sanitize</span> <span class="note">Wipe service counter with sanitizer solution; change gloves if touched raw protein</span></div></li>
+</ol>
+
+<h3>FOOD SAFETY TEMPERATURE RULES (Maricopa County)</h3>
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>Item</th><th>Required Temp</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Raw meat cold storage</td><td>41°F or below</td><td>Check 2× per shift; log it</td></tr>
+<tr><td>All cooked meats / poultry</td><td>165°F internal</td><td>Verify with thermometer; chorizo = ground = 160°F</td></tr>
+<tr><td>Cooked eggs (service)</td><td>145°F or 160°F</td><td>Cook to 160°F for safety margin; no runny eggs on truck</td></tr>
+<tr><td>Hot-held cooked food</td><td>135°F or above</td><td>If holding cooked beans/rice on steam table</td></tr>
+<tr><td>Cold toppings / salsa bar</td><td>41°F or below</td><td>Use refrigerated rail; replace every 4 hours if not refrigerated</td></tr>
+<tr><td>Handwash water minimum</td><td>100°F</td><td>Hot water at handwash sink — required by county</td></tr>
+<tr><td>Sanitizer solution (chlorine)</td><td>50–100 ppm</td><td>Test with strips each setup</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>CROSS-CONTAMINATION RULES</h3>
+<div class="card">
+  <p><strong>Raw storage order (top to bottom in fridge):</strong></p>
+  <p>Ready-to-eat (cheese, salsas, prepped veg) → Fish/seafood (if ever added) → Whole cuts beef/pork → Ground meat → Raw poultry / eggs at bottom</p>
+  <p style="margin-top:8px;"><strong>Color-coded cutting boards:</strong> Red = raw meat only. Green = produce only. Yellow = raw poultry/eggs only. NEVER swap.</p>
+  <p style="margin-top:8px;"><strong>Hand washing:</strong> After touching raw protein, after touching phone/money, after taking out trash, before putting on new gloves. Minimum 20 seconds with soap.</p>
+</div>
+</div>
+
+</div><!-- /main -->
+
+<script>
+function show(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  const tabs = ['repairs','permits','templates','commissary','grants','equipment','layout'];
+  const idx = tabs.indexOf(id);
+  document.querySelectorAll('.tab-btn')[idx].classList.add('active');
+}
+
+function copyTmpl(id) {
+  const el = document.getElementById(id);
+  const text = el.textContent;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).catch(() => selectText(el));
+  } else {
+    selectText(el);
+  }
+  const btn = el.previousElementSibling.querySelector('.copy-btn');
+  if (btn) { const orig = btn.textContent; btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = orig, 1800); }
+}
+
+function selectText(el) {
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+</script>
