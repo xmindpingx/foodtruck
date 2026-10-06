@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>El Otro Lado — Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--pink:#e83a73;--navy:#1b1546;--violet:#4b2c8f;--gold:#f2c14e;--bg:#120e33;--card:#1f1950;--line:rgba(255,255,255,.12)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#fff;font:15px Inter,system-ui,sans-serif}
+header{display:flex;align-items:center;gap:16px;padding:14px 20px;background:linear-gradient(90deg,var(--navy),var(--violet));border-bottom:4px solid var(--pink)}
+header h1{margin:0;font:400 28px 'UnifrakturMaguntia',serif}header span{opacity:.7}
+.tabs{display:flex;gap:6px;margin-left:auto}.tabs button{background:rgba(255,255,255,.1);border:0;color:#fff;padding:9px 16px;border-radius:999px;font:600 14px Inter;cursor:pointer}
+.tabs button.on{background:var(--pink)}
+main{max-width:1100px;margin:0 auto;padding:20px}
+.card{background:var(--card);border-radius:16px;padding:18px;margin-bottom:16px;box-shadow:inset 0 0 0 1px var(--line)}
+h2{margin:0 0 12px;font-size:18px}h3{margin:0;font-size:15px;color:#ff8fb3;letter-spacing:.08em;text-transform:uppercase}
+input,textarea,select{background:rgba(255,255,255,.08);border:1px solid var(--line);color:#fff;border-radius:10px;padding:9px 10px;font:14px Inter;width:100%}
+label{display:block;font-size:12px;opacity:.75;margin:10px 0 4px}
+button.b{border:0;border-radius:10px;padding:9px 14px;font:600 13px Inter;cursor:pointer;color:#fff;background:rgba(255,255,255,.12)}
+button.p{background:var(--pink)}button.g{background:#2e9d5b}button.r{background:#a8323e}
+button:disabled{opacity:.5;cursor:wait}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.item{display:grid;grid-template-columns:120px 1fr;gap:14px;padding:14px 0;border-top:1px solid var(--line)}
+.ph{width:120px;height:120px;border-radius:12px;background:#0c0a24 center/cover;display:grid;place-items:center;font-size:12px;opacity:.9;text-align:center;box-shadow:inset 0 0 0 1px var(--line)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.row>*{flex:1}.row .n{flex:0 0 110px}
+.chk{display:flex;gap:6px;align-items:center;flex:0 0 auto;font-size:13px}.chk input{width:auto}
+.bar{position:sticky;top:0;z-index:5;display:flex;gap:10px;align-items:center;padding:10px 0;background:var(--bg)}
+.muted{opacity:.65;font-size:13px}.ok{color:#6fe39a}.err{color:#ff7b8a}
+.order{display:grid;grid-template-columns:70px 1fr auto;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.num{font:800 28px Inter;color:var(--gold)}.st{font:700 11px Inter;padding:3px 8px;border-radius:999px;background:#333;text-transform:uppercase}
+.st.new{background:var(--pink)}.st.cooking{background:#d98a1c}.st.ready{background:#2e9d5b}.st.done{background:#555}.st.cancelled{background:#6b2030}
+.gen{margin-top:8px;padding:10px;border-radius:10px;background:rgba(0,0,0,.25);font-size:13px}
+.gen img{width:100%;max-width:320px;border-radius:10px;display:block;margin:8px 0}
+#login{max-width:360px;margin:12vh auto}
+</style>
+</head>
+<body>
+<div id="login" class="card">
+ <h2>El Otro Lado · Admin</h2>
+ <form id="lf"><label>Password</label><input type="password" id="pw" autofocus required><br><br><button class="b p" style="width:100%">Sign in</button><p id="lerr" class="err"></p></form>
+</div>
+
+<div id="app" hidden>
+<header><h1>el Otro Lado</h1><span>Admin</span>
+ <nav class="tabs"><button data-t="orders" class="on">Orders</button><button data-t="menu">Menu</button><button data-t="settings">Settings</button><button id="out">Sign out</button></nav>
+</header>
+<main>
+ <!-- ORDERS -->
+ <section data-tab="orders">
+  <div class="bar"><h2 style="margin:0;flex:1">Live orders</h2><label class="chk"><input type="checkbox" id="showDone"> show finished</label><span class="muted" id="ordUpd"></span></div>
+  <div class="card" id="orders"></div>
+ </section>
+
+ <!-- MENU -->
+ <section data-tab="menu" hidden>
+  <div class="bar"><h2 style="margin:0;flex:1">Menu listings</h2><button class="b" id="addCat">+ Category</button><button class="b p" id="saveMenu">Save menu</button><span id="menuMsg" class="muted"></span></div>
+  <div class="card"><h3>Protein choices</h3><label>Comma-separated — shown as a dropdown on items marked "protein choice"</label><input id="proteins"></div>
+  <div id="cats"></div>
+ </section>
+
+ <!-- SETTINGS -->
+ <section data-tab="settings" hidden>
+  <div class="bar"><h2 style="margin:0;flex:1">Settings</h2><button class="b p" id="saveSet">Save settings</button><span id="setMsg" class="muted"></span></div>
+  <div class="card"><h3>Business</h3><div class="grid">
+   <div><label>Business name</label><input data-s="businessName"></div>
+   <div><label>Tagline</label><input data-s="tagline"></div>
+   <div><label>Phone</label><input data-s="phone"></div>
+   <div><label>Email</label><input data-s="email"></div>
+   <div><label>Social (Instagram/Facebook)</label><input data-s="social"></div>
+   <div><label>Location</label><input data-s="location"></div>
+   <div><label>Hours</label><input data-s="hours"></div>
+  </div></div>
+  <div class="card"><h3>Online ordering</h3><div class="grid">
+   <div><label>Accepting online orders</label><label class="chk"><input type="checkbox" data-s="orderingOpen"> Open</label></div>
+   <div><label>Sales tax rate (decimal, e.g. 0.083 = 8.3%)</label><input data-s="taxRate" type="number" step="0.0001"></div>
+   <div style="grid-column:1/-1"><label>Checkout note</label><input data-s="orderNote"></div>
+  </div></div>
+  <div class="card"><h3>AI menu photos</h3>
+   <p class="muted">Ollama writes a photo description from each listing; the local FLUX.2 klein service on your GPU renders it. Generated photos are drafts — use them as previews until you have real photos of your food.</p>
+   <div class="grid">
+    <div><label>Enabled</label><label class="chk"><input type="checkbox" data-s="imageGenEnabled"> Allow AI photo generation</label></div>
+    <div><label>Ollama URL (local only)</label><input data-s="ollamaUrl"></div>
+    <div><label>Ollama model</label><input data-s="ollamaModel"></div>
+    <div><label>Image engine</label><select data-s="imageEngine"><option value="comfyui">ComfyUI (docker)</option><option value="flux-local">FLUX.2 klein service</option></select></div>
+    <div><label>ComfyUI URL (local only)</label><input data-s="comfyUrl"></div>
+    <div><label>ComfyUI model (blank = FLUX.2 klein 4B; or pick an SD checkpoint)</label><input data-s="comfyCheckpoint" list="ckpts"><datalist id="ckpts"></datalist></div>
+    <div><label>FLUX service URL (local only)</label><input data-s="imageServiceUrl"></div>
+    <div style="grid-column:1/-1"><label>Custom ComfyUI workflow (optional, API-format JSON; use %PROMPT% and %SEED%). Leave blank for the built-in text-to-image workflow.</label><textarea data-s="comfyWorkflow" rows="3" placeholder='{"3":{"class_type":"KSampler", ...}}'></textarea></div>
+    <div style="grid-column:1/-1"><label>Photo style (added to every prompt)</label><textarea data-s="photoStyle" rows="2"></textarea></div>
+   </div>
+   <p><button class="b" id="health">Check services</button> <span id="healthOut" class="muted"></span></p>
+  </div>
+  <div class="card"><h3>Admin password</h3><div class="row"><input type="password" id="newpw" placeholder="New password (8+ characters)"><button class="b p" id="setpw" style="flex:0 0 auto">Change</button></div><p id="pwMsg" class="muted"></p></div>
+ </section>
+</main>
+</div>
+
+<script>
+let TOKEN=sessionStorage.getItem('eol_admin')||'', MENU=null, SET=null, _ordInterval=null;
+const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function api(path,body){const r=await fetch(path,{method:body?'POST':'GET',headers:{'Content-Type':'application/json',Authorization:'Bearer '+TOKEN},body:body?JSON.stringify(body):undefined});
+  const j=await r.json().catch(()=>({error:'Bad response'}));if(r.status===401){logout();throw new Error('Signed out');}if(!r.ok)throw new Error(j.error||r.status);return j;}
+function logout(){clearInterval(_ordInterval);_ordInterval=null;TOKEN='';sessionStorage.removeItem('eol_admin');$('#app').hidden=true;$('#login').hidden=false;}
+$('#lf').onsubmit=async e=>{e.preventDefault();$('#lerr').textContent='';
+  const r=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:$('#pw').value})});const j=await r.json();
+  if(!r.ok)return $('#lerr').textContent=j.error;TOKEN=j.token;sessionStorage.setItem('eol_admin',TOKEN);start();};
+$('#out').onclick=()=>{api('/api/admin/logout',{}).catch(()=>{});logout();};
+document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-t]').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('[data-tab]').forEach(s=>s.hidden=s.dataset.tab!==b.dataset.t);});
+
+async function start(){$('#login').hidden=true;$('#app').hidden=false;
+  try{[MENU,SET]=await Promise.all([api('/api/admin/menu'),api('/api/admin/settings')]);}catch(e){return;}
+  renderMenu();renderSettings();loadOrders();clearInterval(_ordInterval);_ordInterval=setInterval(loadOrders,5000);}
+
+/* ---------- ORDERS ---------- */
+const money=n=>'$'+Number(n).toFixed(2);
+async function loadOrders(){if(!TOKEN)return;let os;try{os=await api('/api/admin/orders');}catch(e){return;}
+  const show=$('#showDone').checked;os=os.filter(o=>show||!['done','cancelled'].includes(o.status)).reverse();
+  $('#orders').innerHTML=os.length?os.map(o=>`<div class="order"><div class="num">#${o.number}</div><div>
+   <b>${esc(o.name)}</b> · <a style="color:#9fd" href="tel:${esc(o.phone)}">${esc(o.phone)}</a> · <span class="muted">${new Date(o.ts*1000).toLocaleTimeString()}</span> <span class="st ${o.status}">${o.status}</span> ${o.paid?'<span class="st ready">paid</span>':''}
+   <div>${o.items.map(i=>`${i.qty}× ${esc(i.name)}${i.protein?' — '+esc(i.protein):''}`).join('<br>')}</div>
+   ${o.notes?`<div class="muted">Note: ${esc(o.notes)}</div>`:''}<div class="muted">Total ${money(o.total)} (tax ${money(o.tax)})</div></div>
+   <div class="row" style="flex-direction:column;align-items:stretch;gap:6px">
+    ${['cooking','ready','done'].map(s=>`<button class="b ${s==='ready'?'g':''}" onclick="setOrder('${o.id}',{status:'${s}'})">${s}</button>`).join('')}
+    <button class="b" onclick="setOrder('${o.id}',{paid:${!o.paid}})">${o.paid?'unpaid':'mark paid'}</button>
+    <button class="b r" onclick="if(confirm('Cancel order #${o.number}?'))setOrder('${o.id}',{status:'cancelled'})">cancel</button></div></div>`).join('')
+   :'<p class="muted">No open orders.</p>';$('#ordUpd').textContent='updated '+new Date().toLocaleTimeString();}
+async function setOrder(id,ch){await api('/api/admin/order',{id,...ch});loadOrders();}
+$('#showDone').onchange=loadOrders;
+
+/* ---------- MENU ---------- */
+function renderMenu(){$('#proteins').value=(MENU.proteins||[]).join(', ');
+  $('#cats').innerHTML=(MENU.categories||[]).map((c,ci)=>`<div class="card">
+   <div class="row"><input value="${esc(c.name)}" oninput="MENU.categories[${ci}].name=this.value" style="font-weight:700">
+    <label class="chk"><input type="checkbox" ${c.hidden?'checked':''} onchange="MENU.categories[${ci}].hidden=this.checked"> hide</label>
+    <button class="b" style="flex:0 0 auto" onclick="mv(MENU.categories,${ci},-1)">↑</button><button class="b" style="flex:0 0 auto" onclick="mv(MENU.categories,${ci},1)">↓</button>
+    <button class="b" style="flex:0 0 auto" onclick="addItem(${ci})">+ Item</button>
+    <button class="b r" style="flex:0 0 auto" onclick="if(confirm('Delete category and its items?')){MENU.categories.splice(${ci},1);renderMenu()}">Delete</button></div>
+   ${(c.items||[]).map((it,ii)=>`<div class="item">
+     <div><div class="ph" style="background-image:url('${esc(it.image||'')}')">${it.image?'':'no photo'}</div>
+      <button class="b p" style="width:120px;margin-top:6px" id="gb-${ci}-${ii}" onclick="gen(${ci},${ii})" ${SET.imageGenEnabled?'':'disabled title="Turn on in Settings"'}>✨ AI photo</button>
+      ${it.image?`<button class="b" style="width:120px;margin-top:6px" onclick="MENU.categories[${ci}].items[${ii}].image='';renderMenu()">Remove photo</button>`:''}</div>
+     <div><div class="row"><input value="${esc(it.name)}" placeholder="Item name" oninput="I(${ci},${ii}).name=this.value">
+       <input class="n" type="number" step="0.01" min="0" value="${Number(it.price).toFixed(2)}" oninput="I(${ci},${ii}).price=parseFloat(this.value)||0"></div>
+      <label>Description</label><input value="${esc(it.desc)}" oninput="I(${ci},${ii}).desc=this.value">
+      <div class="row" style="margin-top:8px"><label class="chk"><input type="checkbox" ${it.protein?'checked':''} onchange="I(${ci},${ii}).protein=this.checked"> protein choice</label>
+       <label class="chk"><input type="checkbox" ${it.hidden?'checked':''} onchange="I(${ci},${ii}).hidden=this.checked"> sold out / hide</label>
+       <span class="muted" style="flex:0 0 auto">id: ${esc(it.id)}</span>
+       <button class="b" style="flex:0 0 auto" onclick="mv(MENU.categories[${ci}].items,${ii},-1)">↑</button><button class="b" style="flex:0 0 auto" onclick="mv(MENU.categories[${ci}].items,${ii},1)">↓</button>
+       <button class="b r" style="flex:0 0 auto" data-del-ci="${ci}" data-del-ii="${ii}">Delete</button></div>
+      <div id="gen-${ci}-${ii}"></div></div></div>`).join('')}</div>`).join('');}
+const I=(ci,ii)=>MENU.categories[ci].items[ii];
+function mv(a,i,d){const j=i+d;if(j<0||j>=a.length)return;[a[i],a[j]]=[a[j],a[i]];renderMenu();}
+function addItem(ci){(MENU.categories[ci].items=MENU.categories[ci].items||[]).push({id:'item'+Date.now().toString(36),name:'',desc:'',price:0});renderMenu();}
+// event delegation for delete-item buttons (avoids apostrophe injection in onclick strings)
+document.getElementById('cats').addEventListener('click',e=>{const btn=e.target.closest('[data-del-ci]');if(!btn)return;const ci=+btn.dataset.delCi,ii=+btn.dataset.delIi;const it=MENU.categories[ci]?.items[ii];if(!it)return;if(confirm('Delete "'+it.name+'"?')){MENU.categories[ci].items.splice(ii,1);renderMenu();}});
+$('#addCat').onclick=()=>{(MENU.categories=MENU.categories||[]).push({name:'New category',items:[]});renderMenu();};
+$('#proteins').oninput=e=>MENU.proteins=e.target.value.split(',').map(s=>s.trim()).filter(Boolean);
+$('#saveMenu').onclick=async()=>{$('#menuMsg').textContent='Saving…';try{await api('/api/admin/menu',MENU);MENU=await api('/api/admin/menu');renderMenu();$('#menuMsg').innerHTML='<span class="ok">Saved — live on the site.</span>';}catch(e){$('#menuMsg').innerHTML=`<span class="err">${esc(e.message)}</span>`;}};
+
+async function gen(ci,ii){const it=I(ci,ii),box=$(`#gen-${ci}-${ii}`),btn=$(`#gb-${ci}-${ii}`);
+  if(!it.name)return alert('Give the item a name first.');btn.disabled=true;box.innerHTML='<div class="gen">Starting…</div>';
+  try{const {job}=await api('/api/admin/genimage',{item:it});const t0=Date.now();
+    while(true){await new Promise(r=>setTimeout(r,2500));const j=await api('/api/admin/genjob/'+job);
+      if(j.status==='error')throw new Error(j.error);
+      if(j.status==='done'){const gd=document.createElement('div');gd.className='gen';const imgSrc=j.image,imgPrompt=j.prompt;
+        gd.innerHTML=`<b>Preview</b><img src="${esc(imgSrc)}" style="max-width:100%;border-radius:10px;display:block;margin:8px 0"><div class="muted">${esc(imgPrompt)}</div><br>`;
+        const useB=document.createElement('button');useB.className='b g';useB.textContent='Use this photo';
+        useB.addEventListener('click',()=>{I(ci,ii).image=imgSrc;renderMenu();$('#menuMsg').textContent='Photo set — click Save menu to publish.';});
+        const tryB=document.createElement('button');tryB.className='b';tryB.textContent='Try again';tryB.addEventListener('click',()=>gen(ci,ii));
+        const dscB=document.createElement('button');dscB.className='b';dscB.textContent='Discard';dscB.addEventListener('click',()=>gd.remove());
+        gd.append(useB,' ',tryB,' ',dscB);box.innerHTML='';box.appendChild(gd);break;}
+      box.innerHTML=`<div class="gen">${esc(j.status)}… ${Math.round((Date.now()-t0)/1000)}s${j.prompt?`<div class="muted">${esc(j.prompt)}</div>`:''}</div>`;}
+  }catch(e){box.innerHTML=`<div class="gen err">${esc(e.message)}</div>`;}finally{btn.disabled=false;}}
+
+/* ---------- SETTINGS ---------- */
+function renderSettings(){document.querySelectorAll('[data-s]').forEach(el=>{const v=SET[el.dataset.s];el.type==='checkbox'?el.checked=!!v:el.value=v??'';});
+  api('/api/admin/comfy-checkpoints').then(l=>$('#ckpts').innerHTML=l.map(n=>`<option value="${esc(n)}">`).join('')).catch(()=>{});}
+$('#saveSet').onclick=async()=>{const o={};document.querySelectorAll('[data-s]').forEach(el=>o[el.dataset.s]=el.type==='checkbox'?el.checked:el.type==='number'?parseFloat(el.value):el.value);
+  $('#setMsg').textContent='Saving…';try{await api('/api/admin/settings',o);SET=await api('/api/admin/settings');renderSettings();renderMenu();$('#setMsg').innerHTML='<span class="ok">Saved.</span>';}catch(e){$('#setMsg').innerHTML=`<span class="err">${esc(e.message)}</span>`;}};
+$('#health').onclick=async()=>{$('#healthOut').textContent='Checking…';const h=await api('/api/admin/imagegen-health');
+  $('#healthOut').innerHTML=`Ollama: ${h.ollama.error?'<span class="err">offline</span>':'<span class="ok">v'+esc(h.ollama.version)+'</span>'} · ComfyUI: ${h.comfyui.error?'<span class="err">offline</span>':'<span class="ok">online</span>'} · FLUX service: ${h.images.error?'<span class="err">offline</span>':'<span class="ok">online'+(h.images.loaded?', model loaded':', model loads on first use')+'</span>'}`;};
+$('#setpw').onclick=async()=>{try{await api('/api/admin/password',{password:$('#newpw').value});$('#pwMsg').innerHTML='<span class="ok">Password changed.</span>';$('#newpw').value='';}catch(e){$('#pwMsg').innerHTML=`<span class="err">${esc(e.message)}</span>`;}};
+
+if(TOKEN)start();
+</script>
+</body>
+</html>

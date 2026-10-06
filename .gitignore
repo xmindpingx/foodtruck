@@ -1,0 +1,13 @@
+# runtime state (orders, settings, admin password hash) — never commit
+data/
+__pycache__/
+*.pyc
+# AI-generated menu photos are runtime output
+img/menu/
+# aider scratch
+.aider.tags.cache.v4/
+.aider.chat.history.md
+.aider.input.history
+.aider.llm.history
+_to_delete/
+.env

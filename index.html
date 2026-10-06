@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>El Otro Lado — Food Truck · Mesa, AZ</title>
+<meta name="description" content="El Otro Lado — “The Other Side.” Family owned, signature choices. Mesa, Arizona food truck.">
+<link href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=Great+Vibes&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/site.css">
+<script type="importmap">{"imports":{"three":"./lib/three.module.js","three/addons/":"./lib/addons/"}}</script>
+</head>
+<body>
+<div id="load">el Otro Lado…</div>
+<canvas id="c"></canvas>
+<header>
+ <div class="brand">el Otro Lado<small>“The Other Side”</small></div>
+ <nav>
+  <button data-p="menu">Menu</button>
+  <button data-p="find">Find Us</button>
+  <button data-p="contact">Contact</button>
+  <button id="tour">Walk Around</button>
+  <button class="cta" data-p="menu">Order at the Window</button>
+ </nav>
+</header>
+
+<section class="panel" id="menu">
+ <button class="x">×</button>
+ <h2>Menú</h2><p class="script">Family Owned, Signature Choices</p>
+ <div class="tiles"></div>
+ <div id="menuItems"></div>
+ <div id="cart">
+  <h3 style="margin:18px 0 6px">Your Order</h3>
+  <div id="cartLines"><p class="muted">Tap + to add items.</p></div>
+  <div class="row"><span>Subtotal</span><b id="sub">$0.00</b></div>
+  <div class="row"><span id="taxLabel">Tax</span><b id="tax">$0.00</b></div>
+  <div class="row" style="font-size:18px"><span>Total</span><b id="tot">$0.00</b></div>
+  <form id="oform">
+   <input name="name" placeholder="Name for the order" required maxlength="40">
+   <input name="phone" placeholder="Phone (we text when it's ready)" required maxlength="20" inputmode="tel">
+   <textarea name="notes" rows="2" placeholder="Notes: no onions, extra salsa…" maxlength="200"></textarea>
+   <p class="muted">Pickup at the window. Pay when you pick up — card (Square) or cash.</p>
+   <button class="cta" style="width:100%" id="placeBtn">Place Order</button>
+  </form>
+  <div id="ordDone" style="display:none"></div>
+ </div>
+ <button id="cartBar" class="cta" hidden>View order</button>
+</section>
+<section class="panel" id="find">
+ <button class="x">×</button>
+ <h2>Find Us</h2><p class="script">See You On The Other Side!</p>
+ <div class="tiles"></div>
+ <div class="row"><span>City</span><b>Mesa, Arizona</b></div>
+ <div class="row"><span>Location</span><b id="cfgLoc"></b></div>
+ <div class="row"><span>Hours</span><b id="cfgHours"></b></div>
+</section>
+<section class="panel" id="contact">
+ <button class="x">×</button>
+ <h2>Contact Us</h2><p class="script">Catering · Events · Questions</p>
+ <div class="tiles"></div>
+ <div class="row"><span>Phone</span><b id="cfgPhone"></b></div>
+ <div class="row"><span>Email</span><b id="cfgEmail"></b></div>
+ <div class="row"><span>Social</span><b id="cfgSocial"></b></div>
+ <form id="cform"><input name="name" placeholder="Your name" required><input name="from" placeholder="Phone or email" required><textarea name="msg" rows="3" placeholder="Event date, headcount, question…" required></textarea><button class="cta" style="width:100%">Send</button></form>
+</section>
+<div id="hint">Drag to look around · scroll/pinch to zoom · tap the menu board to order</div>
+
+
+<script type="module" src="js/scene.js"></script>
+</body>
+</html>

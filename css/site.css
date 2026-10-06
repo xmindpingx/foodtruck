@@ -1,0 +1,42 @@
+:root{--pink:#e83a73;--navy:#1b1546;--violet:#4b2c8f;--sky:#2f8de4;--gold:#f2c14e;--ink:#fff}
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:#0d0a26;color:var(--ink);font-family:Inter,system-ui,sans-serif;overflow:hidden}
+#c{position:fixed;inset:0;display:block;touch-action:none}
+header{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:14px 18px;pointer-events:none;z-index:3}
+.brand{pointer-events:auto;font-family:'UnifrakturMaguntia',serif;font-size:clamp(26px,4vw,44px);text-shadow:0 2px 0 #000,0 0 18px rgba(232,58,115,.6)}
+.brand small{display:block;font-family:'Great Vibes',cursive;font-size:.55em;color:var(--gold);margin-top:-6px}
+nav{pointer-events:auto;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+nav button,.cta{border:0;border-radius:999px;padding:10px 16px;font:600 14px Inter;cursor:pointer;color:#fff;background:rgba(27,21,70,.75);backdrop-filter:blur(8px);box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.25)}
+nav button:hover{background:var(--pink)}
+.cta{background:var(--pink);box-shadow:0 6px 24px rgba(232,58,115,.5)}
+.panel{position:fixed;right:18px;top:84px;width:min(380px,calc(100vw - 32px));max-height:calc(100vh - 110px);overflow:auto;z-index:4;padding:22px;border-radius:20px;
+ background:linear-gradient(160deg,rgba(27,21,70,.94),rgba(75,44,143,.92));box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 0 0 2px rgba(232,58,115,.5);display:none}
+.panel.open{display:block;animation:in .25s ease}@keyframes in{from{opacity:0;transform:translateY(10px)}}
+.panel h2{margin:0 0 4px;font-family:'UnifrakturMaguntia',serif;font-weight:400;font-size:30px}
+.panel .script{font-family:'Great Vibes',cursive;color:var(--gold);font-size:22px;margin:0 0 14px}
+.panel .x{float:right;background:none;border:0;color:#fff;font-size:22px;cursor:pointer}
+.row{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px dashed rgba(255,255,255,.2)}
+.row b{color:var(--gold)}.muted{opacity:.7;font-size:13px}
+.cat{margin:16px 0 4px;font:800 13px Inter;letter-spacing:.12em;text-transform:uppercase;color:#ff8fb3}
+.item{display:flex;gap:10px;align-items:center;padding:9px 0;border-bottom:1px dashed rgba(255,255,255,.18)}
+.item .nm{flex:1}.item .nm small{display:block;opacity:.7;font-size:12px}
+.item select{background:rgba(255,255,255,.12);color:#fff;border:0;border-radius:8px;padding:4px;font:12px Inter;margin-top:4px}
+.item select option{color:#000}
+.add{border:0;border-radius:50%;width:32px;height:32px;background:var(--pink);color:#fff;font:800 18px Inter;cursor:pointer;flex:none}
+.qty{display:flex;align-items:center;gap:8px}.qty button{border:0;border-radius:8px;width:26px;height:26px;background:rgba(255,255,255,.15);color:#fff;cursor:pointer}
+#menu{width:min(440px,calc(100vw - 32px))}
+#cartBar{position:sticky;bottom:0;width:100%;margin-top:12px;border-radius:14px}
+#cartBar[hidden]{display:none}
+.tiles{height:10px;border-radius:6px;margin:14px 0;background:repeating-linear-gradient(90deg,var(--pink) 0 14px,var(--navy) 14px 18px,var(--pink) 18px 32px,var(--violet) 32px 36px)}
+form input,form textarea{width:100%;margin:6px 0;padding:10px;border-radius:10px;border:0;background:rgba(255,255,255,.1);color:#fff;font:14px Inter}
+#hint{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:3;font-size:13px;padding:8px 14px;border-radius:999px;background:rgba(0,0,0,.45);white-space:nowrap}
+#load{position:fixed;inset:0;display:grid;place-items:center;background:#0d0a26;z-index:9;font-family:'UnifrakturMaguntia',serif;font-size:42px;transition:opacity .6s}
+@media(max-width:640px){
+ header{flex-direction:column;align-items:stretch;gap:8px;padding:10px 12px}
+ .brand{font-size:26px;white-space:nowrap}.brand small{display:inline;margin:0 0 0 8px;font-size:.62em}
+ nav{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+ nav::-webkit-scrollbar{display:none}
+ nav button{flex:none;padding:8px 12px;font-size:13px}
+ .panel,#menu{top:104px;bottom:12px;left:12px;right:12px;width:auto;max-height:none}
+ #hint{white-space:normal;width:calc(100vw - 32px);text-align:center;font-size:12px;bottom:10px;border-radius:14px}
+ form input,form textarea,.item select{font-size:16px}   /* stops iPhone auto-zoom on focus */
+}

@@ -1,0 +1,31 @@
+# aider project config for /home/dad/www/foodtruck. Overrides ~/.aider.conf.yml
+# (which sets: architect mode, ollama_chat/gemma4:12b planning, qwen2.5-coder:7b editing).
+# Launch with ./start_aider.sh — it pre-warms both models on the RX 6800 and runs the tests.
+
+# Always in the chat, read-only. Keep both files short: they cost context on every turn.
+read:
+  - CONVENTIONS.md
+  - ARCHITECTURE.md
+
+# Context budget: the architect has 24k tokens. truck.js alone is ~8k, so keep the repo map
+# small and add only the file(s) the task needs with /add.
+map-tokens: 1536
+map-refresh: files
+
+# Built-in lint (python compile check) after each edit, plus a JS parse check.
+auto-lint: true
+lint-cmd:
+  - "js: node --check"
+
+# /test = offline smoke test (routes, security 404s, cart math). Not automatic.
+test-cmd: "bash tests/smoke.sh"
+auto-test: false
+
+# Local models: don't add a git commit message round-trip for every edit, keep diffs quiet.
+auto-commits: true
+attribute-author: false
+attribute-committer: false
+show-diffs: false
+stream: true
+
+# Files aider should never touch are in .aiderignore (data/, lib/, tex/, img/).

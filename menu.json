@@ -1,0 +1,41 @@
+{
+  "taxRate": 0.083,
+  "taxNote": "Mesa combined sales tax 8.30% (AZ state + Maricopa County + City of Mesa). Verify on AZTaxes.gov before launch.",
+  "priceSource": "Starter prices match the published menu of BARCOA taco truck, downtown Phoenix (barcoaphx.com), checked 2026-10-01. Adjust to your food cost.",
+  "proteins": ["Carne Asada", "Pollo Asado", "Carnitas"],
+  "categories": [
+    {
+      "name": "Tacos",
+      "items": [
+        {"id": "taco1", "name": "Street Taco", "desc": "Corn tortilla, onion, cilantro, salsa", "price": 5.00, "protein": true},
+        {"id": "taco3", "name": "3 Street Tacos", "desc": "Mix or match proteins", "price": 13.50, "protein": true}
+      ]
+    },
+    {
+      "name": "Burritos & Más",
+      "items": [
+        {"id": "burrito", "name": "Burrito", "desc": "Choice of meat, rice, beans, salsa", "price": 13.50, "protein": true},
+        {"id": "bean", "name": "Bean & Cheese Burrito", "desc": "Refried beans, melted cheese", "price": 8.50},
+        {"id": "quesa", "name": "Quesadilla", "desc": "Flour tortilla, cheese, choice of meat", "price": 13.50, "protein": true},
+        {"id": "fries", "name": "Loaded Fries", "desc": "Fries, meat, cheese, crema, pico", "price": 13.50, "protein": true}
+      ]
+    },
+    {
+      "name": "Antojitos",
+      "items": [
+        {"id": "chips", "name": "Chips & Salsa", "desc": "", "price": 4.00},
+        {"id": "guac", "name": "Chips & Guacamole", "desc": "", "price": 6.00},
+        {"id": "esquite", "name": "Esquite", "desc": "Street corn in a cup", "price": 6.00},
+        {"id": "churros", "name": "Churros", "desc": "Cinnamon sugar", "price": 6.00}
+      ]
+    },
+    {
+      "name": "Bebidas",
+      "items": [
+        {"id": "coke", "name": "Mexican Coke", "desc": "Glass bottle", "price": 4.00},
+        {"id": "jarritos", "name": "Jarritos", "desc": "Assorted flavors", "price": 3.50},
+        {"id": "water", "name": "Bottled Water", "desc": "", "price": 3.50}
+      ]
+    }
+  ]
+}

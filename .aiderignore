@@ -1,0 +1,12 @@
+# never shown to or edited by aider
+data/
+lib/
+tex/
+img/
+__pycache__/
+.aider.tags.cache.v4/
+.aider.chat.history.md
+.aider.input.history
+_to_delete/
+*.png
+*.jpg
