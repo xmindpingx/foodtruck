@@ -17,15 +17,19 @@ auto-lint: true
 lint-cmd:
   - "js: node --check"
 
-# /test = offline smoke test (routes, security 404s, cart math). Not automatic.
+# /test = offline smoke test (routes, security 404s, cart math): spins up server.py on a
+# spare port with throwaway data, never touches live data/ -- verified safe to automate.
+# auto-test: true so a claimed fix is actually checked, not just narrated.
 test-cmd: "bash tests/smoke.sh"
-auto-test: false
+auto-test: true
 
 # Local models: don't add a git commit message round-trip for every edit, keep diffs quiet.
 auto-commits: true
 attribute-author: false
 attribute-committer: false
-show-diffs: false
+# show-diffs: true -- show the real diff that was applied, not just the chat's
+# description of it (was false; flipped so a claimed change is always checked).
+show-diffs: true
 stream: true
 
 # Files aider should never touch are in .aiderignore (data/, lib/, tex/, img/).
