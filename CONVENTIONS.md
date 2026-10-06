@@ -9,7 +9,10 @@ Read `ARCHITECTURE.md` for what each file does. You only edit files in this repo
 1. Edit only inside this repo. Never touch `data/` (runtime JSON: orders, settings, admin
    password hash), `lib/` (vendored three.js), `tex/`, `img/`, or anything outside the repo.
 2. Never run `sudo`, `pm2`, `systemctl`, `docker`, `rm -rf`, or anything that restarts the
-   site. After your edits the human runs `pm2 restart foodtruck-site` themselves.
+   site. After your edits the human runs `pm2 restart foodtruck-site` themselves. Every
+   reply where you changed `server.py`, `admin.html`, `index.html`, `css/*`, or `js/*` MUST
+   end with a one-line reminder: "Restart needed: pm2 restart foodtruck-site". Skip the
+   reminder only for edits confined to `.md` files, `.aider.conf.yml`, or `tests/`.
 3. No secrets in code or in chat. Passwords, API tokens and keys live only in `data/` or the
    environment. Never print or hard-code them. Never weaken `/api/admin/*` auth.
 4. Never use placeholders (`your_value_here`, `<PORT>`, `path/to/file`). Use the real value
@@ -69,3 +72,7 @@ Read `ARCHITECTURE.md` for what each file does. You only edit files in this repo
   routes answer 200, the protected ones 404/401, and that cart math matches.
 - After the human restarts pm2, verify at https://food.signaturediversified.com/ and
   /admin.html on a phone-sized window too.
+- `start_aider.sh` also checks for you on exit: it diffs the commits made this session (and
+  any uncommitted changes) and prints a loud "RESTART NEEDED" reminder with the list of
+  changed files if anything changed, or says no restart is needed if nothing did. That is a
+  backstop, not a substitute for rule 2 above — say it in chat too.
