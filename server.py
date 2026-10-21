@@ -196,7 +196,21 @@ DEFAULT_SETTINGS = {
     "comfyCheckpoint": "",               # blank = first checkpoint ComfyUI lists
     "comfyWorkflow": "",                 # optional ComfyUI API-format JSON with %PROMPT% and %SEED% placeholders
     "photoStyle": "realistic food photography, served from a Mexican food truck in Mesa Arizona, "
-                  "natural daylight, shallow depth of field, close-up, appetizing, no text, no logos"
+                  "natural daylight, shallow depth of field, close-up, appetizing, no text, no logos",
+    # --- ComfyUI sampling / quality ---
+    "comfySamplingSteps": 25,
+    "comfyGuidanceScale": 7.5,
+    "comfySampler": "euler",
+    "comfyScheduler": "karras",
+    # --- ComfyUI image control ---
+    "comfyWidth": 512,
+    "comfyHeight": 512,
+    "comfyDenoise": 1.0,
+    "comfySeed": "random",
+    # --- ComfyUI performance ---
+    "comfyBatchSize": 1,
+    "comfyMemoryOptimization": "",       # "" = none, "sequential", "smart", "aggressive"
+    "comfyPrecision": "fp32"             # "fp32", "fp16", "fp8"
 }
 
 PUBLIC_SETTINGS = ('businessName', 'tagline', 'phone', 'email', 'social', 'location', 'hours',
@@ -241,9 +255,11 @@ def comfy_render(s, prompt, j):
             '1': {'class_type': 'CheckpointLoaderSimple', 'inputs': {'ckpt_name': ck}},
             '2': {'class_type': 'CLIPTextEncode', 'inputs': {'text': prompt, 'clip': ['1', 1]}},
             '3': {'class_type': 'CLIPTextEncode', 'inputs': {'text': neg, 'clip': ['1', 1]}},
-            '4': {'class_type': 'EmptyLatentImage', 'inputs': {'width': 768, 'height': 768, 'batch_size': 1}},
+            '4': {'class_type': 'EmptyLatentImage', 'inputs': {'width': int(s.get('comfyWidth', 768)), 'height': int(s.get('comfyHeight', 768)), 'batch_size': int(s.get('comfyBatchSize', 1))}},
             '5': {'class_type': 'KSampler', 'inputs': {'model': ['1', 0], 'positive': ['2', 0], 'negative': ['3', 0], 'latent_image': ['4', 0],
-                  'seed': seed, 'steps': 28, 'cfg': 6.5, 'sampler_name': 'dpmpp_2m', 'scheduler': 'karras', 'denoise': 1.0}},
+                  'seed': seed, 'steps': int(s.get('comfySamplingSteps', 28)), 'cfg': float(s.get('comfyGuidanceScale', 6.5)), 
+                  'sampler_name': s.get('comfySampler', 'dpmpp_2m'), 'scheduler': s.get('comfyScheduler', 'karras'), 
+                  'denoise': float(s.get('comfyDenoise', 1.0))}},
             '6': {'class_type': 'VAEDecode', 'inputs': {'samples': ['5', 0], 'vae': ['1', 2]}},
             '7': {'class_type': 'SaveImage', 'inputs': {'images': ['6', 0], 'filename_prefix': 'elotrolado_menu'}},
         }

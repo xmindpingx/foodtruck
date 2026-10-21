@@ -86,10 +86,27 @@ button:disabled{opacity:.5;cursor:wait}
     <div><label>ComfyUI URL (local only)</label><input data-s="comfyUrl"></div>
     <div><label>ComfyUI model (blank = FLUX.2 klein 4B; or pick an SD checkpoint)</label><input data-s="comfyCheckpoint" list="ckpts"><datalist id="ckpts"></datalist></div>
     <div><label>FLUX service URL (local only)</label><input data-s="imageServiceUrl"></div>
-    <div style="grid-column:1/-1"><label>Custom ComfyUI workflow (optional, API-format JSON; use %PROMPT% and %SEED%). Leave blank for the built-in text-to-image workflow.</label><textarea data-s="comfyWorkflow" rows="3" placeholder='{"3":{"class_type":"KSampler", ...}}'></textarea></div>
-    <div style="grid-column:1/-1"><label>Photo style (added to every prompt)</label><textarea data-s="photoStyle" rows="2"></textarea></div>
    </div>
-   <p><button class="b" id="health">Check services</button> <span id="healthOut" class="muted"></span></p>
+   <div style="margin-top:12px"><h3 style="margin-bottom:8px">Sampling / Quality</h3><div class="grid">
+    <div><label>Steps</label><input type="number" min="1" max="100" step="1" data-s="comfySamplingSteps" value="25"></div>
+    <div><label>Guidance scale (CFG)</label><input type="number" min="0" max="20" step="0.1" data-s="comfyGuidanceScale" value="7.5"></div>
+    <div><label>Sampler</label><input data-s="comfySampler" placeholder="euler, dpmpp_2m, etc."></div>
+    <div><label>Scheduler</label><input data-s="comfyScheduler" placeholder="normal, karras, simple, etc."></div>
+   </div></div>
+   <div style="margin-top:12px"><h3 style="margin-bottom:8px">Image Control</h3><div class="grid">
+    <div><label>Width (pixels)</label><input type="number" min="256" max="2048" step="64" data-s="comfyWidth" value="512"></div>
+    <div><label>Height (pixels)</label><input type="number" min="256" max="2048" step="64" data-s="comfyHeight" value="512"></div>
+    <div><label>Denoise (0–1)</label><input type="number" min="0" max="1" step="0.05" data-s="comfyDenoise" value="1.0"></div>
+    <div><label>Seed</label><input data-s="comfySeed" placeholder="random, or fixed number"></div>
+   </div></div>
+   <div style="margin-top:12px"><h3 style="margin-bottom:8px">Performance</h3><div class="grid">
+    <div><label>Batch size</label><input type="number" min="1" max="8" step="1" data-s="comfyBatchSize" value="1"></div>
+    <div><label>Memory optimization</label><select data-s="comfyMemoryOptimization"><option value="">None</option><option value="sequential">Sequential</option><option value="smart">Smart</option><option value="aggressive">Aggressive</option></select></div>
+    <div><label>Precision</label><select data-s="comfyPrecision"><option value="fp32">fp32 (highest quality)</option><option value="fp16">fp16 (balanced)</option><option value="fp8">fp8 (fastest)</option></select></div>
+   </div></div>
+   <div style="margin-top:12px;grid-column:1/-1"><label>Custom ComfyUI workflow (optional, API-format JSON; use %PROMPT% and %SEED%). Leave blank for the built-in text-to-image workflow.</label><textarea data-s="comfyWorkflow" rows="3" placeholder='{"3":{"class_type":"KSampler", ...}}'></textarea></div>
+   <div style="margin-top:8px;grid-column:1/-1"><label>Photo style (added to every prompt)</label><textarea data-s="photoStyle" rows="2"></textarea></div>
+   <p style="margin-top:12px"><button class="b" id="health">Check services</button> <span id="healthOut" class="muted"></span></p>
   </div>
   <div class="card"><h3>Admin password</h3><div class="row"><input type="password" id="newpw" placeholder="New password (8+ characters)"><button class="b p" id="setpw" style="flex:0 0 auto">Change</button></div><p id="pwMsg" class="muted"></p></div>
  </section>
@@ -118,7 +135,7 @@ const money=n=>'$'+Number(n).toFixed(2);
 let OUTBOX=[];   // notifyhub's current iPhone outbox snapshot, refreshed every poll alongside orders
 function smsBadge(o){
   if(!o.smsStatus) return '';
-  if(o.smsStatus==='no_consent') return '<div class="muted">No text — customer didn’t opt in.</div>';
+  if(o.smsStatus==='no_consent') return '<div class="muted">No text — customer didn't opt in.</div>';
   if(o.smsStatus==='bad_phone') return '<div class="err">⚠ No text — phone number invalid.</div>';
   if(o.smsStatus==='failed') return `<div class="err">⚠ Text failed: ${esc(o.smsError||'unknown error')} — click Ready again to retry.</div>`;
   if(o.smsStatus==='queued'){
