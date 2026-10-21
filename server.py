@@ -2,9 +2,9 @@
 """El Otro Lado site server: static files + menu/settings/order API + admin API.
 Run: python3 server.py  (listens on 127.0.0.1:8095; Cloudflare tunnel fronts it)
 """
-import json, os, secrets, hashlib, hmac, time, threading, re
+import json, os, secrets, hashlib, hmac, time, threading, re, base64
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA = os.environ.get('FOODTRUCK_DATA') or os.path.join(ROOT, 'data')   # tests point this at a temp dir
@@ -14,6 +14,147 @@ SESSIONS = {}            # token -> expiry
 SESSION_TTL = 12 * 3600
 FAILS = {}               # ip -> [count, first_ts]
 ORDER_HITS = {}          # ip -> [order timestamps]
+
+# ---------- inbound SMS (Twilio webhook) ----------
+# Public URL Twilio is configured to POST to (must match the Messaging Service's
+# inboundRequestUrl exactly - Twilio signs the request with this URL).
+SMS_INBOUND_PUBLIC_URL = os.environ.get('SMS_INBOUND_PUBLIC_URL',
+    'https://food.signaturediversified.com/api/sms/inbound')
+# The Twilio auth token lives in the shared sms-gateway's .env (same server, same owner) -
+# read it from there rather than keeping a second copy of the secret.
+_SMS_GATEWAY_ENV = os.environ.get('SMS_GATEWAY_ENV_PATH',
+    '/home/dad/AAAaiderstacks/sms-gateway/.env')
+
+def _twilio_auth_token():
+    try:
+        with open(_SMS_GATEWAY_ENV) as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith('TWILIO_AUTH_TOKEN='):
+                    return line.split('=', 1)[1].strip().strip('"\'')
+    except FileNotFoundError:
+        pass
+    return None
+
+def _twilio_signature_valid(signature, params):
+    """Twilio's request-validation algorithm: HMAC-SHA1 over the full URL with
+    POST params sorted by name and appended (name+value, no delimiter), base64-encoded."""
+    token = _twilio_auth_token()
+    if not token or not signature:
+        return False
+    s = SMS_INBOUND_PUBLIC_URL
+    for k in sorted(params.keys()):
+        s += k + params[k]
+    computed = base64.b64encode(hmac.new(token.encode(), s.encode(), hashlib.sha1).digest()).decode()
+    return hmac.compare_digest(computed, signature)
+
+def _xml_escape(s):
+    return (s or '').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+
+# ---------- order-ready SMS (A2P 10DLC campaign: one message per order) ----------
+# Consent is collected ONLY via the optional, unchecked-by-default checkbox at checkout
+# (index.html #smsConsent). Consent is not a condition of purchase: orders are accepted
+# without it, and the order-ready text is sent only when the box was checked.
+# SMS_CONSENT_VERSION is stored with each order so the proof-of-consent record says which
+# checkbox wording the customer agreed to. Bump it whenever the checkbox text changes.
+SMS_CONSENT_VERSION = '2026-10-20'
+
+def order_ready_sms(o):
+    """The one message this campaign sends. Must stay consistent with the sample messages
+    registered with Twilio/TCR: brand name + order-ready notice + opt-out instruction.
+    Customer-typed order notes are deliberately NOT echoed into the SMS."""
+    # Hardcoded on purpose: this must stay byte-identical to sample message #1 registered with
+    # Twilio/TCR for campaign QE2c6890da8086d771620e9b13fadeba0b. "(John Switzer)" is the registered
+    # Sole Proprietor brand name. Do not build it from the admin-editable businessName setting.
+    return (f"El Otro Lado (John Switzer): Order #{o['number']} is ready for pickup at the window! "
+            f"Reply STOP to opt out, HELP for help.")
+
+def send_order_ready_sms(o):
+    """Send the order-ready text if (and only if) this order opted in. Returns True if sent.
+    (Loads settings itself: the admin order handlers do not have a settings dict in scope -
+    the previous inline code raised NameError on `s` there, silently swallowed by its try/except.)"""
+    if not (o.get('smsConsent') or {}).get('agreed'):
+        print(f"Order {o['id']} (#{o['number']}): no SMS opt-in - not texting")
+        return False
+    if o.get('smsSentTs'):
+        print(f"Order {o['id']} (#{o['number']}): order-ready text already sent - not texting again")
+        return False
+    to = _e164(o.get('phone', ''))
+    if not to:
+        print(f"Order {o['id']} (#{o['number']}): phone not a valid US number - not texting")
+        return False
+    try:
+        _notifyhub_send(to, order_ready_sms(o))
+        o['smsSentTs'] = int(time.time())   # callers hold LOCK and save orders.json -> exactly one text per order
+        return True
+    except Exception as e:
+        print(f"Failed to send SMS for order {o['id']}: {str(e)}")
+        return False
+
+# ---------- notifyhub client (customer texts go out via the owner's iPhone, not Twilio) ----------
+# notifyhub (systemd --user aaservers-notifyhub, 127.0.0.1:8773) expects POST /send with header
+# X-Hub-Key and body {to (E.164), text, via}. via="phone" queues the text for the owner's iPhone
+# Shortcut ("Hub Send") to actually send from his own number - it never falls through to Fi or
+# Twilio. See /home/dad/aaservers/notifyhub/README.md. The key lives in ~/.secrets/notifyhub.key
+# (or env NOTIFYHUB_KEY).
+NOTIFYHUB_URL = os.environ.get('NOTIFYHUB_URL', 'http://127.0.0.1:8773')
+
+def _notifyhub_key():
+    k = os.environ.get('NOTIFYHUB_KEY', '').strip()
+    if k:
+        return k
+    try:
+        with open(os.path.expanduser('~/.secrets/notifyhub.key')) as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return ''
+
+def _notifyhub_send(to, message):
+    import urllib.request
+    payload = {'to': to, 'text': message, 'via': 'phone'}
+    r = urllib.request.Request(NOTIFYHUB_URL.rstrip('/') + '/send', data=json.dumps(payload).encode(),
+                               headers={'Content-Type': 'application/json', 'X-Hub-Key': _notifyhub_key()})
+    with urllib.request.urlopen(r, timeout=15) as resp:
+        out = json.loads(resp.read().decode() or '{}')
+    if not out.get('ok'):
+        raise RuntimeError(out.get('info') or 'notifyhub refused the send')
+    return out
+
+# ---------- sms-gateway client (Twilio - kept for other projects / fallback, NOT used by foodtruck) ----------
+# sms-gateway (pm2 `sms-gateway`, 127.0.0.1:4010) expects POST /send with header X-Gateway-Key
+# and body {project, to (E.164), message[, idempotency_key]}; the key lives in
+# ~/.secrets/sms-gateway.key (or env SMS_GATEWAY_KEY). See AAAaiderstacks/sms-gateway/CONVENTIONS.md.
+SMS_GATEWAY_URL = os.environ.get('SMS_GATEWAY_URL', 'http://127.0.0.1:4010')
+
+def _gateway_key():
+    k = os.environ.get('SMS_GATEWAY_KEY', '').strip()
+    if k:
+        return k
+    try:
+        with open(os.path.expanduser('~/.secrets/sms-gateway.key')) as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return ''
+
+def _e164(phone):
+    """US-only normalisation: '4805551234' / '(480) 555-1234' / '+14805551234' -> '+14805551234'."""
+    d = re.sub(r'\D', '', str(phone or ''))
+    if len(d) == 10:
+        return '+1' + d
+    if len(d) == 11 and d.startswith('1'):
+        return '+' + d
+    return None
+
+def _gateway_send(to, message, idempotency_key=None):
+    import urllib.request
+    payload = {'project': 'foodtruck', 'to': to, 'message': message}
+    if idempotency_key:
+        payload['idempotency_key'] = idempotency_key
+    r = urllib.request.Request(SMS_GATEWAY_URL.rstrip('/') + '/send', data=json.dumps(payload).encode(),
+                               headers={'Content-Type': 'application/json', 'X-Gateway-Key': _gateway_key()})
+    with urllib.request.urlopen(r, timeout=15) as resp:
+        return json.loads(resp.read().decode() or '{}')
 
 DEFAULT_SETTINGS = {
     "businessName": "El Otro Lado", "tagline": "The Other Side",
@@ -232,6 +373,25 @@ class H(SimpleHTTPRequestHandler):
         if exp and exp > time.time(): return True
         SESSIONS.pop(t, None); return False
 
+    def handle_sms_inbound(self):
+        """Twilio inbound-SMS webhook (Messaging Service inboundRequestUrl). Validates the
+        signature and replies with empty TwiML - there is no keyword opt-in on this number."""
+        n = int(self.headers.get('Content-Length') or 0)
+        if n > 20_000:
+            self.send_response(400); self.end_headers(); return
+        raw = self.rfile.read(n)
+        params = {k: v[0] for k, v in parse_qs(raw.decode('utf-8', 'replace')).items()}
+        if not _twilio_signature_valid(self.headers.get('X-Twilio-Signature', ''), params):
+            self.send_response(403); self.end_headers(); return
+        # No keyword opt-in: the checkout checkbox is the ONLY opt-in method registered with TCR, so every
+        # inbound text gets an empty TwiML response. STOP/START/HELP are handled by Twilio itself.
+        twiml = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>'
+        b = twiml.encode()
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/xml')
+        self.send_header('Content-Length', str(len(b)))
+        self.end_headers(); self.wfile.write(b)
+
     # ---------- routing ----------
     def do_GET(self):
         p = urlparse(self.path).path
@@ -239,6 +399,7 @@ class H(SimpleHTTPRequestHandler):
             return self.send_error(404)
         if p == '/api/menu':
             m = load('menu.json', {})
+            for k in ('taxNote', 'priceSource'): m.pop(k, None)   # internal notes, not for the public site
             m['categories'] = [{**c, 'items': [i for i in c.get('items', []) if not i.get('hidden')]} for c in m.get('categories', []) if not c.get('hidden')]
             return self.send_json(m)
         if p == '/api/settings':   # public: business info only, never internal service config
@@ -253,6 +414,9 @@ class H(SimpleHTTPRequestHandler):
             if p == '/api/admin/menu': return self.send_json(load('menu.json', {}))
             if p == '/api/admin/settings': return self.send_json({**DEFAULT_SETTINGS, **load('settings.json', {})})
             if p == '/api/admin/orders': return self.send_json(load('orders.json', [])[-300:])
+            if p.startswith('/api/admin/order/'):
+                o = next((o for o in load('orders.json', []) if o['id'] == p.rsplit('/', 1)[-1]), None)
+                return self.send_json(o if o else {'error': 'not found'}, 200 if o else 404)
             if p.startswith('/api/admin/genjob/'):
                 j = JOBS.get(p.rsplit('/', 1)[-1])
                 return self.send_json(j if j else {'error': 'not found'}, 200 if j else 404)
@@ -275,6 +439,9 @@ class H(SimpleHTTPRequestHandler):
                 return self.send_json(out)
             return self.send_error(404)
         if p == '/admin': self.path = '/admin.html'
+        # Real paths for the ordering panel / SMS opt-in (index.html's deep-link script reads the pathname):
+        # reviewers and link tools often drop URL fragments, so /order must work without '#'.
+        if p in ('/order', '/checkout', '/sms-optin', '/menu'): self.path = '/index.html'
         if not self.static_allowed(): return self.send_error(404)
         return super().do_GET()
 
@@ -284,6 +451,10 @@ class H(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         p = urlparse(self.path).path
+
+        if p == '/api/sms/inbound':
+            return self.handle_sms_inbound()
+
         try: data = self.body()
         except Exception: return self.send_json({'error': 'bad request'}, 400)
         if not isinstance(data, dict): return self.send_json({'error': 'bad request'}, 400)
@@ -295,6 +466,9 @@ class H(SimpleHTTPRequestHandler):
             phone = re.sub(r'[^\d+()\- ]', '', str(data.get('phone', '')))[:20]
             if not name or len(re.sub(r'\D', '', phone)) < 7:
                 return self.send_json({'error': 'Name and a valid phone are required.'}, 400)
+            # SMS opt-in is OPTIONAL (consent is not a condition of purchase). Record the
+            # customer's choice; the order-ready text is only sent if they checked the box.
+            sms_consent = bool(data.get('smsConsent'))
             # flood guard: max 6 orders per visitor per 10 minutes
             ip, now = self.ip(), time.time()
             ORDER_HITS[ip] = [t for t in ORDER_HITS.get(ip, []) if now - t < 600]
@@ -322,7 +496,9 @@ class H(SimpleHTTPRequestHandler):
                 num = (orders[-1]['number'] % 999 + 1) if orders else 1
                 o = {'id': secrets.token_hex(6), 'number': num, 'ts': int(time.time()), 'name': name, 'phone': phone,
                      'notes': str(data.get('notes', ''))[:200], 'items': lines, 'subtotal': sub_c / 100, 'tax': tax_c / 100,
-                     'total': (sub_c + tax_c) / 100, 'status': 'new', 'paid': False}
+                     'total': (sub_c + tax_c) / 100, 'status': 'new', 'paid': False,
+                     'smsConsent': {'agreed': sms_consent, 'ts': int(time.time()), 'ip': ip,
+                                    'method': 'web-checkout-checkbox', 'version': SMS_CONSENT_VERSION}}
                 ORDER_HITS[ip].append(now)
                 orders.append(o); save('orders.json', orders[-2000:])
             return self.send_json({'id': o['id'], 'number': num, 'total': o['total']})
@@ -367,7 +543,10 @@ class H(SimpleHTTPRequestHandler):
                 orders = load('orders.json', [])
                 for o in orders:
                     if o['id'] == data.get('id'):
-                        if data.get('status') in ('new', 'cooking', 'ready', 'done', 'cancelled'): o['status'] = data['status']
+                        if data.get('status') in ('new', 'cooking', 'ready', 'done', 'cancelled'):
+                            o['status'] = data['status']
+                            if data['status'] == 'ready':
+                                send_order_ready_sms(o)   # only texts customers who opted in
                         if 'paid' in data: o['paid'] = bool(data['paid'])
                 save('orders.json', orders)
             return self.send_json({'ok': True})
@@ -393,8 +572,32 @@ class H(SimpleHTTPRequestHandler):
             except FileNotFoundError: pass
             return self.send_json({'ok': True})
         if p == '/api/admin/logout':
+            pass
+            # Add new endpoint for order completion SMS
+        if p == '/api/admin/order-ready':
+            with LOCK:
+                orders = load('orders.json', [])
+                for o in orders:
+                    if o['id'] == data.get('id'):
+                        if o['status'] == 'ready':
+                            send_order_ready_sms(o)   # only texts customers who opted in, once
+                save('orders.json', orders)
             SESSIONS.pop((self.headers.get('Authorization') or '').removeprefix('Bearer ').strip(), None)
             return self.send_json({'ok': True})
+        if p == '/api/admin/sms/send':
+            # Admin "send SMS" button (admin.html). Reached only through the /api/admin/ gate above, so it
+            # is authenticated. (The old '/api/sms/send' path sat below that gate and always 404'd.)
+            if 'to' not in data or 'message' not in data:
+                return self.send_json({'error': 'Missing required fields'}, 400)
+            to = _e164(data['to'])
+            if not to:
+                return self.send_json({'error': 'Invalid phone number'}, 400)
+            try:
+                _notifyhub_send(to, str(data['message'])[:1600])
+                return self.send_json({'ok': True})
+            except Exception as e:
+                return self.send_json({'error': str(e)}, 500)
+            
         return self.send_error(404)
 
 if __name__ == '__main__':
