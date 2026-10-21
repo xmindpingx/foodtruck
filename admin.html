@@ -135,7 +135,7 @@ const money=n=>'$'+Number(n).toFixed(2);
 let OUTBOX=[];   // notifyhub's current iPhone outbox snapshot, refreshed every poll alongside orders
 function smsBadge(o){
   if(!o.smsStatus) return '';
-  if(o.smsStatus==='no_consent') return '<div class="muted">No text — customer didn't opt in.</div>';
+  if(o.smsStatus==='no_consent') return '<div class="muted">No text — customer didn\'t opt in.</div>';
   if(o.smsStatus==='bad_phone') return '<div class="err">⚠ No text — phone number invalid.</div>';
   if(o.smsStatus==='failed') return `<div class="err">⚠ Text failed: ${esc(o.smsError||'unknown error')} — click Ready again to retry.</div>`;
   if(o.smsStatus==='queued'){
