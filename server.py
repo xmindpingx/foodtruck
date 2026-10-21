@@ -71,11 +71,16 @@ def order_ready_sms(o):
             f"Reply STOP to opt out, HELP for help.")
 
 def send_order_ready_sms(o):
-    """Send the order-ready text if (and only if) this order opted in. Returns True if sent.
+    """Queue the order-ready text (via notifyhub -> the owner's iPhone) if this order opted in.
+    Returns True if it was successfully QUEUED - that is not the same as delivered, since the
+    owner still has to tap "Send via phone". Sets o['smsStatus'] so the admin UI can show and
+    poll real status instead of assuming a queued text went out:
+      'no_consent' | 'bad_phone' | 'queued' (see o['smsOutboxId']) | 'failed' (see o['smsError'])
     (Loads settings itself: the admin order handlers do not have a settings dict in scope -
     the previous inline code raised NameError on `s` there, silently swallowed by its try/except.)"""
     if not (o.get('smsConsent') or {}).get('agreed'):
         print(f"Order {o['id']} (#{o['number']}): no SMS opt-in - not texting")
+        o['smsStatus'] = 'no_consent'
         return False
     if o.get('smsSentTs'):
         print(f"Order {o['id']} (#{o['number']}): order-ready text already sent - not texting again")
@@ -83,13 +88,19 @@ def send_order_ready_sms(o):
     to = _e164(o.get('phone', ''))
     if not to:
         print(f"Order {o['id']} (#{o['number']}): phone not a valid US number - not texting")
+        o['smsStatus'] = 'bad_phone'
         return False
     try:
-        _notifyhub_send(to, order_ready_sms(o))
+        out = _notifyhub_send(to, order_ready_sms(o))
         o['smsSentTs'] = int(time.time())   # callers hold LOCK and save orders.json -> exactly one text per order
+        o['smsOutboxId'] = out.get('outboxId')
+        o['smsStatus'] = 'queued'
+        o.pop('smsError', None)
         return True
     except Exception as e:
         print(f"Failed to send SMS for order {o['id']}: {str(e)}")
+        o['smsStatus'] = 'failed'
+        o['smsError'] = str(e)[:200]
         return False
 
 # ---------- notifyhub client (customer texts go out via the owner's iPhone, not Twilio) ----------
@@ -111,6 +122,9 @@ def _notifyhub_key():
         return ''
 
 def _notifyhub_send(to, message):
+    """POST /send via=phone. notifyhub's response has no structured id field, just
+    info: "queued for your phone (<id>)" - pull the id out of that so we can later check
+    /sms for whether it's still sitting in the outbox (not sent) or gone (sent)."""
     import urllib.request
     payload = {'to': to, 'text': message, 'via': 'phone'}
     r = urllib.request.Request(NOTIFYHUB_URL.rstrip('/') + '/send', data=json.dumps(payload).encode(),
@@ -119,7 +133,18 @@ def _notifyhub_send(to, message):
         out = json.loads(resp.read().decode() or '{}')
     if not out.get('ok'):
         raise RuntimeError(out.get('info') or 'notifyhub refused the send')
+    m = re.search(r'\(([0-9a-f]{6,32})\)', out.get('info') or '')
+    out['outboxId'] = m.group(1) if m else None
     return out
+
+def _notifyhub_outbox():
+    """Current notifyhub iPhone outbox snapshot: [{id, to, text, ts}, ...]. An order's
+    smsOutboxId missing from this list means the Shortcut has sent it (or it expired)."""
+    import urllib.request
+    r = urllib.request.Request(NOTIFYHUB_URL.rstrip('/') + '/sms',
+                               headers={'X-Hub-Key': _notifyhub_key()})
+    with urllib.request.urlopen(r, timeout=10) as resp:
+        return json.loads(resp.read().decode() or '{}').get('outbox', [])
 
 # ---------- sms-gateway client (Twilio - kept for other projects / fallback, NOT used by foodtruck) ----------
 # sms-gateway (pm2 `sms-gateway`, 127.0.0.1:4010) expects POST /send with header X-Gateway-Key
@@ -420,6 +445,11 @@ class H(SimpleHTTPRequestHandler):
             if p.startswith('/api/admin/genjob/'):
                 j = JOBS.get(p.rsplit('/', 1)[-1])
                 return self.send_json(j if j else {'error': 'not found'}, 200 if j else 404)
+            if p == '/api/admin/sms/outbox':
+                # Lets admin.html tell "queued" from "actually sent": an order's smsOutboxId
+                # missing from this list means the owner's phone Shortcut has sent it.
+                try: return self.send_json({'outbox': _notifyhub_outbox()})
+                except Exception as e: return self.send_json({'outbox': [], 'error': str(e)}, 200)
             if p == '/api/admin/comfy-checkpoints':
                 s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
                 try:
@@ -539,6 +569,7 @@ class H(SimpleHTTPRequestHandler):
             with LOCK: save('settings.json', s)
             return self.send_json({'ok': True})
         if p == '/api/admin/order':
+            sms = None
             with LOCK:
                 orders = load('orders.json', [])
                 for o in orders:
@@ -546,10 +577,11 @@ class H(SimpleHTTPRequestHandler):
                         if data.get('status') in ('new', 'cooking', 'ready', 'done', 'cancelled'):
                             o['status'] = data['status']
                             if data['status'] == 'ready':
-                                send_order_ready_sms(o)   # only texts customers who opted in
+                                send_order_ready_sms(o)   # only texts customers who opted in; sets o['smsStatus']
+                                sms = {'status': o.get('smsStatus'), 'outboxId': o.get('smsOutboxId'), 'error': o.get('smsError')}
                         if 'paid' in data: o['paid'] = bool(data['paid'])
                 save('orders.json', orders)
-            return self.send_json({'ok': True})
+            return self.send_json({'ok': True, 'sms': sms})
         if p == '/api/admin/genimage':
             s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
             if not s.get('imageGenEnabled'): return self.send_json({'error': 'AI photos are turned off in Settings.'}, 403)

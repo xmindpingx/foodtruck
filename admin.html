@@ -115,18 +115,47 @@ async function start(){$('#login').hidden=true;$('#app').hidden=false;
 
 /* ---------- ORDERS ---------- */
 const money=n=>'$'+Number(n).toFixed(2);
+let OUTBOX=[];   // notifyhub's current iPhone outbox snapshot, refreshed every poll alongside orders
+function smsBadge(o){
+  if(!o.smsStatus) return '';
+  if(o.smsStatus==='no_consent') return '<div class="muted">No text — customer didn’t opt in.</div>';
+  if(o.smsStatus==='bad_phone') return '<div class="err">⚠ No text — phone number invalid.</div>';
+  if(o.smsStatus==='failed') return `<div class="err">⚠ Text failed: ${esc(o.smsError||'unknown error')} — click Ready again to retry.</div>`;
+  if(o.smsStatus==='queued'){
+    const pending=o.smsOutboxId&&OUTBOX.some(x=>x.id===o.smsOutboxId);
+    return pending?'<div class="muted">📲 Text queued — tap "Send via phone" on your phone.</div>'
+                  :'<div class="ok">✓ Texted (sent from your phone).</div>';
+  }
+  return '';
+}
 async function loadOrders(){if(!TOKEN)return;let os;try{os=await api('/api/admin/orders');}catch(e){return;}
+  try{OUTBOX=(await api('/api/admin/sms/outbox')).outbox||[];}catch(e){/* non-fatal: badges just show "queued" until the next poll succeeds */}
   const show=$('#showDone').checked;os=os.filter(o=>show||!['done','cancelled'].includes(o.status)).reverse();
   $('#orders').innerHTML=os.length?os.map(o=>`<div class="order"><div class="num">#${o.number}</div><div>
    <b>${esc(o.name)}</b> · <a style="color:#9fd" href="tel:${esc(o.phone)}">${esc(o.phone)}</a> · <span class="muted">${new Date(o.ts*1000).toLocaleTimeString()}</span> <span class="st ${o.status}">${o.status}</span> ${o.paid?'<span class="st ready">paid</span>':''}
    <div>${o.items.map(i=>`${i.qty}× ${esc(i.name)}${i.protein?' — '+esc(i.protein):''}`).join('<br>')}</div>
-   ${o.notes?`<div class="muted">Note: ${esc(o.notes)}</div>`:''}<div class="muted">Total ${money(o.total)} (tax ${money(o.tax)})</div></div>
+   ${o.notes?`<div class="muted">Note: ${esc(o.notes)}</div>`:''}<div class="muted">Total ${money(o.total)} (tax ${money(o.tax)})</div>${smsBadge(o)}</div>
    <div class="row" style="flex-direction:column;align-items:stretch;gap:6px">
     ${['cooking','ready','done'].map(s=>`<button class="b ${s==='ready'?'g':''}" onclick="setOrder('${o.id}',{status:'${s}'})">${s}</button>`).join('')}
     <button class="b" onclick="setOrder('${o.id}',{paid:${!o.paid}})">${o.paid?'unpaid':'mark paid'}</button>
     <button class="b r" onclick="if(confirm('Cancel order #${o.number}?'))setOrder('${o.id}',{status:'cancelled'})">cancel</button></div></div>`).join('')
    :'<p class="muted">No open orders.</p>';$('#ordUpd').textContent='updated '+new Date().toLocaleTimeString();}
 async function setOrder(id,ch){await api('/api/admin/order',{id,...ch});loadOrders();}
+async function sendSms(oid) {
+    const o = await api('/api/admin/order/' + oid);
+    const phone = o.phone || '1234567890'; // default placeholder
+    const message = `El Otro Lado (John Switzer): Order #${o.number} is ready for pickup at the window! Reply STOP to opt out, HELP for help.`;   // == registered sample #1
+    try {
+        await api('/api/admin/sms/send', {
+            to: phone,
+            message: message,
+            project: 'foodtruck'
+        });
+        document.getElementById(`o-${oid}`).textContent = '✓ SMS sent';
+    } catch(e) {
+        document.getElementById(`o-${oid}`).textContent = `✕ Error: ${e.message}`;
+    }
+}
 $('#showDone').onchange=loadOrders;
 
 /* ---------- MENU ---------- */
