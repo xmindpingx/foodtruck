@@ -67,8 +67,8 @@ def order_ready_sms(o):
     # Hardcoded on purpose: this must stay byte-identical to sample message #1 registered with
     # Twilio/TCR for campaign QE2c6890da8086d771620e9b13fadeba0b. "(John Switzer)" is the registered
     # Sole Proprietor brand name. Do not build it from the admin-editable businessName setting.
-    return (f"El Otro Lado (John Switzer): Order #{o['number']} is ready for pickup at the window! "
-            f"Reply STOP to opt out, HELP for help.")
+    msg = "El Otro Lado (John Switzer): Order #" + str(o['number']) + " is ready for pickup at the window! Reply STOP to opt out, HELP for help."
+    return str(msg)  # Ensure plain text, no rich text formatting
 
 def send_order_ready_sms(o):
     """Queue the order-ready text (via notifyhub -> the owner's iPhone) if this order opted in.
