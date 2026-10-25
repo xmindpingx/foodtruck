@@ -45,6 +45,9 @@ footer/hint pills that used to occupy the same bottom strip. */
 #eolHdPill{position:fixed;right:12px;bottom:44px;z-index:6;font:600 13px Inter,system-ui,sans-serif;padding:8px 12px;border-radius:999px;
   border:1px solid rgba(232,58,115,.55);background:rgba(20,12,26,.82);color:#f6e7c8;cursor:pointer}
 #eolHdPill:hover{background:rgba(72,22,46,.9)}
+#eolWalkHint{position:fixed;left:50%;bottom:64px;transform:translateX(-50%);z-index:6;pointer-events:none;
+  font:600 12px Inter,system-ui,sans-serif;letter-spacing:.02em;padding:7px 14px;border-radius:999px;
+  border:1px solid rgba(224,178,0,.55);background:rgba(20,16,10,.78);color:#f3e4b8}
 #eolHd{position:fixed;right:12px;bottom:84px;z-index:7;width:min(340px,88vw);max-height:70vh;overflow:auto;
   border:1px solid rgba(232,58,115,.5);border-radius:16px;background:rgba(16,10,22,.95);color:#f6e7c8;
   font:13px/1.4 Inter,system-ui,sans-serif;padding:10px 12px;box-shadow:0 8px 30px rgba(0,0,0,.5)}

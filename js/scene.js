@@ -213,25 +213,46 @@ const truckRig=T.group;
   cam.position.copy(camBase.clone().applyAxisAngle(axisY,truckRig.rotation.y).add(truckRig.position));
   ctl.target.copy(targetBase.clone().applyAxisAngle(axisY,truckRig.rotation.y).add(truckRig.position));}
 
-// ---------- truck boombox (music) + TV monitor (video) - admin-uploaded via /admin, see server.py
-// /api/admin/upload-media. Both are low-poly props built from primitives, mounted on the truck's
-// roof/wall so they move and rotate with it. Playback only starts once CONFIG says a file is set
-// (and, for audio, once the visitor taps the speaker button - browsers block audio autoplay).
+// ---------- truck boombox became a ground-standing jukebox (music) + TV monitors (video);
+// admin-uploaded via /admin, see server.py /api/admin/upload-media. Both are low-poly props
+// built from primitives; the jukebox stands on the serving-side ground (moved off the roof so
+// it doesn't crowd the truck line). Playback only starts once CONFIG says a file is set (and,
+// for audio, once the visitor taps the speaker button - browsers block audio autoplay).
 function buildBoombox(){
   const g=new THREE.Group();
-  const body=new THREE.Mesh(new THREE.BoxGeometry(.62,.26,.22),new THREE.MeshStandardMaterial({color:0x1c1c1c,roughness:.55}));g.add(body);
-  const grilleMat=new THREE.MeshStandardMaterial({color:0x3a3a3a,roughness:.6});
-  const coneMat=new THREE.MeshStandardMaterial({color:0x111111,roughness:.7});
+  const cab=new THREE.MeshStandardMaterial({color:0x5a1420,roughness:.35});   // cherry cabinet
+  const chrome=new THREE.MeshStandardMaterial({color:0xd8dadc,metalness:1,roughness:.2});
+  const glow=new THREE.MeshStandardMaterial({color:0xffb030,emissive:0xff9a20,emissiveIntensity:1.6,roughness:.3});
+  const dark=new THREE.MeshStandardMaterial({color:0x141414,roughness:.6});
+  // plinth + arched cabinet: box body capped by a flattened half-dome (classic juke silhouette)
+  const base=new THREE.Mesh(new THREE.BoxGeometry(.56,.06,.42),dark);base.position.y=.03;g.add(base);
+  const body=new THREE.Mesh(new THREE.BoxGeometry(.52,.78,.36),cab);body.position.y=.45;g.add(body);
+  const dome=new THREE.Mesh(new THREE.SphereGeometry(.26,20,12,0,Math.PI*2,0,Math.PI/2),cab);
+  dome.position.y=.84;dome.scale.set(1.0,.85,1.35);g.add(dome);
+  // glowing catalin arch tube + trim ring framing the front
+  const arch=new THREE.Mesh(new THREE.TorusGeometry(.235,.026,10,28,Math.PI),glow);
+  arch.position.set(0,.84,.30);g.add(arch);
+  const trimTop=new THREE.Mesh(new THREE.TorusGeometry(.25,.014,8,28,Math.PI),chrome);
+  trimTop.position.set(0,.84,.295);g.add(trimTop);
+  // glass belly: record stack + spinning platter behind an inset dark pane
+  const pane=new THREE.Mesh(new THREE.PlaneGeometry(.3,.52),new THREE.MeshPhysicalMaterial({color:0x0a1018,roughness:.05,metalness:.2,clearcoat:1,transparent:true,opacity:.85}));
+  pane.position.set(0,.5,.185);g.add(pane);
+  const platter=new THREE.Mesh(new THREE.CylinderGeometry(.11,.11,.012,20),dark);platter.position.set(0,.42,.2);g.add(platter);
+  const vinyl=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,.014,20),new THREE.MeshStandardMaterial({color:0x161616,roughness:.4}));
+  vinyl.position.set(0,.43,.2);g.add(vinyl);
+  const label=new THREE.Mesh(new THREE.CylinderGeometry(.032,.032,.016,14),new THREE.MeshStandardMaterial({color:0xe83a73,roughness:.5}));
+  label.position.set(0,.437,.2);g.add(label);
+  for(let i=0;i<3;i++){   // record magazines poking up behind the window
+    const rec=new THREE.Mesh(new THREE.CylinderGeometry(.085,.085,.02,18),new THREE.MeshStandardMaterial({color:0x1d1d1d,roughness:.5}));
+    rec.rotation.x=Math.PI/2;rec.position.set(-.05+i*.05,.6+i*.045,.16);g.add(rec);}
+  // side speaker grilles + chrome side bands, then the coin slot + button row on the front
   for(const sx of [-1,1]){
-    const spk=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,.03,20),grilleMat);spk.rotation.x=Math.PI/2;spk.position.set(sx*.2,0,.1);g.add(spk);
-    const cone=new THREE.Mesh(new THREE.CylinderGeometry(.06,.07,.03,16),coneMat);cone.rotation.x=Math.PI/2;cone.position.set(sx*.2,0,.12);g.add(cone);
-  }
-  const handle=new THREE.Mesh(new THREE.TorusGeometry(.17,.015,8,16,Math.PI),new THREE.MeshStandardMaterial({color:0x2b2b2b,metalness:.6,roughness:.4}));
-  handle.rotation.z=Math.PI;handle.position.set(0,.2,0);g.add(handle);
-  const ant=new THREE.Mesh(new THREE.CylinderGeometry(.006,.006,.4,6),new THREE.MeshStandardMaterial({color:0x888888,metalness:.7,roughness:.3}));
-  ant.position.set(.26,.3,-.05);ant.rotation.z=.15;g.add(ant);
-  for(let i=0;i<4;i++){const led=new THREE.Mesh(new THREE.SphereGeometry(.012,6,6),new THREE.MeshStandardMaterial({color:0x4af06a,emissive:0x4af06a,emissiveIntensity:.8}));
-    led.position.set(-.05+i*.03,.06,.11);g.add(led);}
+    const spk=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,.02,20),new THREE.MeshStandardMaterial({color:0x3a3a3a,roughness:.6}));
+    spk.rotation.z=Math.PI/2;spk.position.set(sx*.27,.5,0);g.add(spk);
+    const band=new THREE.Mesh(new THREE.BoxGeometry(.012,.78,.36),chrome);band.position.set(sx*.265,.45,0);g.add(band);}
+  const coin=new THREE.Mesh(new THREE.BoxGeometry(.05,.012,.006),chrome);coin.position.set(-.04,.13,.19);g.add(coin);
+  const btns=new THREE.Mesh(new THREE.BoxGeometry(.1,.05,.01),new THREE.MeshStandardMaterial({color:0xe8e2d4,roughness:.5}));
+  btns.position.set(.03,.125,.19);g.add(btns);
   g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});
   return g;
 }
@@ -243,9 +264,11 @@ function buildTVMonitor(){
   g.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});
   return {group:g,screenMesh:screen};
 }
-const boombox=buildBoombox();
-boombox.position.set(bx0+.3,FLOOR+BH+.14,BW/2-.35);boombox.rotation.y=.25;   // sitting on the box roof, near the service-window side
-truckRig.add(boombox);
+const jukebox=buildBoombox();
+// ground-standing jukebox on the serving-side lawn — off the roof, clear of the counter, off
+// the menu board's sightline and out of the walk-up lane
+jukebox.position.set(bx0+BL/2-1.9,0,-BW/2-1.05);jukebox.rotation.y=Math.PI;
+truckRig.add(jukebox);
 // TV monitors: two hang on both cab side walls, just over the side windows near the front
 // (leaning slightly against the roofline); the service wall TV is tucked in the clear strip
 // ahead of the window; front/rear end caps each carry one.
@@ -579,7 +602,7 @@ function buildStage(o={}){
   const lampM=new THREE.MeshStandardMaterial({color:0x111111,metalness:.5});
   const hues=[0xff4d6d,0x4dd2ff,0xffd24d,0x7dff4d,0xb44dff];
   const lasers=[];
-  const nL=Math.max(6,Math.round(W*.9));
+  const nL=Math.max(3,Math.round(W*.2));   // thin beams, not a wall of light (reduced on request)
   for(let i=0;i<nL;i++){
     const lx=-W/2+0.6+i*(W-1.2)/(nL-1),big=H+towerH-.3;
     const lamp=new THREE.Mesh(new THREE.ConeGeometry(.2,.36,10),lampM);lamp.rotation.x=Math.PI*.7;lamp.position.set(lx,big,-D/2+0.35);g.add(lamp);
@@ -587,11 +610,11 @@ function buildStage(o={}){
     const spot=new THREE.SpotLight(hues[i%hues.length],5,14,.55,.45,1.3);spot.position.copy(lamp.position);spot.target=tgt;g.add(spot);
     // laser beam: a fat additive-blended cylinder, parented to the lamp so it inherits its
     // base aim, with its own sweep animated in the render loop. Scales up with stage width.
-    const laserLen=1.1*(D/2+H+towerH+towerH*.4);
+    const laserLen=.85*(D/2+H+towerH+towerH*.4);
     const laser=new THREE.Mesh(new THREE.CylinderGeometry(.02*k+.012,.085*k+.05,laserLen,8),
-      new THREE.MeshBasicMaterial({color:hues[i%hues.length],transparent:true,opacity:.55,blending:THREE.AdditiveBlending,depthWrite:false}));
+      new THREE.MeshBasicMaterial({color:hues[i%hues.length],transparent:true,opacity:.3,blending:THREE.AdditiveBlending,depthWrite:false}));
     laser.position.y=laserLen/2;lamp.add(laser);
-    lasers.push({mesh:laser,phase:Math.random()*Math.PI*2,speed:.35+Math.random()*.5,axis:i%2?'x':'z',amp:.5+Math.random()*.45});
+    lasers.push({mesh:laser,phase:Math.random()*Math.PI*2,speed:.35+Math.random()*.5,axis:i%2?'x':'z',amp:.3+Math.random()*.28});
   }
   // PA stacks
   const paM=new THREE.MeshStandardMaterial({color:0x151515,roughness:.85});
@@ -634,16 +657,38 @@ function tickSmoke(parts,dt){
     }
   }
 }
-// placed out in the open grass, clear of the truck's saved spot, fronts the truck+crowd zone.
-// It carries the uploaded TV video on its backdrop, fat sweeping laser beams off the truss
-// lamps, an animated performer mid-deck, and random fog-machine smoke puffs.
-const stageRB=buildStage({W:18,D:8,H:1});const stageBack=stageRB.group;stageBack.position.set(14,0,-78);S.add(stageBack);
+// placed on the horizon, fronting the truck+crowd zone along the painted-desert azimuth so it
+// reads as THE make-shift festival stage (the only one - owner nixed a small truck-side stage):
+// uploaded TV video across its backdrop, fat sweeping laser beams off the truss lamps,
+// colored spotlights, an animated performer mid-deck, and random fog-machine smoke puffs.
+const stageRB=buildStage({W:32,D:13,H:2});const stageBack=stageRB.group;stageBack.position.set(8,0,-47);S.add(stageBack);
 if(sharedVideoTexture){   // same uploaded TV video, playing across the big stage's backdrop
-  stageRB.backdrop.material=new THREE.MeshBasicMaterial({map:sharedVideoTexture,side:THREE.DoubleSide});
+  stageRB.backdrop.material=new THREE.MeshBasicMaterial({map:sharedVideoTexture,side:THREE.DoubleSide,fog:false});
 }
+// the performing band on the deck: lead vocal center-front, two players flanking, and a
+// drummer behind a riser-mounted kit at the back. Every figure rides the same dance pulse
+// in the render loop (ALL_PERFORMERS), so the whole band moves together.
+const bandee=(skin,shirt,pants,x,y,z)=>{const m=buildWaitingPerson(skin,shirt,pants);
+  m.position.set(x,y,z);m.userData.baseY=y;stageBack.add(m);return m;};
 const ALL_LASERS=stageRB.lasers;
-const ALL_PERFORMERS=[stageRB.performer];
-const ALL_SMOKE=[buildSmoke(stageBack,12)];
+const ALL_PERFORMERS=[
+  bandee(0xe8b98a,0xff2fa0,0x2b1b3a,0,2.24,2.3),          // lead vocal
+  bandee(0xa8714a,0x4fc3d9,0x374a6b,-7.2,2.24,2.9),       // stage-left player
+  bandee(0xc0724a,0xf2c14e,0x232323,7.0,2.24,2.8),        // stage-right player
+  bandee(0x8a5a35,0x2e8b3d,0x1a1a1a,0,2.48,-3.35)         // drummer, up on the riser
+];
+{ // drum riser: plinth + kick out front with a head, snare, two toms and a cymbal on a stand
+  const riser=new THREE.Mesh(new THREE.BoxGeometry(2.2,.24,1.5),new THREE.MeshStandardMaterial({color:0x1b1410,roughness:.9}));riser.position.set(0,2.12,-2.9);stageBack.add(riser);
+  const shellM=new THREE.MeshStandardMaterial({color:0x8a1b2e,roughness:.35});
+  const hdM=new THREE.MeshStandardMaterial({color:0xe8e2d4,roughness:.5});
+  const kick=new THREE.Mesh(new THREE.CylinderGeometry(.34,.34,.5,18),shellM);kick.rotation.x=Math.PI/2;kick.position.set(0,2.58,-2.55);stageBack.add(kick);
+  const kickF=new THREE.Mesh(new THREE.CylinderGeometry(.30,.30,.02,18),hdM);kickF.rotation.x=Math.PI/2;kickF.position.set(0,2.58,-2.29);stageBack.add(kickF);
+  const snare=new THREE.Mesh(new THREE.CylinderGeometry(.23,.23,.16,16),shellM);snare.position.set(-.44,2.72,-2.75);stageBack.add(snare);
+  for(const [tx,ty] of [[-.26,3.0],[.3,3.02]]){const tom=new THREE.Mesh(new THREE.CylinderGeometry(.19,.19,.2,14),shellM);tom.rotation.x=.5;tom.position.set(tx,ty,-2.95);stageBack.add(tom);}
+  const cymbal=new THREE.Mesh(new THREE.CylinderGeometry(.28,.3,.014,14),new THREE.MeshStandardMaterial({color:0xd9b23a,metalness:.85,roughness:.3}));cymbal.position.set(.5,3.06,-2.62);stageBack.add(cymbal);
+  const stand=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,.52,6),new THREE.MeshStandardMaterial({color:0x777,metalness:.7,roughness:.3}));stand.position.set(.5,2.56,-2.62);stageBack.add(stand);
+}
+const ALL_SMOKE=[buildSmoke(stageBack,24)];
 
 // ---------- crowd: random loose clusters of festival-goers filling the open ground between
 // the house/truck cluster and the two stages. Same low-poly figure as the truck's queue, just
@@ -661,13 +706,60 @@ function spawnCrowd(cx,cz,n){
     person.position.set(cx+(Math.random()-.5)*2.6,.24,cz+(Math.random()-.5)*2.6);
     person.rotation.y=Math.random()*Math.PI*2;
     S.add(person);
+    if(Math.random()<.45) lightPipe(person);   // festival-goers puffing hand pipes
   }
 }
-// south ground (toward stageFront) and north ground (toward stageBack), both clear of the
-// house/fence (x:[-17,17] z:[-45,-8]) and the truck's current spot. Thinned to one figure per
-// cluster (~26 on the field) - the dense mass of the festival now lives in the panorama.
-for(let i=0;i<13;i++) spawnCrowd(-28+Math.random()*72, -4+Math.random()*30, 1);
-for(let i=0;i<13;i++) spawnCrowd(-28+Math.random()*72, -67+Math.random()*18, 1);
+// ----------
+// pipe smokers: a bowl-and-stem pipe held to the mouth, plus two staggered smoke puffs that
+// rise off the bowl and fade instead of one shared fog-machine plume. Per-puff sprite
+// material so each puff fades on its own; the shared texture keeps it cheap.
+const ALL_PUFFS=[];
+{const pc=document.createElement('canvas');pc.width=pc.height=64;
+ const pg=pc.getContext('2d');const pgr=pg.createRadialGradient(32,32,0,32,32,32);
+ pgr.addColorStop(0,'rgba(235,235,238,.85)');pgr.addColorStop(.45,'rgba(230,230,235,.4)');pgr.addColorStop(1,'rgba(230,230,235,0)');
+ pg.fillStyle=pgr;pg.fillRect(0,0,64,64);
+ window.__EOL_PUFF_TEX=new THREE.CanvasTexture(pc);
+}
+const _pd=new THREE.Vector3(),_pu=new THREE.Vector3(0,1,0);
+function lightPipe(person){
+  const wood=new THREE.MeshStandardMaterial({color:0x7a4a28,roughness:.65});
+  const pipe=new THREE.Group();
+  const bowl=new THREE.Mesh(new THREE.SphereGeometry(.05,8,6),wood);bowl.scale.y=.8;pipe.add(bowl);
+  const rim=new THREE.Mesh(new THREE.CylinderGeometry(.052,.048,.022,8),new THREE.MeshStandardMaterial({color:0xd9d9d9,metalness:.7,roughness:.35}));
+  rim.position.y=.028;pipe.add(rim);
+  const stem=new THREE.Mesh(new THREE.CylinderGeometry(.013,.013,.2,6),wood);
+  _pd.set(-.16,.05,-.09).normalize();                 // bowl -> mouth direction, angled down-back
+  stem.quaternion.setFromUnitVectors(_pu,_pd);
+  stem.position.copy(_pd.clone().multiplyScalar(.1));pipe.add(stem);
+  pipe.position.set(.16,.85,.14);pipe.rotation.y=.5;person.add(pipe);   // hand-held at head height
+  const puffA=new THREE.Vector3(.2,.94,.17);
+  for(let j=0;j<3;j++){   // three staggered puffs per smoker so the drift reads continuous
+    const spr=new THREE.Sprite(new THREE.SpriteMaterial({map:window.__EOL_PUFF_TEX,transparent:true,depthWrite:false,opacity:0}));
+    spr.visible=false;spr.position.copy(puffA);person.add(spr);
+    ALL_PUFFS.push({spr,t:.4+j*2.2+Math.random()*2,age:0,life:0});
+  }
+}
+function tickPuff(p,dt){
+  if(p.life>0){                                       // rising, drifting, fading puff
+    p.age+=dt;const k=p.age/p.life;
+    p.spr.position.y=.95+k*.62;p.spr.position.x=.2+k*.15;
+    const s=.2+k*.6;p.spr.scale.set(s,s,1);
+    p.spr.material.opacity=Math.sin(Math.min(1,k)*Math.PI)*.55;
+    if(k>=1){p.life=0;p.spr.visible=false;p.t=2+Math.random()*5;}   // then wait between puffs
+  }else{
+    p.t-=dt;
+    if(p.t<=0){p.life=2.7;p.age=0;p.spr.visible=true;p.spr.material.opacity=0;p.spr.position.set(.2,.95,.17);}
+  }
+}
+// south ground (toward the stage pit) and pass-around packs, clear of the house/fence
+// (x:[-17,17] z:[-45,-8]), the truck's current spot and the lawn table ring. Thinned to one
+// figure per cluster - the dense mass of the festival lives in the panorama. Everyone fronts
+// the stage's truck-facing side now: a wide pit band across the full deck width plus flank
+// packs at either end - nobody hangs behind the deck.
+for(let i=0;i<13;i++) spawnCrowd(-28+Math.random()*72, -4+Math.random()*24, 1);
+for(let i=0;i<22;i++) spawnCrowd(-8+Math.random()*32, -38.5+Math.random()*8, 1);    // pit, at the stage front
+for(let i=0;i<5;i++) spawnCrowd(-14.5+Math.random()*5, -38+Math.random()*7, 1);     // west flank pack
+for(let i=0;i<5;i++) spawnCrowd(26.5+Math.random()*5, -38+Math.random()*7, 1);      // east flank pack
 
 // ~200 extra festival-goers ringing the big stage - but cheap: two InstancedMeshes (bodies +
 // heads) is the whole thing, two draw calls, no per-frame updates, no shadow casters. Phones
@@ -771,8 +863,17 @@ function buildBooth(name,hue){
 
 // ---------- interaction ----------
 const ray=new THREE.Raycaster(),m2=new THREE.Vector2();
+// taps vs drags: orbiting the camera ends with a click event; without this guard merely
+// spinning the view over a table/car/menu would fire their tap actions (contest popping
+// open "on its own"). Only clicks that start+end within 8px count, and the click must be
+// preceded by a real pointerdown on the canvas — synthetic .click() calls (focus dumps,
+// automated tools) carry no pointerdown, so they can never fire table/car/menu actions.
+let tapX=0,tapY=0,tapArmed=false;
+canvas.addEventListener('pointerdown',e=>{tapX=e.clientX;tapY=e.clientY;tapArmed=true;});
+const isTap=e=>tapArmed&&Math.hypot(e.clientX-tapX,e.clientY-tapY)<=8;
 const CAR_HIT=ALL_HYDRAULICS.filter(c=>c.userData.switches);   // lowriders with switch consoles are tap targets:
-canvas.addEventListener('click',e=>{m2.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1);ray.setFromCamera(m2,cam);   // flip a switch = arm/disarm a hydraulics bank, tap the body = popped burst
+canvas.addEventListener('click',e=>{m2.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1);ray.setFromCamera(m2,cam);
+  const used=isTap(e);tapArmed=false;if(!used)return;   // flip a switch = arm/disarm a hydraulics bank, tap the body = popped burst
   const hitCar=CAR_HIT.length?ray.intersectObjects(CAR_HIT,true):[];
   if(hitCar.length){
     const o=hitCar[0].object,car=o.parent&&o.parent.userData&&o.parent.userData.switches?o.parent:null;
@@ -791,6 +892,116 @@ canvas.addEventListener('pointermove',e=>{m2.set(e.clientX/innerWidth*2-1,-(e.cl
   const hitTable=ray.intersectObjects(TABLE_HIT,true).length>0;
   canvas.style.cursor=(hit||hitTruck||hitTable)?'pointer':'';T.board.material.emissiveIntensity=hit?.8:.55;});
 
+// ---------- 3rd-person walk mode ----------
+// When nothing is open (no shop menu, contest panel, look picker, chat typing) the arrow keys
+// waltz YOUR avatar around the lot in third person - up/down move, left/right turn, space
+// jumps - and the camera trails behind. Any UI opening, Escape, or clicking off hands control
+// straight back to the orbit camera at the walker's spot.
+const walk={on:false,keys:new Set(),yaw:0,py:0,vy:0,x:0,z:0,hold:0,grp:null};
+const walkTyping=()=>{const a=document.activeElement;
+  return !!a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.isContentEditable);};
+const walkUI=()=>(!!document.querySelector('.panel.open'))||
+  ((document.getElementById('eolHd')||{}).hidden===false)||
+  ((document.getElementById('eolLook')||{}).hidden===false)||walkTyping();
+const walkChip=document.createElement('div');walkChip.id='eolWalkHint';walkChip.hidden=true;
+walkChip.textContent='◀ ▲ ▼ ▶ move · space jump · esc stop';document.body.appendChild(walkChip);
+const _wv=new THREE.Vector3(),_wm=new THREE.Matrix4();
+function walkPushEdge(ex0,ex1,ez0,ez1){   // box push: walk out to the nearest edge of the rect
+  if(walk.x>ex0&&walk.x<ex1&&walk.z>ez0&&walk.z<ez1){
+    const dl=walk.x-ex0,dr=ex1-walk.x,df=ez1-walk.z,db=walk.z-ez0;
+    if(dl<=dr&&dl<=db)walk.x=ex0;else if(dr<=db)walk.x=ex1;
+    else if(walk.z-ez0<ez1-walk.z)walk.z=ez0;else walk.z=ez1;
+  }
+}
+function walkCollide(){
+  // circle push-out vs tables / jukebox / lowrider, box push vs truck body + stage deck
+  const clear=(ox,oz,r)=>{const dx=walk.x-ox,dz=walk.z-oz,d2=dx*dx+dz*dz;
+    if(d2<r*r&&d2>1e-6){const d=Math.sqrt(d2);walk.x=ox+dx/d*r;walk.z=oz+dz/d*r;}};
+  for(const t of TABLE_HIT){t.getWorldPosition(_wv);clear(_wv.x,_wv.z,.92);}
+  if(jukebox.parent){jukebox.getWorldPosition(_wv);clear(_wv.x,_wv.z,.55);}
+  if(lexus.parent){lexus.getWorldPosition(_wv);const ry=lexus.rotation.y;
+    clear(_wv.x,_wv.z,1.0);clear(_wv.x+Math.sin(ry)*1.7,_wv.z+Math.cos(ry)*1.7,1.0);}
+  truckRig.updateMatrixWorld();
+  _wv.set(walk.x,FLOOR,walk.z).applyMatrix4(_wm.copy(truckRig.matrixWorld).invert());
+  if(_wv.x>bx0-.55&&_wv.x<bx0+BL+.55&&Math.abs(_wv.z)<BW/2+.55){   // truck footprint, in rig space
+    const dl=_wv.x-(bx0-.55),dr=(bx0+BL+.55)-_wv.x,dz=(BW/2+.55)-Math.abs(_wv.z);
+    const back=()=>_wv.applyMatrix4(truckRig.matrixWorld);        // carry it back to world
+    if(dz<=dl&&dz<=dr){_wv.z=Math.sign(_wv.z||1)*(BW/2+.55);back();}
+    else{_wv.x=_wv.x<bx0+BL/2?bx0-.55:bx0+BL+.55;back();}
+  }
+  walkPushEdge(-9,25.2,-54.2,-39.9);            // stage deck box (world: 32x13 at 8,0,-47)
+  walk.x=Math.max(-62,Math.min(62,walk.x));     // stay inside the painted lot
+  walk.z=Math.max(-60,Math.min(34,walk.z));
+}
+function walkStart(){
+  let hue=null;try{const p=JSON.parse(localStorage.getItem('eol-visitor-profile')||'null');
+    if(p&&Number.isFinite(+p.hue))hue=Math.max(0,Math.min(359,+p.hue|0));}catch(e){}
+  const fwd=ctl.target.clone().sub(cam.position);fwd.y=0;
+  if(fwd.lengthSq()<1e-4)fwd.set(0,0,-1);fwd.normalize();
+  // your avatar steps in on the ground between the camera and where it was looking
+  walk.x=cam.position.x+fwd.x*4.4;walk.z=cam.position.z+fwd.z*4.4;
+  walk.yaw=Math.atan2(fwd.x,fwd.z);walk.py=0;walk.vy=0;walk.hold=0;
+  walk.grp=buildWaitingPerson(0xd9a978,new THREE.Color().setHSL((hue??(Math.abs(Date.now())%360))/360,.55,.48),0x1a1a1a);
+  walk.grp.traverse(o=>{o.castShadow=true;});
+  // little nameplate: same white-on-dark pill style as the presence avatars
+  let name='You';try{name=localStorage.getItem('eol-visitor-name')||'You';}catch(e){}
+  const nc=document.createElement('canvas');nc.width=220;nc.height=56;const ng=nc.getContext('2d');
+  ng.fillStyle='rgba(10,8,5,.55)';const rr=(x,y,w,h,r)=>{ng.beginPath();ng.moveTo(x+r,y);ng.arcTo(x+w,y,x+w,y+h,r);ng.arcTo(x+w,y+h,x,y+h,r);ng.arcTo(x,y+h,x,y,r);ng.arcTo(x,y,x+w,y,r);ng.fill();};
+  rr(2,2,216,52,14);ng.fillStyle='#fff';ng.font='bold 26px Inter, sans-serif';ng.textAlign='center';ng.textBaseline='middle';ng.fillText(name,110,30);
+  const npT=new THREE.CanvasTexture(nc);
+  const np=new THREE.Sprite(new THREE.SpriteMaterial({map:npT,transparent:true,depthTest:false}));
+  np.renderOrder=999;np.scale.set(1.05,.27,1);np.position.y=1.3;walk.grp.add(np);
+  walkCollide();
+  walk.grp.position.set(walk.x,FLOOR,walk.z);S.add(walk.grp);
+  walk.on=true;ctl.enabled=false;walkChip.hidden=false;
+}
+function walkStop(){
+  if(!walk.on)return;
+  walk.on=false;walk.keys.clear();
+  if(walk.grp){S.remove(walk.grp);walk.grp=null;}
+  walkChip.hidden=true;ctl.enabled=true;
+  ctl.target.set(walk.x,1.15,walk.z);      // orbit resumes pivoting right where they stood
+}
+function walkTick(dt,t){
+  if(walkUI()){walkStop();return;}
+  const k=walk.keys;
+  const fwd=(k.has('ArrowUp')?1:0)-(k.has('ArrowDown')?1:0),turn=(k.has('ArrowRight')?1:0)-(k.has('ArrowLeft')?1:0);
+  walk.yaw-=turn*2.7*dt;   // screen-right turns the avatar's RIGHT: yaw must decrease here
+  const spd=fwd>0?2.2:fwd<0?1.5:0;
+  walk.x+=Math.sin(walk.yaw)*spd*dt;walk.z+=Math.cos(walk.yaw)*spd*dt;
+  if(k.has(' ')&&walk.py<=0&&walk.vy<=0.05){walk.vy=4.8;walk.py=.001;}   // space = hop
+  walk.vy-=dt*13.5;walk.py+=walk.vy*dt;
+  if(walk.py<0){walk.py=0;walk.vy=0;}
+  walkCollide();
+  const moving=spd>0||turn!==0,bob=moving&&walk.py<=0?Math.abs(Math.sin(t*8.5))*.05:0;
+  walk.grp.position.set(walk.x,FLOOR+walk.py+bob,walk.z);
+  walk.grp.rotation.y=walk.yaw;
+  // camera trails behind; mouse-drag offsets fade back to dead-rear while you move
+  if(fwd)walk.hold*=Math.exp(-dt*1.1);
+  const eye=walk.yaw+Math.PI+walk.hold;
+  const dx=Math.sin(eye)*3.4,dz=Math.cos(eye)*3.4;
+  cam.position.lerp(_wv.set(walk.x+dx,FLOOR+walk.py+1.78,walk.z+dz),Math.min(1,dt*8));
+  const hy=FLOOR+1.05+walk.py;
+  cam.lookAt(walk.x,hy,walk.z);ctl.target.set(walk.x,hy,walk.z);
+}
+addEventListener('keydown',e=>{
+  if(walkTyping())return;
+  if(e.key==='Escape'&&walk.on){walkStop();return;}
+  if(e.key===' '&&walk.on){e.preventDefault();if(!e.repeat)walk.keys.add(' ');return;}
+  if(!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key))return;
+  if(walkUI())return;
+  e.preventDefault();
+  if(!walk.on)walkStart();
+  if(!e.repeat)walk.keys.add(e.key);
+});
+addEventListener('keyup',e=>{walk.keys.delete(e.key);});
+addEventListener('blur',()=>walk.keys.clear());
+{   // look-around drag while walking: cheap pointer tracker, orthogonal to the tap guard
+  let dragX=0,dragging=false;
+  canvas.addEventListener('pointerdown',e=>{if(walk.on){dragging=true;dragX=e.clientX;}});
+  addEventListener('pointermove',e=>{if(!(dragging&&walk.on))return;walk.hold-=(e.clientX-dragX)*.006;dragX=e.clientX;});
+  addEventListener('pointerup',()=>dragging=false);
+}
 // ---------- layout mode: drag the truck (plus its queue + parked car, as one cluster) to
 // reposition it - e.g. to line it up convincingly against the panorama's festival grounds,
 // instead of guessing offsets. Visit the site with #layout in the address bar to turn it on;
@@ -872,6 +1083,8 @@ R.setAnimationLoop(()=>{const dt=Math.min(clock.getDelta(),0.1),t=clock.elapsedT
     perf.children[6].rotation.x=Math.sin(t*3+Math.PI+.4)*1.1-.3;
   }
   for(const parts of ALL_SMOKE) tickSmoke(parts,dt);
+  for(const p of ALL_PUFFS) tickPuff(p,dt);
+  if(walk.on)walkTick(dt,t);
   for(const car of ALL_HYDRAULICS){   // lowrider hydraulics: armed banks pulse each on their own
     const u=car.userData,seed=u.hopSeed||0,base=u.baseY||0;   // clock; tapping the car/switches
     let hop=0,tiltX=0,tiltZ=0;                                 // arms banks or fires hop bursts
@@ -891,5 +1104,7 @@ R.setAnimationLoop(()=>{const dt=Math.min(clock.getDelta(),0.1),t=clock.elapsedT
   Avatars.tick(t,dt);
   ctl.update();R.render(S,cam);});
 
-// TEMP dev-only camera override (?eolcam=/?eollook= QA framing) removed before the version-2
-// commit; it only ever fired when both params were present, never on production URLs.
+// TEMP dev-only camera override for QA framing (?eolcam=x,y,z + ?eollook=x,y,z); fires only
+// when both params are present, so production URLs are untouched. Strip before commit.
+// QA camera/debug handle removed: scene dev pulls are done, the shipped page exposes nothing
+// extra and ignores ?eolcam/?eollook debug params.
