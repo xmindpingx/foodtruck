@@ -6,7 +6,7 @@
 // The game: a marker sweeps a ring, you time an EAT! press to land it in the pink bite zone —
 // three clean bites swallow a dog, a miss costs a jaw-lockout, so rhythm beats mashing.
 // Plain DOM + one small canvas; the 3D scene never has to drop a frame for a contest.
-import {announce, clockNow, visitorName, HD} from './avatars.js?v=4';
+import {announce, clockNow, visitorName, HD} from './avatars.js?v=5';
 
 const DUR = 60;         // seconds per round
 const COLLECT_MS = 25000;

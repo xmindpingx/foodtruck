@@ -2,11 +2,11 @@
 // handling and the animation loop. Imports the truck from truck.js and the ordering UI from shop.js.
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
-import {CONFIG,MENU,money,open,hooks} from './shop.js?v=4';
-import {buildTruck,WX0,WX1,WY0,WY1,BW,BL,BH,bx0,FLOOR,CL} from './truck.js?v=4';
-import * as Avatars from './avatars.js?v=4';
-import * as Account from './account.js?v=4';   // phone-number arcade profiles (language-first sign-up)
-import * as Arcade from './arcade.js?v=4';     // 🎪 The Midway props + six minigames + HIGH SCORES board
+import {CONFIG,MENU,money,open,hooks} from './shop.js?v=5';
+import {buildTruck,WX0,WX1,WY0,WY1,BW,BL,BH,bx0,FLOOR,CL} from './truck.js?v=5';
+import * as Avatars from './avatars.js?v=5';
+import * as Account from './account.js?v=5';   // phone-number arcade profiles (language-first sign-up)
+import * as Arcade from './arcade.js?v=5';     // 🎪 The Midway props + six minigames + HIGH SCORES board
 
 const canvas=document.getElementById('c');
 const R=new THREE.WebGLRenderer({canvas,antialias:true});
@@ -706,11 +706,11 @@ const CROWD_LOOKS=[[0xd9a978,0xd42a2a,0x1a1a1a],[0xa8714a,0xf2c14e,0x2e8b3d],[0x
   [0xb07a4e,0xf2a33c,0x1a1a1a],[0x7a4a2a,0x9b4de8,0x2e8b3d],[0xd9a978,0xf2c14e,0xd42a2a],
   [0xa8714a,0x2e8b3d,0xe85fa0],[0xf0c7a0,0xd42a2a,0x2e8b3d],[0x8a5a35,0xf2c14e,0x1a1a1a]];
 const pick=arr=>arr[Math.floor(Math.random()*arr.length)];
-function spawnCrowd(cx,cz,n){
+function spawnCrowd(cx,cz,n,faceStage){
   for(let i=0;i<n;i++){
     const person=buildWaitingPerson(...pick(CROWD_LOOKS));
     person.position.set(cx+(Math.random()-.5)*2.6,.24,cz+(Math.random()-.5)*2.6);
-    person.rotation.y=Math.random()*Math.PI*2;
+    person.rotation.y=faceStage?Math.atan2(8-person.position.x,-70-person.position.z)+(Math.random()-.5)*.3:Math.random()*Math.PI*2;   // stage-front rows watch the band
     S.add(person);
     if(Math.random()<.45) lightPipe(person);   // festival-goers puffing hand pipes
   }
@@ -763,13 +763,14 @@ function tickPuff(p,dt){
 // the stage's truck-facing side now: a wide pit band across the full deck width plus flank
 // packs at either end - nobody hangs behind the deck.
 for(let i=0;i<13;i++) spawnCrowd(-28+Math.random()*72, -4+Math.random()*24, 1);
-for(let i=0;i<22;i++) spawnCrowd(-8+Math.random()*32, -61.5+Math.random()*8, 1);    // pit, at the stage front (shifted with the stage)
-for(let i=0;i<5;i++) spawnCrowd(-14.5+Math.random()*5, -61+Math.random()*7, 1);     // west flank pack
-for(let i=0;i<5;i++) spawnCrowd(26.5+Math.random()*5, -61+Math.random()*7, 1);      // east flank pack
+for(let i=0;i<22;i++) spawnCrowd(-8+Math.random()*32, -61.5+Math.random()*8, 1, true);    // pit, at the stage front, watching the band
+for(let i=0;i<5;i++) spawnCrowd(-14.5+Math.random()*5, -61+Math.random()*7, 1, true);     // west flank pack, facing the stage
+for(let i=0;i<5;i++) spawnCrowd(26.5+Math.random()*5, -61+Math.random()*7, 1, true);      // east flank pack, facing the stage
 
-// ~200 extra festival-goers ringing the big stage - but cheap: two InstancedMeshes (bodies +
-// heads) is the whole thing, two draw calls, no per-frame updates, no shadow casters. Phones
-// and laptops both carry that without touching their frame budget.
+// ~200 extra festival-goers packed as the stage-front audience - but cheap: two InstancedMeshes
+// (bodies + heads) is the whole thing, two draw calls, no per-frame updates, no shadow casters.
+// Phones and laptops both carry that without touching their frame budget. (Used to be a ring on
+// the FAR side of the stage; the owner pulled the whole crowd around to the front to watch.)
 {const N=200,UP=new THREE.Vector3(0,1,0);
  const bodies=new THREE.InstancedMesh(new THREE.CylinderGeometry(.19,.16,.52,7),
    new THREE.MeshStandardMaterial({roughness:.85}),N);
@@ -778,15 +779,14 @@ for(let i=0;i<5;i++) spawnCrowd(26.5+Math.random()*5, -61+Math.random()*7, 1);  
  const heads=new THREE.InstancedMesh(new THREE.SphereGeometry(.11,6,5),
    new THREE.MeshStandardMaterial({roughness:.7}),N);
  const M=new THREE.Matrix4(),Q=new THREE.Quaternion(),P=new THREE.Vector3(),Sc=new THREE.Vector3(),C=new THREE.Color();
- const SX=14,SZ=-101,BOOTH=[[16,-52],[36,-64],[-24,-50]];   // ring shifted -23 m with the pushed-back stage
+ const STAGE={x:8,z:-70},BOOTH=[[16,-52],[36,-64],[-24,-50]];   // audience pack fronting the deck (lip at z≈-63.5)
  let placed=0;
  while(placed<N){
-   const a=Math.random()*Math.PI*2,r=(10+Math.pow(Math.random(),.55)*30)*1.06;
-   const x=SX+Math.cos(a)*r,z=SZ+Math.sin(a)*r*.8;   // squashed ring: denser across the field front
-   if(Math.abs(x-SX)<10&&Math.abs(z-SZ)<5.4)continue;   // off the deck
+   const t=Math.pow(Math.random(),1.5),z=-62.9+t*13.6;   // dense at the stage lip, thinning toward the truck
+   const half=16-6*t,x=STAGE.x+(Math.random()*2-1)*half;   // widest at the stage, funneling forward
    if(BOOTH.some(([bx,bz])=>Math.hypot(x-bx,z-bz)<3))continue;   // keep the booth lanes walkable
    const s=.88+Math.random()*.3;
-   Q.setFromAxisAngle(UP,Math.random()*Math.PI*2);
+   Q.setFromAxisAngle(UP,Math.atan2(STAGE.x-x,STAGE.z-z)+(Math.random()-.5)*.35);   // every body turned to the stage
    M.compose(P.set(x,.26*s,z),Q,Sc.set(s,s,s));bodies.setMatrixAt(placed,M);
    M.compose(P.set(x,0,z).setY(.62*s),Q,Sc);heads.setMatrixAt(placed,M);
    bodies.setColorAt(placed,C.setHex(shirts[placed%shirts.length]));
