@@ -46,6 +46,61 @@ def _twilio_auth_token():
         pass
     return None
 
+def _sms_env(key, default=''):
+    """Any TWILIO_* var from the shared sms-gateway .env — one source of truth for the secrets."""
+    try:
+        with open(_SMS_GATEWAY_ENV) as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith(key + '='):
+                    return line.split('=', 1)[1].strip().strip('"\'')
+    except FileNotFoundError:
+        pass
+    return default
+
+def _twilio_creds(s):
+    """(sid, token, from_number) with precedence: process env → shared .env → admin settings."""
+    sid = os.environ.get('TWILIO_ACCOUNT_SID', '').strip() or _sms_env('TWILIO_ACCOUNT_SID') or str(s.get('twilioSid') or '').strip()
+    token = os.environ.get('TWILIO_AUTH_TOKEN', '').strip() or _twilio_auth_token() or str(s.get('twilioToken') or '').strip()
+    frm = os.environ.get('TWILIO_FROM_NUMBER', '').strip() or _sms_env('TWILIO_FROM_NUMBER') or str(s.get('twilioFrom') or '').strip()
+    svc = str(s.get('twilioServiceSid') or '').strip()
+    return sid, token, frm, svc
+
+def _twilio_send(to, message, s=None):
+    """DIRECT Twilio send — the newly approved account. Returns {'sid', 'status'}; raises with a
+    readable message so send_order_ready_sms / admin can show why nothing was queued."""
+    import urllib.request, urllib.parse, base64
+    s = s or {**DEFAULT_SETTINGS, **load('settings.json', {})}
+    sid, token, frm, svc = _twilio_creds(s)
+    if not (sid and token):
+        raise RuntimeError('Twilio is not configured — need account SID + auth token')
+    data = {'To': to, 'Body': str(message)[:1600]}
+    if svc:
+        data['MessagingServiceSid'] = svc
+    elif frm:
+        data['From'] = frm
+    else:
+        raise RuntimeError('Twilio is not configured — need twilioFrom (sender number) configured')
+    req = urllib.request.Request(f'https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json',
+        data=urllib.parse.urlencode(data).encode(),
+        headers={'Authorization': 'Basic ' + base64.b64encode(f'{sid}:{token}'.encode()).decode()})
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        out = json.loads(resp.read().decode() or '{}')
+    if out.get('status') in ('failed', 'undelivered') or not out.get('sid'):
+        raise RuntimeError(out.get('message') or 'Twilio refused the send')
+    return {'sid': out['sid'], 'status': out.get('status', 'queued')}
+
+def _sms_send(to, message, idempotency_key=None):
+    """Outbound dispatcher. settings.smsGateway picks the carrier:
+      'twilio'   (default, newly approved direct REST account),
+      'notifyhub'(previous owner-iPhone Shortcut relay),
+      'gateway'  (legacy sms-gateway pm2 service)."""
+    s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
+    gw = (s.get('smsGateway') or 'twilio').strip().lower()
+    if gw == 'twilio': return _twilio_send(to, message, s)
+    if gw == 'gateway': return _gateway_send(to, message, idempotency_key)
+    return _notifyhub_send(to, message)
+
 def _twilio_signature_valid(signature, params):
     """Twilio's request-validation algorithm: HMAC-SHA1 over the full URL with
     POST params sorted by name and appended (name+value, no delimiter), base64-encoded."""
@@ -101,9 +156,9 @@ def send_order_ready_sms(o):
         o['smsStatus'] = 'bad_phone'
         return False
     try:
-        out = _notifyhub_send(to, order_ready_sms(o))
+        out = _sms_send(to, order_ready_sms(o))      # carrier picked by settings.smsGateway (twilio now)
         o['smsSentTs'] = int(time.time())   # callers hold LOCK and save orders.json -> exactly one text per order
-        o['smsOutboxId'] = out.get('outboxId')
+        o['smsOutboxId'] = out.get('outboxId') or out.get('sid')   # notifyhub outbox id OR Twilio message sid
         o['smsStatus'] = 'queued'
         o.pop('smsError', None)
         return True
@@ -198,6 +253,11 @@ DEFAULT_SETTINGS = {
     "phone": "", "email": "", "social": "", "location": "", "hours": "",
     "taxRate": 0.083, "orderingOpen": True,
     "orderNote": "Pickup at the window. Pay when you pick up — card (Square) or cash.",
+    # --- SMS carrier (outbound texts: order-ready + admin broadcasts) ---
+    "smsGateway": "twilio",   # twilio = newly approved direct REST account ("notifyhub"/"gateway" fallbacks)
+    "twilioSid": "",          # optional; normally inherited from the shared sms-gateway .env
+    "twilioFrom": "",         # sender number; normally inherited from TWILIO_FROM_NUMBER in that .env
+    "twilioServiceSid": "",   # optional messaging-service sid (overrides From when set)
     # --- AI menu photos (admin) ---
     "imageGenEnabled": True,
     "ollamaUrl": "http://127.0.0.1:11434",
@@ -239,6 +299,9 @@ DEFAULT_SETTINGS = {
     "bgMusicFile": "",       # filename under media/, set by /api/admin/upload-media
     "tvEnabled": False,
     "tvVideoFile": "",       # filename under media/, set by /api/admin/upload-media
+    # --- admin text alerts (visitor problems reported through the chat assistant) ---
+    "adminPhone": "",        # E.164 number that gets problem reports texted to it immediately
+    "adminSmsAlerts": True,  # off switch for those texts (reports still show in admin)
 }
 
 PUBLIC_SETTINGS = ('businessName', 'tagline', 'brandLogo', 'copyrightLine', 'phone', 'email', 'social', 'location', 'hours',
@@ -396,6 +459,310 @@ CHAT_LOCK = threading.Lock()
 CHAT_RATE = {}                                     # id -> last post ts
 CHAT_MAX = 50
 NAME_RE = re.compile(r'[^\w \-\'.]', re.UNICODE)
+ACCOUNTS_LOCK = threading.Lock()                   # accounts.json is a small flat file; exclusive rewrites only
+
+# ---------- trivia bot 🤖 (Mesa / Arizona Q&A race → arcade POINTS redeemable for collectibles) ----------
+# data/trivia.json: [{q, a:[keywords], cat}]. A question goes into shared chat and stays scoring for
+# TRIVIA_OPEN_S seconds: first correct chat post banks 5 pts, second 3, third 2, everyone else who
+# lands a keyword in the window banks 1. Chat POSTs carry the visitor's arcade phone (from their
+# sign-in) so points land in their flat-file account; unsigned guests are congratulated once and
+# pointed at 🏬 sign-in (banking drives sign-ups). One award per user per question. 20s later the
+# answer is revealed; a few seconds pause then the next question. Points redeem in the profile.
+TRIVIA_OPEN_S, TRIVIA_GAP_S = 20, 7                 # scoring window per question / pause between
+TRIVIA_PLACE_PTS = {1: 5, 2: 3, 3: 2}               # 1st/2nd/3rd… everyone else gets the floor
+TRIVIA_FLOOR_PTS = 1
+STOPWORDS = {'with', 'your', 'from', 'this', 'that', 'their', 'them', 'which', 'where', 'have', 'has', 'will', 'into', 'more', 'than', 'then', 'over', 'under', 'just', 'like', 'also', 'only', 'some', 'plus', 'choice', 'choices'}
+
+def _norm(s):                                        # keyword/text normalizer (answers are graded on this)
+    s = str(s or '').lower()
+    s = re.sub(r'[^a-z0-9 ]', ' ', s)
+    return re.sub(r'\s+', ' ', s).strip()
+
+# ---------- profanity screen 🧼 ----------
+# Festival chat, display names and scoreboard entries are family-facing. Each token is matched on a
+# leet-collapsed copy ('sh1t', '$h!t', 'coÑo' all trip) and masked as same-length asterisks — the post
+# still lands, sanitized. Word-boundary aware, so 'class', 'hello', 'cocktail', 'assess' sail through.
+_PROFANE = {'fuck', 'fuk', 'fck', 'shit', 'bitch', 'btch', 'cunt', 'dick', 'ass', 'asshole', 'bastard',
+            'whore', 'slut', 'hoe', 'retard', 'porn', 'nude', 'nudes', 'sex', 'boobs', 'tits', 'penis',
+            'vagina', 'dildo', 'anal', 'horny', 'jizz', 'cum', 'chinga', 'chingar', 'pendejo', 'verga',
+            'cono', 'cabron', 'puto', 'puta', 'culo', 'cojones'}
+_PROF_PREFIX = {'fuck', 'fuk', 'fck', 'shit', 'bitch', 'cunt', 'nigg', 'fagg', 'rape', 'pend'}
+_LEET = str.maketrans({'1': 'i', '3': 'e', '4': 'a', '5': 's', '0': 'o', '7': 't', '@': 'a', '$': 's',
+                       '!': 'i', '*': 'u', '#': 'h', 'ñ': 'n', 'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u'})
+def _dirty(tok):
+    t = re.sub(r'[^a-z]', '', str(tok).lower().translate(_LEET))
+    if not t: return False
+    if t in _PROFANE or (t.endswith('s') and t[:-1] in _PROFANE): return True
+    return any(t.startswith(p) for p in _PROF_PREFIX)
+def _clean(text):
+    toks = str(text or '').split(' ')
+    return ' '.join('*' * max(3, len(t)) if _dirty(t) else t for t in toks)
+
+def _menu_trivia_rows():
+    """🌮 Generated from the LIVE menú (data/menu.json) so prices and ingredients never drift from
+    what the truck actually sells. Per item: a price question, an ingredient question, a menú-section
+    question, and — for protein items — an add-on question. All keywords pre-normalized."""
+    rows = []
+    m = load('menu.json', {})
+    protein_kw = []
+    for p in (m.get('proteins') or []):
+        ns = _norm(p).split()
+        if ns:
+            protein_kw.append(' '.join(ns))
+            protein_kw.append(ns[0])
+    protein_kw = list(dict.fromkeys(protein_kw))
+    for c in m.get('categories', []):
+        cat = str(c.get('name') or '').strip()
+        cat_kw = [_norm(cat)] if cat else []
+        for it in c.get('items', []):
+            nm = str(it.get('name') or '').strip()
+            if not nm: continue
+            price = it.get('price')
+            try: pv = float(price)
+            except (TypeError, ValueError): pv = None
+            if pv and pv > 0:
+                kws = {_norm('%g' % pv), _norm('%.2f' % pv), _norm('%d' % int(pv))}
+                kws.discard('')
+                rows.append({'q': 'Menú check — what does the ' + nm + ' cost (in dollars)?',
+                             'a': sorted(kws), 'cat': 'Menú'})
+            desc = str(it.get('desc') or it.get('description') or '')
+            ing = [w for w in _norm(desc).split() if len(w) >= 4 and w not in STOPWORDS]
+            ing = list(dict.fromkeys(ing))
+            if len(ing) >= 2:
+                rows.append({'q': nm + ' — name ANY ONE ingredient straight off its menú description!',
+                             'a': ing, 'cat': 'Menú'})
+            if protein_kw and it.get('protein'):
+                rows.append({'q': 'Which add-on protein can go inside the ' + nm + '? (name any one)',
+                             'a': protein_kw, 'cat': 'Menú'})
+            if cat_kw:
+                rows.append({'q': 'Which menú section is home to the ' + nm + '?', 'a': cat_kw, 'cat': 'Menú'})
+    return rows
+
+def _world_rows():
+    """🎡 Questions about the LOT ITSELF — every answer is a fixed truth of this build (tables,
+    games, economy), verifiable by walking around. Not per-session randomness (crowd shirts vary
+    on every screen, so those can't be graded fairly)."""
+    R = [
+        ('How many picnic tables ring the truck for diners?', ['14']),
+        ('How many bean-bag toss boards stand on the west lawn?', ['2']),
+        ('How many grabs does one claw-machine game give you?', ['3']),
+        ('How many mini prizes sit visible in the claw window?', ['6']),
+        ('How many good hits break the piñata?', ['5']),
+        ('In the tag arena, how many tags on the runner win the game?', ['3']),
+        ('How many COLUMNS does the Connect Four board have?', ['7']),
+        ('And how many ROWS does Connect Four run?', ['6']),
+        ('Tic-tac-toe has how many squares?', ['9']),
+        ('How many seconds does the trivia race stay open?', ['20']),
+        ('First correct trivia answer banks how many points?', ['5']),
+        ('Second place in the trivia race banks…?', ['3']),
+        ('Third place banks…?', ['2']),
+        ('Everyone else who answers right in time banks…?', ['1']),
+        ('The cheapest collectible in the 🏬 shop costs how many points?', ['40']),
+        ('The 🏆 trivia champion cup costs how many points?', ['200']),
+        ('How many lowriders can you flip switch-banks on in the lot?', ['1']),
+        ('How many stages does the festival run (the big one counts!)?', ['1']),
+        ('What plays the tunes by the tables — a jukebox, a boombox, or a DJ booth?', ['jukebox']),
+        ('What color is the flag flying at the tag arena?', ['red']),
+        ('Which side of the truck takes your order — the serving window side or the mural side?', ['window', 'serving']),
+        ('Finish the script on the truck tail — "see you on the ___ side"', ['other']),
+        ('The festival crowd gathers on which side of the big stage — the stage front or behind it?', ['front']),
+    ]
+    return [{'q': q, 'a': a, 'cat': 'World'} for q, a in R]
+
+def _weave(pools):
+    """Round-robin the question pools so hand-written Mesa/AZ, World facts and Menú questions
+    alternate steadily instead of arriving in big blocks hours apart."""
+    pools = [list(p) for p in pools]
+    out = []
+    while any(pools):
+        for p in pools:
+            if p: out.append(p.pop(0))
+    return out
+
+TRIVIA_STATIC = load('trivia.json', [])              # hand-written Mesa/AZ rows (86)
+TRIVIA = _weave([TRIVIA_STATIC, _world_rows(), _menu_trivia_rows()])
+SHOP_ITEMS = [                                       # redeem catalog: item id, display label, point cost
+    {'item': 'mini-agua-fresca-plush', 'label': '🍡 Mini agua fresca plush', 'cost': 40},
+    {'item': 'elote-keychain', 'label': '🌽 Elote keychain', 'cost': 50},
+    {'item': 'mini-saguaro-plush', 'label': '🌵 Mini saguaro plush', 'cost': 60},
+    {'item': 'tiny-taco-plush', 'label': '🌮 Tiny taco plush', 'cost': 60},
+    {'item': 'festival-pinata-charm', 'label': '🪅 Festival piñata charm', 'cost': 80},
+    {'item': 'mesa-arrowhead-pin', 'label': '🪶 Mesa arrowhead pin', 'cost': 80},
+    {'item': 'adobe-casita-charm', 'label': '🏠 Adobe casita charm', 'cost': 90},
+    {'item': 'midway-balloon', 'label': '🎪 Midway balloon', 'cost': 100},
+    {'item': 'fossil-replica', 'label': '🦖 Fossil replica', 'cost': 120},
+    {'item': 'trivia-champion-cup', 'label': '🏆 Trivia champion cup', 'cost': 200},
+]
+SHOP_MAP = {e['item']: e for e in SHOP_ITEMS}
+TQ = {'i': 0, 'q': None}                             # next row index / open question {'a','cat','at','scored','nudged'}
+TQ_LOCK = threading.Lock()
+
+# ---------- leaderboards (data/scores.json) + score-driven trivia ----------
+# Every minigame finish (and each hot-dog contest round) reports its result to /api/score. The
+# flat file keeps a small rolling ring per game plus best/last shortcuts; /api/scores feeds the
+# physical HIGH SCORES board by the truck (click it on site) and the bot's live-score questions.
+SCORE_LOCK = threading.Lock()
+SCORE_GAMES = ['claw', 'bbt', 'tag', 'c4', 'ttt', 'pin', 'hotdog']
+SCORES = load('scores.json', {})
+def _scores_ready(g):
+    s = SCORES.setdefault(g, {'rows': [], 'best': None, 'last': None})
+    s.setdefault('rows', []); s.setdefault('best', None); s.setdefault('last', None)
+    return s
+def _score_record(game, name, value, label=''):
+    g = str(game or '').strip()[:12]
+    if g not in SCORE_GAMES: return
+    name = (name or 'Guest').strip()[:24]
+    try: value = round(float(value), 2)
+    except (TypeError, ValueError): return
+    s = _scores_ready(g)
+    row = {'name': name, 'value': value, 'ts': int(time.time())}
+    if label: row['label'] = str(label)[:48]
+    s['rows'].append(row); del s['rows'][:-30]                   # small ring per game
+    s['last'] = row
+    if s['best'] is None or value > s['best']['value']: s['best'] = row
+    with SCORE_LOCK: save('scores.json', SCORES)
+def _score_name(data):
+    """Scoreboard display name: the signed-in account's chosen name always wins; anything posted
+    alongside an unsigned result gets the 🧼 censor pass."""
+    ph = ''.join(re.findall(r'\d', str(data.get('phone', ''))))[-10:]
+    if len(ph) == 10:
+        rec = load('accounts.json', {}).get(ph)
+        if rec: return rec.get('name') or ''
+    return _clean(str(data.get('name', '')))[:24]
+
+def _holder_most(src):                                            # richest account at a grab-bag stat
+    a = load('accounts.json', {})
+    best, bv = None, 0
+    for ph, rec in a.items():
+        v = 0
+        if src == 'points': v = rec.get('points', 0)
+        elif src == 'total': v = sum(int(e.get('count', 1)) for e in rec.get('prizes', []))
+        else: v = rec.get('wins', {}).get(src, 0)
+        if v > bv and rec.get('name') and rec['name'] != 'Guest': best, bv = rec['name'], v
+    if best is None:
+        for ph, rec in a.items():                                 # fall back to whatever rec exists
+            v = rec.get('points', 0) if src == 'points' else sum(int(e.get('count', 1)) for e in rec.get('prizes', [])) if src == 'total' else rec.get('wins', {}).get(src, 0)
+            if v > bv: best, bv = str(rec.get('name') or ph), v
+    return best, bv
+def _live_rows():                                                 # 🏅 generated from the live lot state
+    def num_kw(v):
+        s = {_norm('%g' % v), _norm('%.2f' % v), _norm('%d' % int(v))}
+        s.discard('')
+        return sorted(s)
+    rows = []
+    hd = SCORES.get('hotdog') or {}
+    if hd.get('best'):
+        rows.append({'q': 'What is the HOT-DOG CONTEST record — most dogs eaten at once?',
+                     'a': num_kw(hd['best']['value']), 'cat': 'Scores'})
+    if hd.get('last') and hd['last'].get('name') and _norm(hd['last']['name']) not in ('', 'guest'):
+        rows.append({'q': 'Who won the LAST hot-dog eating contest?',
+                     'a': [_norm(hd['last']['name'])], 'cat': 'Scores'})
+    w, v = _holder_most('claw')
+    if w and v > 0: rows.append({'q': 'Who has grabbed the MOST prizes from the claw machine?',
+                                 'a': [_norm(w)], 'cat': 'Scores'})
+    pin = SCORES.get('pin') or {}
+    if pin.get('last') and pin['last'].get('label'):
+        lbl = _norm(pin['last']['label'])
+        rows.append({'q': 'What fell out of the PIÑATA at its last smash?',
+                     'a': sorted({lbl, lbl.replace('mini ', ''), lbl.replace('mini ', '').replace(' plush', '').replace(' charm', '')} - {''}),
+                     'cat': 'Scores'})
+    claw = SCORES.get('claw') or {}
+    if claw.get('last') and claw['last'].get('label'):
+        lbl = _norm(claw['last']['label'])
+        rows.append({'q': 'What was fished out of the CLAW MACHINE most recently?',
+                     'a': sorted({lbl, lbl.replace('mini ', ''), lbl.replace('mini ', '').replace(' plush', '').replace(' charm', '')} - {''}),
+                     'cat': 'Scores'})
+    bbt = SCORES.get('bbt') or {}
+    if bbt.get('best'):
+        rows.append({'q': 'What is the BEAN-BAG TOSS high score?', 'a': num_kw(bbt['best']['value']), 'cat': 'Scores'})
+    w, v = _holder_most('points')
+    if w and v > 0: rows.append({'q': 'Who LEADS the trivia points leaderboard?', 'a': [_norm(w)], 'cat': 'Scores'})
+    w, v = _holder_most('total')
+    if w and v > 0: rows.append({'q': 'Who brags the BIGGEST collectible shelf overall?',
+                                 'a': [_norm(w)], 'cat': 'Scores'})
+    return rows
+
+def _trivia_post(text):
+    if not text: return
+    with CHAT_LOCK:
+        CHAT.append({'id': 'triviabot', 'name': 'Trivia Bot', 'hue': 40, 'text': text[:140], 'ts': time.time()})
+        del CHAT[:-CHAT_MAX]
+    with PRESENCE_LOCK:                              # give the bot presence so its name renders
+        PRESENCE.setdefault('triviabot', {'hue': 40, 'ts': time.time()})
+
+def _trivia_next():
+    if not TRIVIA: return
+    live = None
+    with TQ_LOCK:
+        n = TQ.get('n', 0) + 1                       # served-question counter (every 3rd mirrors the lot)
+        TQ['n'] = n
+        if n % 3 == 0:
+            cand = _live_rows()
+            live = cand[(n // 3) % len(cand)] if cand else None   # cycle the live generators
+        if live is not None:
+            row = live
+        else:
+            row = TRIVIA[TQ['i'] % len(TRIVIA)]
+            TQ['i'] += 1
+        prevCat = TQ.get('lastCat')
+        cat = row.get('cat', 'Mesa') or 'Mesa'
+        TQ['lastCat'] = cat
+        TQ['q'] = {'a': row.get('a', []), 'cat': cat,
+                   'at': time.time(), 'scored': set(), 'nudged': set()}
+    if prevCat is not None and prevCat != cat:       # announce every topic change per owner request
+        _trivia_post('🔄 Topics switch: ' + cat + ' trivia!')
+    _trivia_post('🤖 TRIVIA (' + cat + '): ' + row['q'] +
+                 '  🏁 Race! ' + str(TRIVIA_OPEN_S) + 's: +5 pts for 1st, +3, +2, +1 for everyone who gets it. Redeem at 🏬!')
+
+def _trivia_answer_check(myid, text, name, phone=''):
+    """Race scoring: order of arrival sets the payout — 5/3/2 for the podium, +1 for everyone else
+    who lands it inside the 20s window. One award per user per question. Returns the points banked
+    (int), 0 for an unsigned correct guess (one nudge posted), or None."""
+    if not TRIVIA: return None
+    with TQ_LOCK:
+        q = TQ['q']
+        if not q: return None
+        t = _norm(text)
+        hit = next((a for a in q['a'] if a in t), None)
+        if not hit: return None
+        if time.time() - q['at'] > TRIVIA_OPEN_S: return None   # scoring closed after 20s window
+        if time.time() - q['at'] < .5: return None              # .5s guards the bot's own echo
+        bank = phone and len(phone) == 10
+        if bank and myid in q['scored']: return None          # one award per user per question
+        place = len(q['scored']) + 1
+        pts = TRIVIA_PLACE_PTS.get(place, TRIVIA_FLOOR_PTS)
+        if bank: q['scored'].add(myid)
+        elif myid in q['nudged']: return None                 # nudge each guest only once per question
+        else: q['nudged'].add(myid)
+    who = name or 'A visitor'
+    if not bank:
+        _trivia_post('🎯 ' + who + ' got it! (sign in at 🏬 to bank points)')
+        return 0
+    a = load('accounts.json', {})
+    rec = a.setdefault(phone, {'created': int(time.time()), 'name': 'Guest',
+                               'prizes': [], 'wins': {}, 'points': 0})
+    rec['points'] = rec.get('points', 0) + pts
+    rec.setdefault('prizes', [])
+    wins = rec.setdefault('wins', {})
+    wins['trivia'] = wins.get('trivia', 0) + 1
+    with ACCOUNTS_LOCK: save('accounts.json', a)
+    medal = {1: '🥇', 2: '🥈', 3: '🥉'}.get(place, '🎯')
+    _trivia_post(medal + ' ' + who + ' keyed in ' + ('first!' if place == 1 else '#' + str(place)) +
+                 '  +' + str(pts) + ' pts 🎟')
+    return pts
+
+def _trivia_loop():
+    time.sleep(15)
+    while True:
+        _trivia_next()
+        time.sleep(TRIVIA_OPEN_S)                             # 20s scoring window
+        with TQ_LOCK:
+            q = TQ['q']; TQ['q'] = None
+        if q:
+            n = len(q['scored'])
+            _trivia_post('⏰ Time! The answer was: ' + (q['a'][0] if q['a'] else '—') +
+                         ('  🏅 ' + str(n) + ' scorer' + ('s' if n != 1 else '') + ' this round!' if n else '  Nobody scored — watch for the next one!'))
+        time.sleep(TRIVIA_GAP_S)                              # breather, then the next question
 
 def character_hue(vid): return int(hashlib.sha1(vid.encode()).hexdigest(), 16) % 360
 def character_name(vid, hue):
@@ -418,6 +785,7 @@ def site_password_ok(pw):
 def init():
     os.makedirs(DATA, exist_ok=True)
     os.makedirs(MEDIA, exist_ok=True)
+    _load_help()        # restore visitor problem threads (the admin alert feed survives restarts)
     if not os.path.exists(path('settings.json')): save('settings.json', DEFAULT_SETTINGS)
     if not os.path.exists(path('menu.json')):
         seed = os.path.join(ROOT, 'menu.json')
@@ -618,8 +986,248 @@ def assistant_reply(s, vid, user_text, ip):
                 fn = tc.get('function', {})
                 result = run_assistant_tool(sess, menu, s, ip, fn.get('name'), fn.get('arguments') or {})
                 messages.append({'role': 'tool', 'content': json.dumps(result)})
-    sess['messages'].append({'role': 'assistant', 'content': "Sorry, I'm having trouble right now - try the menu above, or order at the window."})
-    return {'reply': sess['messages'][-1]['content'], 'cart': sess['cart'], 'name': sess['name'], 'phone': sess['phone']}
+# ---------- assistant smarts: language, order status, problem reports, admin text alerts ----------
+HELP_LOG = []              # visitor problem threads (data/help.json, flat file)
+HELP_LOCK = threading.Lock()
+ALERT_RATE = {}            # admin phone -> last alert ts (one burst per 90s)
+
+def _load_help():
+    global HELP_LOG
+    try: HELP_LOG = list(load('help.json', []))
+    except Exception: HELP_LOG = []
+
+def _save_help():
+    try: save('help.json', HELP_LOG[-300:])
+    except Exception: pass
+
+def _L(lang, en, es): return es if str(lang or 'en').startswith('es') else en
+
+def _account_lang(phone):
+    """Preferred language (picked FIRST at sign-up) of a signed account, else 'en'."""
+    p = re.sub(r'\D', '', str(phone or ''))[-10:]
+    if len(p) != 10: return 'en'
+    rec = (load('accounts.json', {}).get(p) or {})
+    return 'es' if rec.get('lang') == 'es' else 'en'
+
+def _summary(o):
+    its = ' · '.join(f"{l.get('qty', 1)}x {l.get('name')}" for l in (o.get('items') or [])[:3])
+    return its + ('…' if len(o.get('items') or []) > 3 else '')
+
+_ORDER_WORDS = {
+    'new':      {'en': 'received — the cooks just picked it up from the rail', 'es': 'recibido — los cocineros ya lo agarraron del riel'},
+    'cooking':  {'en': 'on the griddle right now', 'es': 'en la plancha ahorita'},
+    'ready':    {'en': 'READY at the window — come grab it!', 'es': '¡LISTO en la ventana — ven por él!'},
+    'done':     {'en': 'picked up — hope it hit the spot', 'es': 'entregado — ojalá lo hayas disfrutado'},
+    'cancelled':{'en': 'cancelled — swing by the window and we will sort it out', 'es': 'cancelado — ven a la ventana y lo resolvemos'},
+}
+
+def _recent_order_for(phone, name):
+    """The visitor's most recent order (last 24h): by phone digits first, then display name."""
+    p = re.sub(r'\D', '', str(phone or ''))[-10:]
+    nm = str(name or '').strip().lower()
+    orders = load('orders.json', [])
+    recent = [o for o in orders if o.get('ts', 0) >= time.time() - 86400][-30:]
+    if p:
+        for o in reversed(recent):
+            if re.sub(r'\D', '', o.get('phone', ''))[-10:] == p: return o
+    if nm:
+        for o in reversed(recent):
+            if o.get('name', '').strip().lower() == nm: return o
+    return None
+
+_PROB_RE = re.compile(
+    r'wrong|missing|(didn.?t|did\s+not|don.?t) ?(get|receiv\w*)|never (got|receiv\w*)|refund|complain\w*|problem\w*'
+    r'|sick|cold food|dropped|spill\w*|bad taste|not (right|what i)'
+    r'|problema\w*|incorrecto|no (lleg\w+|puso|me sirvi[oó]|recib\w+)|falt\w+|mal\s+sabor|enferm'
+    r'|reembolso|devoluci[oó]n|algo\s+malo|con\s+lo\s+que\s+recib\w*|sali[oó]\s+mal|lleg[oó]\s+(mal|feo|ca[ií]do|fr[ií]o)', re.I)
+_CANCEL_RE = re.compile(r'cancel|change|add to my|cambiar|cambie|agregar|agregue|cancelar', re.I)
+_STATUS_RE = re.compile(
+    r'status|estado|my order|mi pedido|how long|cu[aá]ndo|when (will|can)|ready|listo|tiempo|waiting|still waiting|tard\w+', re.I)
+
+def _assist_classify(text):
+    t = str(text or '')
+    if _PROB_RE.search(t):
+        return 'problem', ('cancel' if _CANCEL_RE.search(t) else 'quality')
+    if _CANCEL_RE.search(t):
+        return 'problem', 'cancel'      # change/cancel wishes alert the kitchen too
+    if _STATUS_RE.search(t): return 'status', ''
+    return 'general', ''
+
+def _admin_alert(s, thread, o):
+    """Immediate heads-up: the thread always lands in the in-app help feed, and — when the owner
+    set their phone in Settings — an SMS goes out right now through the configured gateway."""
+    ap = _e164(s.get('adminPhone', ''))
+    if s.get('adminSmsAlerts', True) and ap and not ALERT_RATE.get(ap):
+        now = time.time()
+        if now - ALERT_RATE.get(ap, 0) < 90:
+            thread['sms'] = 'rate-limit'
+        else:
+            ALERT_RATE[ap] = now
+            lead = f"#{o['number']} · {o.get('name', '?')}" if o else 'no order matched'
+            label = 'CANCEL/CHANGE' if thread['kind'] == 'cancel' else 'PROBLEM'
+            msg = f"EL OTRO LADO {label}: {lead} — {thread['text'][:110]}"
+            try:
+                out = _sms_send(ap, msg[:320])
+                thread['sms'] = out.get('sid', '') if isinstance(out, dict) else str(out)
+            except Exception as e:
+                thread['sms'] = 'failed: ' + str(e)[:80]
+    else:
+        thread['sms'] = 'off' if not (s.get('adminSmsAlerts', True) and ap) else 'rate-limit'
+
+def _assist_open_problem(s, sess, vid, text, kind, o):
+    th = {'id': secrets.token_hex(4), 'ts': int(time.time()), 'vid': vid, 'kind': kind,
+          'name': sess.get('name') or (o or {}).get('name') or 'Visitor',
+          'phone': sess.get('phone') or (o or {}).get('phone') or '',
+          'orderId': (o or {}).get('id', ''), 'orderNumber': (o or {}).get('number', 0),
+          'text': str(text)[:400], 'followups': [], 'status': 'open'}
+    HELP_LOG.append(th); _save_help()
+    if o:
+        with LOCK:
+            orders = load('orders.json', [])
+            for oo in orders:
+                if oo['id'] == o['id']:
+                    oo['problem'] = {'ts': th['ts'], 'kind': kind, 'text': str(text)[:160],
+                                     'helpId': th['id'], 'unseen': True}
+                    save('orders.json', orders)
+                    break
+    _admin_alert(s, th, o)
+    _save_help()          # alert stamped thread['sms'] AFTER the first flush — persist it too
+    return th
+
+def _assist_followup(sess, text, o):
+    with HELP_LOCK:
+        th = next((t for t in HELP_LOG if t['id'] == (sess.get('problem') or {}).get('helpId')), None)
+        if th and len(th['followups']) < 8:
+            th['followups'].append({'ts': int(time.time()), 'text': str(text)[:300]})
+    _save_help()
+    if o:
+        with LOCK:
+            orders = load('orders.json', [])
+            for oo in orders:
+                if oo['id'] == o['id'] and oo.get('problem'):
+                    oo['problem']['note'] = str(text)[:160]
+                    save('orders.json', orders)
+                    break
+
+def assistant_reply(s, vid, user_text, ip, lang_hint=None):
+    """Handles the quick answer/diagnosis paths DETERMINISTICALLY (order status, problem
+    reports → admin alert, follow-up context) so a missing table flip of the small local
+    model can never drop a customer's complaint; everything else flows to the LLM loop."""
+    if not s.get('aiAssistantEnabled', True): raise OrderError('The chat assistant is turned off right now.', 403)
+    now = time.time()
+    with ASSISTANT_LOCK:
+        if now - ASSISTANT_RATE.get(vid, 0) < 2.5: raise OrderError('Slow down a bit.', 429)
+        ASSISTANT_RATE[vid] = now
+    sess = assistant_session(vid)
+    # language: account preference (picked first at sign-up) wins; guests send a hint
+    lang = (_account_lang(sess.get('phone')) if sess.get('phone')
+            else (lang_hint if lang_hint in ('en', 'es') else 'en'))
+    sess.setdefault('problem', {})
+    open_prob = sess['problem'] if (sess['problem'] and now - sess['problem'].get('ts', 0) < 1500) else None
+    cls, kind = _assist_classify(user_text)
+    o = _recent_order_for(sess.get('phone'), sess.get('name'))
+
+    def bail(reply):   # log + return without touching the model
+        sess['messages'].append({'role': 'assistant', 'content': reply})
+        return {'reply': reply, 'cart': sess['cart'], 'name': sess['name'], 'phone': sess['phone'], 'lang': lang}
+
+    # ---- problem report (chip: "Something is wrong with what I received!") ----
+    if cls == 'problem':
+        sess['messages'].append({'role': 'user', 'content': user_text[:400]})
+        sess['messages'] = sess['messages'][-ASSISTANT_MAX_TURNS:]
+        th = _assist_open_problem(s, sess, vid, user_text, kind, o)
+        sess['problem'] = {'ts': now, 'helpId': th['id'], 'kind': kind}
+        num = f" #{o['number']}" if o else ''
+        if not o:
+            reply = _L(lang, "I couldn't match that to an active order — what's the name or phone number on it? "
+                             "I'll flag it for the team either way, and they'll sort it out with you.",
+                             "No encontré un pedido abierto para ese reporte — ¿a qué nombre o número está? "
+                             "Igual lo marco para el equipo y lo resolvemos contigo.")
+        elif kind == 'cancel':
+            reply = _L(lang, f"Got it{num} — I flagged it and texted the team right away. "
+                             "What exactly would you like changed or removed?",
+                             f"Entendido{num} — lo marqué y le mandé mensaje al equipo ahorita. "
+                             "¿Qué exactamente quieres cambiar o quitar?")
+        else:
+            reply = _L(lang, f"I'm so sorry about that! 🙏{num} I flagged it and texted the team immediately — "
+                             "they will make it right. Tell me exactly what went wrong (wrong item, something "
+                             "missing, or it arrived spilled/cold?) and I'll pass every word along.",
+                             f"¡Qué feo, lo siento mucho! 🙏{num} Lo marqué y le mandé mensaje al equipo en "
+                             "seguida — van a poner remedio. Dime exactamente qué salió mal (¿un platillo "
+                             "equivocado, algo que faltó, o llegó caído/frío?) y les transmito cada palabra.")
+        return bail(reply)
+
+    # ---- order status (chip: "What is the status of my order?") — real order state ----
+    if cls == 'status':
+        sess['messages'].append({'role': 'user', 'content': user_text[:400]})
+        sess['messages'] = sess['messages'][-ASSISTANT_MAX_TURNS:]
+        if o:
+            w = _ORDER_WORDS.get(o.get('status', 'new'), {})
+            reply = _L(lang, f"Order #{o['number']} ({_summary(o)}) — {w.get('en', o.get('status'))}. Anything else?",
+                       f"Pedido #{o['number']} ({_summary(o)}) — {w.get('es', o.get('status'))}. ¿Algo más?")
+        else:
+            reply = _L(lang, "You don't have an active order with us yet — tell me what you're craving and I'll start one!",
+                       "¡Todavía no tienes un pedido con nosotros — dime qué se te antoja y lo empezamos!")
+        return bail(reply)
+
+    # ---- follow-up detail while a problem thread is open ----
+    if open_prob and cls == 'general' and len(user_text) >= 6:
+        sess['messages'].append({'role': 'user', 'content': user_text[:400]})
+        sess['messages'] = sess['messages'][-ASSISTANT_MAX_TURNS:]
+        _assist_followup(sess, user_text, o)
+        sess['problem']['ts'] = now               # keep the follow-up window rolling
+        return bail(_L(lang, "Thank you — I've added those details to the report so the team can fix it fast. "
+                             "Anything else I should pass along?",
+                             "Gracias — ya agregué esos detalles al reporte para que el equipo lo arregle rápido. "
+                             "¿Hay algo más que deba transmitirles?"))
+
+    menu = load('menu.json', {})
+    sys_prompt = (
+        f"You are the friendly order-taking assistant for {s.get('businessName','this food truck')} "
+        f"({s.get('tagline','')}), a food truck in {s.get('location') or 'Mesa, AZ'}. Hours: {s.get('hours') or 'see the site'}.\n"
+        f"Menu:\n{_assistant_menu_text(menu)}\n\n"
+        "Only ever add items from this exact menu via the add_item tool - never invent items or prices. "
+        "If something isn't on the menu, say so and suggest what is. Keep replies short and conversational. "
+        "Before calling place_order you must have at least one item in the cart and have called set_contact "
+        "with the customer's name and phone, and you should read the cart and total back to them for confirmation first. "
+        "Do not call place_order until the customer has clearly confirmed. "
+        "You cannot sign anyone up for text alerts - if asked, tell them to check the box at checkout on the site instead."
+    )
+    if open_prob:
+        sys_prompt += f"\n\nContext: the visitor reported a problem {int(now - (open_prob.get('ts') or now))}s ago " \
+                      f"({_L(lang, 'report text', 'texto del reporte')}: {(open_prob.get('text') or '')[:160]!r}) — " \
+                      "be warm, be brief; apologize once and reassure them the team was already texted."
+    sys_prompt += ("\n\nIMPORTANT: reply in " + ("Spanish" if lang == 'es' else 'English') +
+                   " — that is the language this visitor chose at sign-up (switch only if they write "
+                   "clearly in the other one). Keep menu item names exactly as written.")
+    sess['messages'].append({'role': 'user', 'content': user_text[:400]})
+    sess['messages'] = sess['messages'][-ASSISTANT_MAX_TURNS:]
+    messages = [{'role': 'system', 'content': sys_prompt}] + sess['messages']
+
+    with ASSISTANT_SEM:
+        for _ in range(4):   # bounded tool-call loop
+            try:
+                raw, _ = http_json(s['ollamaUrl'].rstrip('/') + '/api/chat', {
+                    'model': s.get('aiAssistantModel') or 'qwen3:1.7b', 'stream': False,
+                    'messages': messages, 'tools': ASSISTANT_TOOLS}, 45)
+            except Exception:
+                break       # model/gateway down → fall through to the localized "having trouble" bail below
+            resp = json.loads(raw).get('message', {})
+            tool_calls = resp.get('tool_calls') or []
+            messages.append({'role': 'assistant', 'content': resp.get('content', ''), 'tool_calls': tool_calls})
+            if not tool_calls:
+                reply = resp.get('content', '').strip() or _L(lang, "Sorry, could you say that again?",
+                                                              "Perdón, ¿me lo puedes repetir?")
+                sess['messages'].append({'role': 'assistant', 'content': reply})
+                return {'reply': reply, 'cart': sess['cart'], 'name': sess['name'], 'phone': sess['phone'], 'lang': lang}
+            for tc in tool_calls:
+                fn = tc.get('function', {})
+                result = run_assistant_tool(sess, menu, s, ip, fn.get('name'), fn.get('arguments') or {})
+                messages.append({'role': 'tool', 'content': json.dumps(result)})
+    reply = _L(lang, "Sorry, I'm having trouble right now - try the menu above, or order at the window.",
+               "Perdón, ahorita tengo problema - usa el menú de arriba, o ordena en la ventana.")
+    sess['messages'].append({'role': 'assistant', 'content': reply})
+    return {'reply': reply, 'cart': sess['cart'], 'name': sess['name'], 'phone': sess['phone'], 'lang': lang}
 
 class H(SimpleHTTPRequestHandler):
     def __init__(self, *a, **k): super().__init__(*a, directory=ROOT, **k)
@@ -768,6 +1376,31 @@ class H(SimpleHTTPRequestHandler):
             with CHAT_LOCK:
                 chat = [m for m in CHAT if m['ts'] > since]
             return self.send_json({'others': others, 'chat': chat, 'now': now})
+        if p.startswith('/api/account/who'):        # public profile lookup: phone IS the account
+            qs = parse_qs(urlparse(self.path).query)
+            phone = ''.join(re.findall(r'\d', (qs.get('phone') or [''])[0]))[-10:]
+            a = load('accounts.json', {})
+            rec = a.get(phone)
+            if not rec: return self.send_json({'error': 'No account yet — sign in at the arcade.'}, 404)
+            return self.send_json({'phone': phone, 'name': rec.get('name', 'Guest'),
+                                   'prizes': rec.get('prizes', []), 'wins': rec.get('wins', {}),
+                                   'points': rec.get('points', 0), 'created': rec.get('created'),
+                                   'lang': rec.get('lang', 'en')})
+        if p == '/api/account/shop':                # redeem catalog for trivia points
+            return self.send_json({'items': SHOP_ITEMS, 'race': {'window': TRIVIA_OPEN_S, 'pts': [5, 3, 2, 1]}})
+        if p == '/api/scores':                      # ⛹ feeds the HIGH SCORES board by the truck
+            out = {}
+            for g in SCORE_GAMES:
+                s = SCORES.get(g) or {}
+                out[g] = {'best': s.get('best'), 'last': s.get('last'), 'rows': (s.get('rows') or [])[-10:]}
+            for gsrc in ('claw', 'c4', 'ttt', 'pin'):
+                n, v = _holder_most(gsrc)
+                out[gsrc]['holder'] = {'name': n, 'wins': v} if n else None
+            n, v = _holder_most('total')
+            out['collection'] = {'holder': n, 'count': v} if n else None
+            n, v = _holder_most('points')
+            out['points'] = {'holder': n, 'points': v} if n else None
+            return self.send_json(out)
         if p == '/api/menu':
             m = load('menu.json', {})
             for k in ('taxNote', 'priceSource'): m.pop(k, None)   # internal notes, not for the public site
@@ -800,6 +1433,11 @@ class H(SimpleHTTPRequestHandler):
                 # Moderation/audit log for the live site chat - it's unmoderated in real time,
                 # so this is the only after-the-fact way to see what visitors have been saying.
                 with CHAT_LOCK: return self.send_json({'messages': list(CHAT)})
+            if p == '/api/admin/help':
+                # Visitor problem threads from the chat assistant (chips like "Something is
+                # wrong with what I received!"). Newest first; the admin badge/banner polls it.
+                with HELP_LOCK:
+                    return self.send_json({'threads': sorted(HELP_LOG, key=lambda t: -t['ts'])[-60:]})
             if p == '/api/admin/comfy-checkpoints':
                 s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
                 try:
@@ -868,7 +1506,7 @@ class H(SimpleHTTPRequestHandler):
                     if prf.get('cap') in CAPS: prof['cap'] = prf.get('cap')
                     if prof: e['profile'] = prof
                     elif 'profile' in e: e.pop('profile')   # emptied = back to the random character look
-            name = NAME_RE.sub('', str(data.get('name', ''))).strip()[:24]
+            name = _clean(NAME_RE.sub('', str(data.get('name', '')))).strip()[:24]   # 🧼 names are family-facing too
             if name and (CHARACTERS.get(myid) or {}).get('name') != name:
                 # only hits disk when a visitor actually sets/changes a name, not on every heartbeat
                 with LOCK:
@@ -880,30 +1518,123 @@ class H(SimpleHTTPRequestHandler):
             s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
             if not s.get('avatarChatEnabled', True): return self.send_json({'error': 'Chat is turned off right now.'}, 403)
             myid = re.sub(r'[^a-zA-Z0-9_-]', '', str(data.get('id', '')))[:64]
-            text = re.sub(r'[\x00-\x1f\x7f]', '', str(data.get('text', ''))).strip()[:140]
+            text = _clean(re.sub(r'[\x00-\x1f\x7f]', '', str(data.get('text', ''))).strip())[:140]   # 🧼 censored
             if not myid or not text: return self.send_json({'error': 'bad request'}, 400)
             now = time.time()
             with CHAT_LOCK:
                 if now - CHAT_RATE.get(myid, 0) < 3: return self.send_json({'error': 'Slow down a bit.'}, 429)
                 CHAT_RATE[myid] = now
                 hue = PRESENCE.get(myid, {}).get('hue', character_hue(myid))
-                msg = {'id': myid, 'name': character_name(myid, hue), 'hue': hue, 'text': text, 'ts': now}
+                msg = {'id': myid, 'name': _clean(character_name(myid, hue)), 'hue': hue, 'text': text, 'ts': now}
                 CHAT.append(msg)
                 del CHAT[:-CHAT_MAX]
             with PRESENCE_LOCK:   # a chat message is also a heartbeat - no need to wait for the next ping
                 e = PRESENCE.get(myid)
                 if e: e['ts'] = now
+            phone = ''.join(re.findall(r'\d', str(data.get('phone', ''))))[-10:]
+            gained = _trivia_answer_check(myid, text, msg.get('name'), phone)   # 🤖 points per correct guess
+            return self.send_json({'ok': True, **({'gained': gained} if gained is not None else {})})
+
+        # ---------- arcade accounts (flat-file; the phone number IS the account number) ----------
+        # data/accounts.json: { "10-digit phone": {name, created, points, prizes:[{item,name,src,count,got}], wins:{game:n}} }
+        # The owner asked deliberately for "simple now": no OTP/verification flow yet — the phone
+        # field behaves like a festival wristband number (keep it private-ish, don't expose to
+        # other visitors). Points come from trivia (per-user, once per question); arcade minigames
+        # mint prizes directly; points redeemed below buy SHOP collectibles.
+        if p == '/api/account/enter':
+            a = load('accounts.json', {})
+            phone = ''.join(re.findall(r'\d', str(data.get('phone', ''))))[-10:]
+            lang = 'es' if str(data.get('lang', '')).lower().startswith('es') else 'en'
+            name = _clean(NAME_RE.sub('', str(data.get('name', '')).strip()))[:40]   # 🧼 family-facing scoreboard name
+            if len(phone) != 10: return self.send_json({'error': 'Enter a 10-digit phone number'}, 400)
+            if not name: return self.send_json({'error': 'Pick a display name — it shows on the scoreboard!'}, 400)
+            rec = a.setdefault(phone, {'created': int(time.time())})   # missing key MUST insert into a
+            if name: rec['name'] = name
+            rec.setdefault('name', 'Guest')
+            rec['lang'] = lang                        # language picked FIRST at sign-up — everything else follows
+            rec.setdefault('prizes', []); rec.setdefault('wins', {}); rec.setdefault('points', 0)
+            with ACCOUNTS_LOCK: save('accounts.json', a)
+            return self.send_json({'ok': True, 'phone': phone, 'name': rec['name'], 'lang': lang,
+                                   'prizes': rec['prizes'], 'wins': rec['wins'], 'points': rec['points']})
+        if p == '/api/account/lang':                # the language picked FIRST at sign-up is updatable later
+            a = load('accounts.json', {})
+            phone = ''.join(re.findall(r'\d', str(data.get('phone', ''))))[-10:]
+            lang = 'es' if str(data.get('lang', '')).lower().startswith('es') else 'en'
+            if len(phone) != 10: return self.send_json({'error': 'bad request'}, 400)
+            rec = a.get(phone)
+            if not rec: return self.send_json({'error': 'No account yet — sign in at the arcade.'}, 404)
+            rec['lang'] = lang
+            with ACCOUNTS_LOCK: save('accounts.json', a)
+            return self.send_json({'ok': True, 'phone': phone, 'lang': lang})
+        if p == '/api/account/prize':
+            a = load('accounts.json', {})
+            phone = ''.join(re.findall(r'\d', str(data.get('phone', ''))))[-10:]
+            item = re.sub(r'[^\w\-]', '', str(data.get('item', '')))[:40]
+            label = str(data.get('label', ''))[:48]
+            src = re.sub(r'[^\w\-]', '', str(data.get('src', 'game')))[:12]
+            if len(phone) != 10 or not item:
+                return self.send_json({'error': 'bad request'}, 400)
+            rec = a.setdefault(phone, {'created': int(time.time()), 'name': 'Guest',
+                                       'prizes': [], 'wins': {}, 'points': 0})
+            rows = rec.setdefault('prizes', [])
+            row = next((e for e in rows if e.get('item') == item), None)
+            if row: row['count'] = row.get('count', 1) + 1
+            else: rows.append({'item': item, 'name': label or 'Mystery prize', 'src': src,
+                               'count': 1, 'got': int(time.time())})
+            if src: rec.setdefault('wins', {})[src] = rec['wins'].get(src, 0) + 1
+            with ACCOUNTS_LOCK: save('accounts.json', a)
+            if src in ('claw', 'pin'):              # label-bearing mints also feed the score ring
+                _score_record(src, rec.get('name', 'Guest'), 1, rows[-1]['name'])
+            return self.send_json({'ok': True, 'phone': phone, 'name': rec.get('name', 'Guest'),
+                                   'prizes': rows, 'wins': rec['wins'], 'points': rec.get('points', 0),
+                                   'won': {'item': item, 'name': label or 'Mystery prize'}})
+        if p == '/api/account/redeem':              # spend trivia points on SHOP collectibles
+            a = load('accounts.json', {})
+            phone = ''.join(re.findall(r'\d', str(data.get('phone', ''))))[-10:]
+            item = re.sub(r'[^\w\-]', '', str(data.get('item', '')))[:40]
+            row = SHOP_MAP.get(item)
+            if len(phone) != 10 or not row: return self.send_json({'error': 'bad request'}, 400)
+            rec = a.setdefault(phone, {'created': int(time.time()), 'name': 'Guest',
+                                       'prizes': [], 'wins': {}, 'points': 0})
+            pts = rec.setdefault('points', 0)
+            if pts < row['cost']:
+                return self.send_json({'error': 'Not enough points — ' + str(row['cost'] - pts) +
+                                       ' more to go. Answer trivia in chat!'}, 402)
+            rec['points'] = pts - row['cost']
+            rows = rec.setdefault('prizes', [])
+            ex = next((e for e in rows if e.get('item') == item), None)
+            if ex: ex['count'] = ex.get('count', 1) + 1
+            else: rows.append({'item': item, 'name': row['label'], 'src': 'trivia',
+                               'count': 1, 'got': int(time.time())})
+            with ACCOUNTS_LOCK: save('accounts.json', a)
+            return self.send_json({'ok': True, 'points': rec['points'], 'prizes': rows,
+                                   'wins': rec.get('wins', {}),
+                                   'won': {'item': item, 'name': row['label']}})
+        if p == '/api/score':                       # ⛹ minigame + contest result reporting (no account needed)
+            _score_record(data.get('game'), _score_name(data), data.get('value'), data.get('label'))
             return self.send_json({'ok': True})
 
         if p == '/api/assistant':
             s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
             myid = re.sub(r'[^a-zA-Z0-9_-]', '', str(data.get('id', '')))[:64]
             text = re.sub(r'[\x00-\x1f\x7f]', '', str(data.get('text', ''))).strip()[:400]
+            lang = 'es' if str(data.get('lang', '')).lower().startswith('es') else 'en'   # guests send their UI language too
             if not myid or not text: return self.send_json({'error': 'bad request'}, 400)
+            ap = re.sub(r'\D', '', str(data.get('phone', '')))[-10:]   # signed account chip → the assistant
+            if len(ap) == 10:                                           # knows your REAL order without the LLM
+                rec0 = load('accounts.json', {}).get(ap)
+                if rec0:
+                    sess0 = assistant_session(myid)
+                    if not sess0.get('phone'):
+                        sess0['phone'] = ap
+                        sess0['name'] = rec0.get('name') or ''
             try:
-                result = assistant_reply(s, myid, text, self.ip())
+                result = assistant_reply(s, myid, text, self.ip(), lang)
             except OrderError as e:
                 return self.send_json({'error': str(e)}, e.code)
+            except Exception:                      # assistant can NEVER hard-fail a customer-facing request
+                return self.send_json({'reply': 'Perdón, ahorita tengo problema — intenta el menú de arriba, o pide en la ventana.' if lang == 'es' else "Sorry, I'm having trouble right now - try the menu above, or order at the window.",
+                                       'lang': lang})
             return self.send_json(result)
 
         if p == '/api/order':
@@ -1007,14 +1738,34 @@ class H(SimpleHTTPRequestHandler):
             if not to:
                 return self.send_json({'error': 'Invalid phone number'}, 400)
             try:
-                _notifyhub_send(to, str(data['message'])[:1600])
+                _sms_send(to, str(data['message'])[:1600])   # carrier picked by settings.smsGateway
                 return self.send_json({'ok': True})
             except Exception as e:
                 return self.send_json({'error': str(e)}, 500)
-            
+
+        if p.startswith('/api/admin/help/seen'):
+            # Admin tapped "seen" on a problem report — clears the red flag on the order card
+            # and silences the banner, but keeps the thread in the help feed for the record.
+            hid = str(data.get('orderId', ''))[:24]
+            hit = False
+            with LOCK:
+                orders = load('orders.json', [])
+                for o in orders:
+                    if o.get('id') == hid and o.get('problem'):
+                        o['problem']['unseen'] = False
+                        hit = True
+                        break
+                if hit: save('orders.json', orders)
+            with HELP_LOCK:                       # mark the matching thread handled too
+                th = next((t for t in HELP_LOG if t.get('orderId') == hid and t['status'] == 'open'), None)
+                if th: th['status'] = 'done'
+            if hit: _save_help()
+            return self.send_json({'ok': hit})
+
         return self.send_error(404)
 
 if __name__ == '__main__':
     init()
+    threading.Thread(target=_trivia_loop, daemon=True).start()   # 🤖 periodic Mesa/AZ trivia into chat
     print(f'Serving {ROOT} on 127.0.0.1:{PORT}')
     ThreadingHTTPServer(('127.0.0.1', PORT), H).serve_forever()

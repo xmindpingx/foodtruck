@@ -6,12 +6,19 @@
 // The game: a marker sweeps a ring, you time an EAT! press to land it in the pink bite zone —
 // three clean bites swallow a dog, a miss costs a jaw-lockout, so rhythm beats mashing.
 // Plain DOM + one small canvas; the 3D scene never has to drop a frame for a contest.
-import {announce, clockNow, visitorName, HD} from './avatars.js?v=2';
+import {announce, clockNow, visitorName, HD} from './avatars.js?v=3';
 
 const DUR = 60;         // seconds per round
 const COLLECT_MS = 25000;
 const BEST_KEY = 'eol-hd-best';
 const DOGS_TO = 3;      // bites per dog
+
+function reportHotdog(dogs) {                      // every contest result feeds /api/scores
+  let phone = '';
+  try { const a = JSON.parse(localStorage.getItem('eolAcct') || 'null'); if (a && a.phone) phone = a.phone; } catch (e) {}
+  try { fetch('/api/score', {method: 'POST', headers: {'Content-Type': 'application/json'}, keepalive: true,
+    body: JSON.stringify({game: 'hotdog', value: dogs, name: visitorName(), phone})}).catch(() => {}); } catch (e) {}
+}
 const ZONE = 0.42;      // bite-zone half-width in radians
 
 const UP = Math.PI * 1.5;   // zone center = top of the dial
@@ -220,6 +227,7 @@ function finish() {
   mode = 'scoring';
   if (tickRaf) cancelAnimationFrame(tickRaf); tickRaf = 0;
   const mine = round.dogs || 0;
+  reportHotdog(mine);   // → HIGH SCORES board by the truck + the trivia bot's live-score questions
   if (!round.solo) {
     announce('@hd result ' + mine);
     results = results || new Map();

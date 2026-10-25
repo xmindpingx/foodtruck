@@ -9,7 +9,8 @@
 // is an after-the-fact audit log, and Settings has an on/off switch if it's ever misused.
 import * as THREE from 'three';
 import {WX0, WX1, BW, FLOOR} from './truck.js';
-import {CONFIG} from './shop.js?v=2';
+import {CONFIG} from './shop.js?v=3';
+import * as Account from './account.js?v=3';   // language picked at sign-up drives chips + docks
 
 const ID_KEY = 'eol-visitor-id', NAME_KEY = 'eol-visitor-name', PROFILE_KEY = 'eol-visitor-profile';
 const CAP_STYLES = ['', 'ball', 'cowboy', 'beret', 'cone'];
@@ -56,6 +57,8 @@ const BUBBLE_MS = 9000;           // how long a chat bubble stays up
 // off here and handed to the contest panel as DOM events, never shown as chat
 const HD_TAG = '@hd ';
 const HD_EVENT = 'eol:hd';
+const PA_TAG = '@pa ';              // midway/arcade control traffic → js/arcade.js (same relay pattern)
+const PA_EVENT = 'eol:pa';
 
 export function init(scene) {
   S = scene;
@@ -94,13 +97,20 @@ async function heartbeat(ordered) {
 async function sendChat(text) {
   text = text.trim().slice(0, 140);
   if (!text) return;
+  let acctPhone = '';
+  try { const a = JSON.parse(localStorage.getItem('eolAcct') || 'null'); if (a && a.phone) acctPhone = a.phone; } catch (e) {}
   try {
     const r = await fetch('/api/chat', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({id: myId, text}),
+      body: JSON.stringify({id: myId, text, phone: acctPhone}),   // phone links correct trivia guesses to points
     });
     if (!r.ok) { const j = await r.json().catch(() => ({})); logLine('system', j.error || 'Message not sent.'); }
-    else if (!text.startsWith(HD_TAG)) logLine(myName || 'You', text, true);
+    else {
+      if (!text.startsWith(HD_TAG) && !text.startsWith(PA_TAG)) logLine(myName || 'You', text, true);
+      const j = await r.json().catch(() => ({}));
+      if (j.gained > 0) logLine('system', '🎉 Trivia! +' + j.gained + ' points — redeem them in your profile.');
+      else if (j.gained === 0) logLine('system', 'Correct! But only signed-in visitors bank points — sign in at 🎪 Midway.');
+    }
   } catch (e) { logLine('system', 'Message not sent — connection issue.'); }
 }
 
@@ -132,13 +142,56 @@ async function sendToAssistant(text) {
   try {
     const r = await fetch('/api/assistant', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({id: myId, text}),
+      body: JSON.stringify({id: myId, text, lang: Account.lang(), phone: Account.phone || ''}),   // lang picked at sign-up + account phone
     });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) { logLine('system', j.error || 'Assistant is unavailable right now.'); return; }
+    if (!r.ok) { logLine('system', j.error || (Account.lang() === 'es' ? 'El asistente no está disponible ahorita.' : 'Assistant is unavailable right now.')); return; }
     logLine('Assistant', j.reply || '…');
-  } catch (e) { logLine('system', 'Assistant is unavailable — connection issue.'); }
+  } catch (e) { logLine('system', Account.lang() === 'es' ? 'El asistente no está disponible — problema de conexión.' : 'Assistant is unavailable — connection issue.'); }
 }
+
+// ---------- suggested chat chips (contextual to the visitor's order stage) ----------
+// shop.js fires 'eol:order-stage' on every order-status poll; the assistant then answers the
+// tapped chip with the REAL order state (server-side deterministic paths). Fully localized.
+let chipsBox = null, orderStage = '';
+const CHIPS = {
+  none: {
+    en: ["What is the status of my order?", "What's on the menu today?", "How long is the wait?", "Do you take cards?"],
+    es: ["¿Cuál es el estado de mi pedido?", "¿Qué hay en el menú hoy?", "¿Cuánto tarda el pedido?", "¿Aceptan tarjeta?"],
+  },
+  new: {
+    en: ["What is the status of my order?", "Can I change my order?", "Cancel my order"],
+    es: ["¿Cuál es el estado de mi pedido?", "¿Puedo cambiar mi pedido?", "Cancelar mi pedido"],
+  },
+  ready: {
+    en: ["What is the status of my order?", "Something is wrong with what I received!", "I didn't get my full order", "Can I request a refund?"],
+    es: ["¿Cuál es el estado de mi pedido?", "¡Hay algo malo con lo que recibí!", "Me faltó algo de mi pedido", "¿Puedo pedir un reembolso?"],
+  },
+  picked: {
+    en: ["Something is wrong with what I received!", "I didn't get my full order", "Can I request a refund?"],
+    es: ["¡Hay algo malo con lo que recibí!", "Me faltó algo de mi pedido", "¿Puedo pedir un reembolso?"],
+  },
+};
+CHIPS.cooking = CHIPS.new;
+const chipStage = s => (s === 'new' || s === 'cooking' || s === 'ready') ? s
+  : (s && s !== 'none' ? 'picked' : 'none');
+function paintChips() {
+  if (!chipsBox) return;
+  const ai = mode === 'ai';
+  chipsBox.style.display = ai ? '' : 'none';
+  if (!ai) return;
+  if (!orderStage) { try { orderStage = chipStage((JSON.parse(localStorage.getItem('eol-last-order') || 'null') || {}).status); } catch (e) {} }
+  const list = ((CHIPS[chipStage(orderStage) || 'none'] || CHIPS.none)[Account.lang() || 'en']) || CHIPS.none.en;
+  chipsBox.innerHTML = list.map(c => `<button class="eolChip">${esc(c)}</button>`).join('');
+  chipsBox.querySelectorAll('.eolChip').forEach(b => b.onclick = () => sendToAssistant(b.textContent));
+}
+const aiHint = () => Account.lang() === 'es'
+  ? 'Pregunta por el menú, o di lo que quieres — puede crear tu pedido.'
+  : 'Ask about the menu, or say what you want — it can place the order.';
+addEventListener('eol:order-stage', e => { orderStage = chipStage((e.detail || {}).status || ''); paintChips(); });
+addEventListener('eol:lang', () => { if (mode === 'ai') logLine('system', aiHint()); paintChips(); });
+addEventListener('eol:acct-ready', () => paintChips());
+addEventListener('eol:account-updated', () => paintChips());   // account lang lands server-side async — repaint then
 
 async function poll() {
   if (!S) return;
@@ -169,13 +222,17 @@ async function poll() {
 
   for (const m of (j.chat || [])) {
     if (m.id === myId) continue;              // we already echoed our own line locally
+    if (String(m.text || '').startsWith(PA_TAG)) {   // arcade control traffic → midway panel
+      dispatchEvent(new CustomEvent(PA_EVENT, {detail: {id: m.id, name: m.name, text: m.text.slice(PA_TAG.length)}}));
+      continue;
+    }
     if (String(m.text || '').startsWith(HD_TAG)) {   // contest control traffic → hot-dog panel
       dispatchEvent(new CustomEvent(HD_EVENT, {detail: {id: m.id, name: m.name, text: m.text.slice(HD_TAG.length)}}));
       continue;
     }
     logLine(m.name, m.text);
     const a = live.get(m.id);
-    if (a) showBubble(a, m.text);
+    if (a && !chatQuiet) showBubble(a, m.text);   // quiet mode trims social bubbles too
   }
 }
 
@@ -333,8 +390,24 @@ export function tick(t, dt) {
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c])); }
 
 let logEl, dockNameBtn, chatIn;
+// ---------- quiet chat mode (order messages only) ----------
+// Festival-crowd chat gets loud; this visitor-side toggle hides every social line and 3D bubble
+// except Assistant (order-taking) + system lines. Persisted in localStorage.
+let chatQuiet = false;
+try { chatQuiet = localStorage.getItem('eol-chat-quiet') === '1'; } catch (e) {}
+let quietBtn = null;
+function setChatQuiet(q) {
+  chatQuiet = !!q;
+  try { localStorage.setItem('eol-chat-quiet', chatQuiet ? '1' : '0'); } catch (e) {}
+  if (quietBtn) {
+    quietBtn.textContent = chatQuiet ? '🔇' : '💬';
+    quietBtn.title = chatQuiet ? 'Chat is quiet — only order messages show. Tap to unmute.'
+                               : 'Quiet the social chat (order updates only)';
+  }
+}
 function logLine(name, text, mine) {
   if (!logEl) return;
+  if (chatQuiet && name !== 'system' && name !== 'Assistant' && name !== 'TriviaBot pts') return;
   const row = document.createElement('div');
   row.style.cssText = 'margin-top:3px;opacity:.95';
   row.innerHTML = name === 'system'
@@ -372,7 +445,8 @@ function buildDock() {
       <button id="eolNameBtn" title="Change your name"></button>
       <button id="eolLookBtn" title="Customize your avatar">🎨</button>
       ${chatOn && aiOn ? `<button id="eolModeBtn" title="Switch between public chat and ordering">🤖</button>` : ''}
-      <input id="eolChatIn" maxlength="400" placeholder="${mode === 'ai' ? 'Ask about the menu or order…' : 'Say something…'}" autocomplete="off">
+      ${chatOn ? `<button id="eolQuietBtn" title="Quiet the social chat (order updates only)">${chatQuiet ? '🔇' : '💬'}</button>` : ''}
+      <input id="eolChatIn" maxlength="400" placeholder="${mode === 'ai' ? esc(Account.lang() === 'es' ? 'Menú o pedidos — pregunta…' : 'Ask about the menu or order…') : 'Say something…'}" autocomplete="off">
       <button id="eolChatSend" aria-label="Send">&#10148;</button>
     </div>
     <div id="eolLook" hidden>
@@ -386,8 +460,17 @@ function buildDock() {
   logEl = wrap.querySelector('#eolChatLog');
   dockNameBtn = wrap.querySelector('#eolNameBtn');
   chatIn = wrap.querySelector('#eolChatIn');
+  chipsBox = document.createElement('div');           // suggested replies, context-driven
+  chipsBox.id = 'eolChips';
+  wrap.insertBefore(chipsBox, wrap.querySelector('#eolDockRow'));
+  paintChips();
   dockNameBtn.textContent = myName || 'Set name';
   dockNameBtn.onclick = askName;
+  quietBtn = wrap.querySelector('#eolQuietBtn');
+  if (quietBtn) {
+    setChatQuiet(chatQuiet);                    // paints initial glyph
+    quietBtn.onclick = () => setChatQuiet(!chatQuiet);
+  }
   // avatar-customization popover: swatch clicks restyle YOUR avatar live, Save look persists
   // it and pushes to everyone else's screen on the next 7-second presence heartbeat.
   const lookBtn = wrap.querySelector('#eolLookBtn'), lookPanel = wrap.querySelector('#eolLook');
@@ -426,8 +509,9 @@ function buildDock() {
   if (modeBtn) modeBtn.onclick = () => {
     mode = mode === 'chat' ? 'ai' : 'chat';
     modeBtn.textContent = mode === 'chat' ? '🤖' : '💬';
-    chatIn.placeholder = mode === 'ai' ? 'Ask about the menu or order…' : 'Say something…';
-    if (mode === 'ai') logLine('system', 'Ask about the menu, or say what you want — it can place the order.');
+    chatIn.placeholder = mode === 'ai' ? (Account.lang() === 'es' ? 'Menú o pedidos — pregunta…' : 'Ask about the menu or order…') : 'Say something…';
+    if (mode === 'ai') logLine('system', aiHint());
+    paintChips();
   };
   const send = () => {
     const v = chatIn.value;
@@ -436,6 +520,6 @@ function buildDock() {
   };
   wrap.querySelector('#eolChatSend').onclick = send;
   chatIn.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
-  if (mode === 'ai') logLine('system', 'Ask about the menu, or say what you want — it can place the order.');
+  if (mode === 'ai') logLine('system', aiHint());
   else if (!myName) logLine('system', 'Tap the name button to pick a name others will see.');
 }

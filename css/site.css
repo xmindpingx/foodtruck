@@ -86,8 +86,7 @@ footer/hint pills that used to occupy the same bottom strip. */
 #eolChatSend{flex:none;border:none;border-radius:50%;width:34px;height:34px;background:#f2c14e;color:#1a1510;font-weight:800;cursor:pointer}
 @media(max-width:640px){
  header{flex-direction:column;align-items:stretch;gap:8px;padding:10px 12px}
- .brand{font-size:26px;white-space:nowrap}.brand small{display:inline;margin:0 0 0 8px;font-size:.62em}
- nav{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;scrollbar-width:none;-webkit-overflow-scrolling:touch;order:1}
+ .brand{font-size:26px;white-space:nowrap}.brand small{display:inline;margin:0 0 0 8px;font-size:.62em} nav{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;scrollbar-width:none;-webkit-overflow-scrolling:touch;order:1}
  #foot{order:2;white-space:normal;overflow:visible;text-align:left;font-size:10px;opacity:.8}
  nav::-webkit-scrollbar{display:none}
  nav button{flex:none;padding:8px 12px;font-size:13px}
@@ -97,4 +96,120 @@ footer/hint pills that used to occupy the same bottom strip. */
  #eolDockRow{flex-wrap:wrap}
  #eolNameBtn{flex:1 0 100%}
  form input,form textarea,.item select{font-size:16px}   /* stops iPhone auto-zoom on focus */
+}
+
+/* ============ 🎪 Midway / arcade account / chat chips (v2) ============ */
+#eolChips{display:flex;flex-wrap:wrap;gap:6px;padding:2px 2px 6px;pointer-events:auto}
+.eolChip{background:#f2c14e;color:#241b2e;border:none;border-radius:999px;padding:7px 12px;
+ font:600 12px Inter,system-ui,sans-serif;cursor:pointer;box-shadow:0 2px 8px #0007}
+.eolChip:active{transform:scale(.96)}
+#eolQuietBtn{flex:none;border:none;border-radius:50%;width:34px;height:34px;background:rgba(20,16,10,.78);
+ color:#f2c14e;font-size:15px;cursor:pointer;padding:0}
+
+/* --- account pill + profile panel (mobile first) --- */
+#eolAcctPill{position:fixed;right:14px;bottom:calc(78px + env(safe-area-inset-bottom,0px));z-index:52;
+ background:#221833e0;color:#f6e7c8;border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:9px 14px;
+ font:700 13px Inter,system-ui,sans-serif;cursor:pointer;box-shadow:0 6px 18px #0008}
+#eolAcct{position:fixed;right:10px;bottom:calc(122px + env(safe-area-inset-bottom,0px));z-index:56;
+ width:min(92vw,360px);max-height:min(72vh,560px);display:flex;flex-direction:column;
+ background:#180f24f5;border:1px solid rgba(232,58,115,.45);border-radius:18px;color:#f6e7c8;overflow:hidden;
+ box-shadow:0 18px 50px #000c}
+#eolAcct[hidden]{display:none}
+.eolAcctHead{display:flex;align-items:center;gap:8px;padding:12px 14px;background:rgba(232,58,115,.16);
+ border-bottom:1px solid rgba(255,255,255,.14);font:700 14px Inter,sans-serif}
+.eolAcctHead span{margin-left:auto;font-weight:700;color:#f2c14e;font-size:12.5px}
+.eolAcctHead button,.eolAcctX{margin-left:6px;background:none;border:0;color:#f6e7c8;font-size:15px;cursor:pointer}
+.eolAcctBody{padding:12px 14px;display:flex;flex-direction:column;gap:9px;overflow-y:auto}
+.eolAcctInfo{font-size:12.5px;line-height:1.45;opacity:.92;margin:0}
+.eolAcctTip{font-size:10.5px;opacity:.65}
+.eolLangs{display:flex;flex-direction:column;gap:7px}
+.eolLangLink{padding:11px 12px;border-radius:12px;border:1.5px solid rgba(255,255,255,.25);
+ background:rgba(20,16,10,.6);color:#f6e7c8;font:600 13.5px Inter,system-ui,sans-serif;cursor:pointer;text-align:left}
+.eolLangLink.on{border-color:#f2c14e;background:rgba(242,193,78,.16)}
+.eolAcctBody input{width:100%;box-sizing:border-box;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.3);
+ background:rgba(20,16,10,.65);color:#f6e7c8;font:16px Inter,system-ui,sans-serif;outline:none;
+ -webkit-appearance:none;appearance:none}
+.eolAcctBody input:focus{border-color:#f2c14e}
+.eolAcctGo{padding:13px 0;border-radius:12px;border:0;background:#e83a73;color:#fff;font:700 15px Inter,sans-serif;cursor:pointer}
+.eolAcctGo:disabled{opacity:.6}
+.eolAcctMsg{font-size:12px;color:#ff9db1;min-height:14px}
+.eolAcctScroll{max-height:46vh}
+.eolAcctCap{font-weight:700;color:#f2c14e;font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+.eolAcctTrophies{display:flex;flex-wrap:wrap;gap:6px}
+.eolAcctTroph{background:rgba(20,16,10,.6);border:1px solid rgba(255,255,255,.2);border-radius:999px;
+ padding:4px 10px;font:600 11.5px Inter,sans-serif}
+.eolAcctColl{display:flex;flex-wrap:wrap;gap:6px}
+.eolAcctChip{background:rgba(242,193,78,.14);border:1px solid rgba(242,193,78,.4);border-radius:10px;
+ padding:5px 9px;font:600 11.5px Inter,sans-serif}
+.eolAcctChip i{font-style:normal;opacity:.75;margin-left:4px}
+.eolAcctMini{max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:bottom}
+.eolAcctShopGrid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.eolAcctShop{display:flex;flex-direction:column;gap:2px;padding:9px 10px;border-radius:12px;
+ border:1px solid rgba(255,255,255,.22);background:rgba(20,16,10,.6);color:#f6e7c8;cursor:pointer;text-align:left}
+.eolAcctShop span{color:#f2c14e;font-weight:700;font-size:12px}
+.eolAcctShop i{font-style:normal;opacity:.7;font-size:11px}
+.eolAcctShop.can{border-color:#e83a73}
+.eolAcctShop:disabled{opacity:.45;cursor:default}
+.eolAcctEmpty{font-size:12px;opacity:.75;line-height:1.4}
+
+/* --- 🎪 Midway panel --- */
+#eolMidway{position:fixed;left:10px;bottom:calc(54px + env(safe-area-inset-bottom,0px));z-index:54;
+ width:min(94vw,380px);max-height:min(76vh,600px);display:flex;flex-direction:column;
+ background:#141021f2;border:1px solid rgba(242,193,78,.4);border-radius:18px;color:#f6e7c8;overflow:hidden;
+ box-shadow:0 18px 50px #000c}
+#eolMidway[hidden]{display:none}
+.eolMidHead{display:flex;align-items:center;gap:8px;padding:11px 13px;background:rgba(242,193,78,.12);
+ border-bottom:1px solid rgba(255,255,255,.14);font:700 14px Inter,sans-serif}
+.eolMidPts{margin-left:auto;color:#f2c14e;font-size:12.5px}
+.eolMidHead button{background:none;border:0;color:#f6e7c8;font-size:15px;cursor:pointer}
+.eolMidTabs{display:flex;gap:5px;padding:8px 10px;overflow-x:auto;scrollbar-width:none}
+.eolMidTabs::-webkit-scrollbar{display:none}
+.eolMidTab{flex:none;display:flex;align-items:center;gap:4px;padding:7px 10px;border-radius:999px;
+ border:1px solid rgba(255,255,255,.22);background:rgba(20,16,10,.6);color:#f6e7c8;font:600 12px Inter,sans-serif;cursor:pointer}
+.eolMidTab.on{background:#f2c14e;color:#241b2e}
+#eolMidwayBody{padding:4px 13px 12px;overflow-y:auto}
+.eolMidSay{min-height:16px;font-size:12px;color:#ffd98a;margin:2px 0 6px}
+.eolMidBlurb,.eolMidAward{font-size:12.5px;line-height:1.45;margin:4px 0}
+.eolMidAward b,.eolMidBlurb b{color:#f2c14e}
+.eolMidBtns{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+.eolMidBtns button{padding:11px 16px;border-radius:12px;border:1px solid rgba(255,255,255,.3);
+ background:rgba(20,16,10,.6);color:#f6e7c8;font:700 13.5px Inter,sans-serif;cursor:pointer}
+.eolMidBtns .p{background:#e83a73;border-color:#e83a73;color:#fff}
+.eolMidJoin{background:#f2c14e;color:#241b2e!important;margin-bottom:4px}
+.eolMidFoot{font-size:12px;opacity:.9;border-top:1px solid rgba(255,255,255,.12);padding-top:8px}
+.eolMidFoot a{color:#f2c14e}
+.eolMidDone{font-size:14px;line-height:1.5;padding:10px 0}
+.eolMidDone b{color:#f2c14e}
+.eolMidStage{background:#0d0a14;border-radius:12px;padding:6px;margin:6px 0}
+.eolMidStage canvas{display:block;width:100%;height:auto;border-radius:8px;touch-action:manipulation}
+.eolMidCtl{display:flex;align-items:center;gap:8px;margin-top:6px}
+.eolMidBack{padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.3);
+ background:none;color:#f6e7c8;font:600 12.5px Inter,sans-serif;cursor:pointer}
+.eolMidHint{font-size:11px;opacity:.8;line-height:1.35}
+
+/* --- 🏆 HIGH SCORES panel --- */
+#eolScores{position:fixed;left:10px;top:66px;z-index:56;width:min(94vw,380px);max-height:74vh;
+ display:flex;flex-direction:column;background:#141021f2;border:1px solid rgba(242,193,78,.45);
+ border-radius:18px;color:#f6e7c8;overflow:hidden;box-shadow:0 18px 50px #000c}
+#eolScores[hidden]{display:none}
+.eolScoreHead{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;
+ background:rgba(242,193,78,.12);font:700 15px Inter,sans-serif;border-bottom:1px solid rgba(255,255,255,.14)}
+.eolScoreHead button{background:none;border:0;color:#f6e7c8;font-size:15px;cursor:pointer}
+.eolScoreRows{overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.eolScoreRow{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;
+ background:rgba(20,16,10,.55);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:9px 11px}
+.eolScoreRow.big{border-color:rgba(232,58,115,.5)}
+.eolScoreL b{color:#f2c14e;font-size:13px}
+.eolScoreL i{display:block;font-style:normal;font-size:10.5px;opacity:.75;margin-top:2px}
+.eolScoreR{text-align:right;font-size:11px;opacity:.92;display:flex;flex-direction:column;gap:3px}
+.eolScoreR b{color:#f2c14e}
+.eolScoreFoot{padding:9px 12px;border-top:1px solid rgba(255,255,255,.12)}
+.eolScoreFoot button{padding:9px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.3);
+ background:none;color:#f6e7c8;font:700 12.5px Inter,sans-serif;cursor:pointer}
+
+@media(max-width:640px){
+ #eolAcct{right:5vw;left:5vw;width:90vw}
+ #eolAcctPill{right:auto;left:8px;bottom:calc(64px + env(safe-area-inset-bottom,0px))}
+ #eolMidway{left:5vw;width:90vw}
+ #eolScores{left:5vw;width:90vw}
 }

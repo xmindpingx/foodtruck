@@ -2,9 +2,11 @@
 // handling and the animation loop. Imports the truck from truck.js and the ordering UI from shop.js.
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
-import {CONFIG,MENU,money,open,hooks} from './shop.js?v=2';
-import {buildTruck,WX0,WX1,WY0,WY1,BW,BL,BH,bx0,FLOOR,CL} from './truck.js?v=2';
-import * as Avatars from './avatars.js?v=2';
+import {CONFIG,MENU,money,open,hooks} from './shop.js?v=3';
+import {buildTruck,WX0,WX1,WY0,WY1,BW,BL,BH,bx0,FLOOR,CL} from './truck.js?v=3';
+import * as Avatars from './avatars.js?v=3';
+import * as Account from './account.js?v=3';   // phone-number arcade profiles (language-first sign-up)
+import * as Arcade from './arcade.js?v=3';     // 🎪 The Midway props + six minigames + HIGH SCORES board
 
 const canvas=document.getElementById('c');
 const R=new THREE.WebGLRenderer({canvas,antialias:true});
@@ -201,6 +203,7 @@ Avatars.init(S);   // live "other visitors" avatars - safe to start before load 
 // "layout mode" below). Position comes from settings (saved by a previous drag), defaulting to
 // wherever a visitor last dragged it in their own browser, else dead center (0,0).
 const truckRig=T.group;
+Account.init();Arcade.init({scene:S,rig:truckRig,menu:MENU});   // 🎪 Midway props mount INSIDE the rig (move with the truck)
 {let ox=0,oz=0,rot=0;
   try{const saved=JSON.parse(localStorage.getItem('eol_truckOffset')||'null');if(saved)ox=saved.x,oz=saved.z,rot=saved.r||0;}catch{}
   if(CONFIG && (CONFIG.truckOffsetX||CONFIG.truckOffsetZ||CONFIG.truckRotation) && !localStorage.getItem('eol_truckOffset')){ox=CONFIG.truckOffsetX||0;oz=CONFIG.truckOffsetZ||0;rot=CONFIG.truckRotation||0;}
@@ -883,6 +886,8 @@ canvas.addEventListener('click',e=>{m2.set(e.clientX/innerWidth*2-1,-(e.clientY/
         u.banks[b]=!u.banks[b];o.rotation.x=u.banks[b]?-.45:.5;
         u.switchLeds[i].material.emissiveIntensity=u.banks[b]?1.8:.15;}
       else if((car.userData.burst||0)<3)car.userData.burst=(car.userData.burst||0)+1;}
+  }else if(Arcade.targets().length&&ray.intersectObjects(Arcade.targets(),true).length){   // 🎪 midway prop → its minigame / score board
+    Arcade.openFrom(ray.intersectObjects(Arcade.targets(),true)[0].object);
   }else if(ray.intersectObjects(TABLE_HIT,true).length){   // tap a lawn table → the contest
     dispatchEvent(new Event('eol:hd-open-table'));
   }else if(ray.intersectObjects(CLICK,true).length){open('menu');goWindow();}});
@@ -890,7 +895,8 @@ canvas.addEventListener('pointermove',e=>{m2.set(e.clientX/innerWidth*2-1,-(e.cl
   const hit=ray.intersectObjects(CLICK,true).length>0;
   const hitTruck=CAR_HIT.length?ray.intersectObjects(CAR_HIT,true).length>0:false;
   const hitTable=ray.intersectObjects(TABLE_HIT,true).length>0;
-  canvas.style.cursor=(hit||hitTruck||hitTable)?'pointer':'';T.board.material.emissiveIntensity=hit?.8:.55;});
+  const hitArc=Arcade.targets().length?ray.intersectObjects(Arcade.targets(),true).length>0:false;
+  canvas.style.cursor=(hit||hitTruck||hitTable||hitArc)?'pointer':'';T.board.material.emissiveIntensity=hit?.8:.55;});
 
 // ---------- 3rd-person walk mode ----------
 // When nothing is open (no shop menu, contest panel, look picker, chat typing) the arrow keys
@@ -901,8 +907,8 @@ const walk={on:false,keys:new Set(),yaw:0,py:0,vy:0,x:0,z:0,hold:0,grp:null};
 const walkTyping=()=>{const a=document.activeElement;
   return !!a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.isContentEditable);};
 const walkUI=()=>(!!document.querySelector('.panel.open'))||
-  ((document.getElementById('eolHd')||{}).hidden===false)||
-  ((document.getElementById('eolLook')||{}).hidden===false)||walkTyping();
+  ['eolHd','eolLook','eolMidway','eolScores','eolAcct'].some(id=>{const el=document.getElementById(id);return el&&!el.hidden;})||
+  walkTyping();
 const walkChip=document.createElement('div');walkChip.id='eolWalkHint';walkChip.hidden=true;
 walkChip.textContent='◀ ▲ ▼ ▶ move · space jump · esc stop';document.body.appendChild(walkChip);
 const _wv=new THREE.Vector3(),_wm=new THREE.Matrix4();
@@ -921,6 +927,7 @@ function walkCollide(){
   if(jukebox.parent){jukebox.getWorldPosition(_wv);clear(_wv.x,_wv.z,.55);}
   if(lexus.parent){lexus.getWorldPosition(_wv);const ry=lexus.rotation.y;
     clear(_wv.x,_wv.z,1.0);clear(_wv.x+Math.sin(ry)*1.7,_wv.z+Math.cos(ry)*1.7,1.0);}
+  for(const b of Arcade.walkBalls())clear(b.x,b.z,b.r);   // claw machine, bean-bag boards, tag flag, score board
   truckRig.updateMatrixWorld();
   _wv.set(walk.x,FLOOR,walk.z).applyMatrix4(_wm.copy(truckRig.matrixWorld).invert());
   if(_wv.x>bx0-.55&&_wv.x<bx0+BL+.55&&Math.abs(_wv.z)<BW/2+.55){   // truck footprint, in rig space
