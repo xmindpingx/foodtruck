@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>El Otro Lado — Food Truck · Mesa, AZ</title>
-<meta name="description" content="El Otro Lado — “The Other Side.” Family owned, signature choices. Mesa, Arizona food truck owned and operated by John Switzer, Sole Proprietor. Order online; optional order-ready text alerts.">
+<meta name="description" content="El Otro Lado — “The Other Side.” Family owned, signature choices. Mesa, Arizona food truck owned and operated by Summer and Jesse, Sole Proprietor. Order online; optional order-ready text alerts.">
 <link href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=Great+Vibes&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/site.css?v=5">
+<link rel="stylesheet" href="css/site.css?v=6">
 <script type="importmap">{"imports":{"three":"./lib/three.module.js","three/addons/":"./lib/addons/"}}</script>
 </head>
 <body>
@@ -35,7 +35,7 @@
 <canvas id="c"></canvas>
 <header>
  <div class="brand">el Otro Lado<small>“The Other Side”</small></div>
- <footer id="foot"><span id="copyLine">© 2026 John Switzer, Sole Proprietor, DBA El Otro Lado &middot; Mesa, AZ</span> &middot; <a href="https://privacy.signaturediversified.com">Privacy Policy</a> &middot; <a href="https://terms.signaturediversified.com">Terms &amp; Conditions</a> &middot; <a href="https://poc.signaturediversified.com">SMS program &amp; opt-in</a></footer>
+ <footer id="foot"><span id="copyLine">© 2026 Summer and Jesse, Sole Proprietor, DBA El Otro Lado &middot; Mesa, AZ</span> &middot; <a href="https://privacy.signaturediversified.com">Privacy Policy</a> &middot; <a href="https://terms.signaturediversified.com">Terms &amp; Conditions</a> &middot; <a href="https://poc.signaturediversified.com">SMS program &amp; opt-in</a></footer>
  <nav>
   <button data-p="menu">Menu</button>
   <button data-p="find">Find Us</button>
@@ -54,6 +54,7 @@
   <h3 style="margin:18px 0 6px">Your Order</h3>
   <div id="cartLines"><p class="muted">Tap + to add items.</p></div>
   <div class="row"><span>Subtotal</span><b id="sub">$0.00</b></div>
+  <div class="row" id="discRow" hidden><span id="discLabel" style="color:var(--gold)">Reward</span><b id="disc" style="color:var(--gold)">-$0.00</b></div>
   <div class="row"><span id="taxLabel">Tax</span><b id="tax">$0.00</b></div>
   <div class="row" style="font-size:18px"><span>Total</span><b id="tot">$0.00</b></div>
   <form id="oform">
@@ -67,12 +68,19 @@
     <div style="font-size:10.5px;font-weight:800;letter-spacing:.5px;color:var(--gold);margin-bottom:6px">OPTIONAL &mdash; TEXT ME WHEN MY ORDER IS READY</div>
     <label style="display:flex;gap:8px;align-items:flex-start;font-size:12.5px;line-height:1.35;color:inherit;cursor:pointer" for="smsConsent">
      <input type="checkbox" id="smsConsent" name="smsConsent" style="width:18px;height:18px;margin:2px 0 0;padding:0;flex:none;accent-color:var(--gold)">
-     <span style="flex:1;min-width:0">I agree to receive one (1) text message per order from El Otro Lado (John Switzer, Sole Proprietor) at the number provided when my order is ready for pickup. Msg &amp; data rates may apply. Reply STOP to opt out, HELP for help. View our <a href="https://privacy.signaturediversified.com" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">Privacy Policy</a> and <a href="https://terms.signaturediversified.com" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">Terms &amp; Conditions</a>.</span>
+     <span style="flex:1;min-width:0">I agree to receive one (1) text message per order from El Otro Lado (Summer and Jesse, Sole Proprietor) at the number provided when my order is ready for pickup. Msg &amp; data rates may apply. Reply STOP to opt out, HELP for help. View our <a href="https://privacy.signaturediversified.com" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">Privacy Policy</a> and <a href="https://terms.signaturediversified.com" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">Terms &amp; Conditions</a>.</span>
     </label>
-    <div style="font-size:11px;line-height:1.35;opacity:.8;margin-top:6px;padding-left:25px">Message frequency: 1 message per order. Consent is not a condition of purchase &mdash; this box is unchecked by default and is not required; you can place your order without checking it and your order status will show on this page. Texts are sent by John Switzer, Sole Proprietor, doing business as El Otro Lado, Mesa, AZ.</div>
+    <div style="font-size:11px;line-height:1.35;opacity:.8;margin-top:6px;padding-left:25px">Message frequency: 1 message per order. Consent is not a condition of purchase &mdash; this box is unchecked by default and is not required; you can place your order without checking it and your order status will show on this page. Texts are sent by Summer and Jesse, Sole Proprietor, doing business as El Otro Lado, Mesa, AZ.</div>
    </div>
    <textarea name="notes" rows="2" placeholder="Notes: no onions, extra salsa…" maxlength="200"></textarea>
-   <p class="muted">Pickup at the window. Pay when you pick up — card (Square) or cash.</p>
+   <!-- payments · promo code · rewards — populated by js/shop.js from /api/settings -->
+   <div id="payBox" style="margin:8px 0"></div>
+   <div id="promoBox" style="display:flex;gap:8px;align-items:center;margin:8px 0">
+     <input id="promoCode" placeholder="Promo code (optional)" maxlength="24" style="flex:1;text-transform:uppercase">
+     <small style="opacity:.7;white-space:nowrap">applied at checkout</small>
+   </div>
+   <div id="rewardBox" style="margin:8px 0"></div>
+   <p class="muted" id="payNote">Pickup at the window. Pay when you pick up — card (Square) or cash.</p>
    <button class="cta" style="width:100%" id="placeBtn">Place Order</button>
   </form>
   <div id="ordDone" style="display:none"></div>
@@ -97,14 +105,14 @@
  <form id="cform"><input name="name" placeholder="Your name" required><input name="from" placeholder="Phone or email" required><textarea name="msg" rows="3" placeholder="Event date, headcount, question…" required></textarea><button class="cta" style="width:100%">Send</button></form>
 </section>
 
-<script type="module" src="js/scene.js?v=5"></script>
-<script type="module" src="js/hotdog.js?v=5"></script>
+<script type="module" src="js/scene.js?v=6"></script>
+<script type="module" src="js/hotdog.js?v=6"></script>
 <script type="module">
 // Deep links so the checkout form (and its optional SMS opt-in checkbox) can be opened and reviewed directly:
 //   /#order  (also #checkout, #sms-optin, and the real paths /order /checkout /sms-optin served by server.py)
 //            -> opens the ordering panel scrolled to the checkout form
 //   /#menu, /#find, /#contact             -> opens that panel
-import {open} from './js/shop.js?v=5';
+import {open} from './js/shop.js?v=6';
 const go=()=>{const h=(location.hash.slice(1)||location.pathname.replace(/^\/+|\/+$/g,'')).toLowerCase();
   if(['menu','order','checkout','sms-optin'].includes(h)){open('menu');
     if(h!=='menu')setTimeout(()=>document.getElementById('smsOptIn')?.scrollIntoView({block:'center'}),300);}

@@ -4,7 +4,8 @@ Run: python3 server.py  (listens on 127.0.0.1:8095; Cloudflare tunnel fronts it)
 """
 import json, os, secrets, hashlib, hmac, time, threading, re, base64
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, urlencode
+import urllib.request, urllib.error
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA = os.environ.get('FOODTRUCK_DATA') or os.path.join(ROOT, 'data')   # tests point this at a temp dir
@@ -94,8 +95,13 @@ def _sms_send(to, message, idempotency_key=None):
     """Outbound dispatcher. settings.smsGateway picks the carrier:
       'twilio'   (default, newly approved direct REST account),
       'notifyhub'(previous owner-iPhone Shortcut relay),
-      'gateway'  (legacy sms-gateway pm2 service)."""
+      'gateway'  (legacy sms-gateway pm2 service).
+    COMPLIANCE: every outbound path funnels through here, and recipients who texted STOP
+    (data/sms-optouts.json, self-managed because the number has no Messaging Service) are
+    refused - the refusal is a dict, not an exception, so callers can log it their way."""
     s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
+    if _sms_is_opted_out(to):
+        return {'ok': False, 'error': 'opted-out', 'sid': None}
     gw = (s.get('smsGateway') or 'twilio').strip().lower()
     if gw == 'twilio': return _twilio_send(to, message, s)
     if gw == 'gateway': return _gateway_send(to, message, idempotency_key)
@@ -129,10 +135,11 @@ def order_ready_sms(o):
     """The one message this campaign sends. Must stay consistent with the sample messages
     registered with Twilio/TCR: brand name + order-ready notice + opt-out instruction.
     Customer-typed order notes are deliberately NOT echoed into the SMS."""
-    # Hardcoded on purpose: this must stay byte-identical to sample message #1 registered with
-    # Twilio/TCR for campaign QE2c6890da8086d771620e9b13fadeba0b. "(John Switzer)" is the registered
-    # Sole Proprietor brand name. Do not build it from the admin-editable businessName setting.
-    msg = "El Otro Lado (John Switzer): Order #" + str(o['number']) + " is ready for pickup at the window! Reply STOP to opt out, HELP for help."
+    # Hardcoded on purpose: this must stay byte-identical to the sample message registered with
+    # Twilio/TCR for campaign QE2c6890da8086d771620e9b13fadeba0b. "(Summer and Jesse)" is the brand
+    # name (owner rebrand - the TCR campaign sample was updated to match so carriers see the same
+    # sender identity). Do not build it from the admin-editable businessName setting.
+    msg = "El Otro Lado (Summer and Jesse): Order #" + str(o['number']) + " is ready for pickup at the window! Reply STOP to opt out, HELP for help."
     return str(msg)  # Ensure plain text, no rich text formatting
 
 def send_order_ready_sms(o):
@@ -154,6 +161,10 @@ def send_order_ready_sms(o):
     if not to:
         print(f"Order {o['id']} (#{o['number']}): phone not a valid US number - not texting")
         o['smsStatus'] = 'bad_phone'
+        return False
+    if _sms_is_opted_out(to):
+        print(f"Order {o['id']} (#{o['number']}): customer texted STOP - not texting")
+        o['smsStatus'] = 'opted_out'
         return False
     try:
         out = _sms_send(to, order_ready_sms(o))      # carrier picked by settings.smsGateway (twilio now)
@@ -305,12 +316,52 @@ DEFAULT_SETTINGS = {
     # --- admin text alerts (visitor problems reported through the chat assistant) ---
     "adminPhone": "",        # E.164 number that gets problem reports texted to it immediately
     "adminSmsAlerts": True,  # off switch for those texts (reports still show in admin)
+    "driverPhone": "",       # E.164; customer "DRIVER" texts relay here (see handle_sms_inbound)
+    # --- Payments: what the checkout offers; secrets below NEVER leave the server
+    # (PUBLIC_SETTINGS only exposes the on/off flags + the public handles) ---
+    "payStripe": False,      # card via Stripe Checkout (needs stripeSecret configured below)
+    "payCashapp": True,      # manual: customer sends to cashappTag, admin confirms paid
+    "payZelle": True,        # manual: customer sends to zelleContact, admin confirms paid
+    "payCash": True,         # at the window
+    "cashappTag": "",        # e.g. "$ElOtroLado"
+    "zelleContact": "",      # phone or email on the Zelle account
+    "stripeSecret": "",      # sk_test_... / sk_live_... (admin pastes it; server-only)
+    "stripeWebhookSecret": "",   # whsec_... for /api/stripe/webhook signature checks
+    # --- Promotions: 'special' rows auto-apply (item at priceCents, optionally only on
+    # certain weekdays dow 0=Mon..6=Sun, inside starts/ends dates); 'code' rows are typed at
+    # checkout (pctOff or offCents). Row: {id,kind,name,itemId,code,dow,priceCents,pctOff,
+    # offCents,starts,ends,active} ---
+    "promos": [],
+    # --- Rewards: points per $1 on every order (rewardsOn), redeemable for rewardItems
+    # {id,name,points,offCents} chosen at checkout; balances ride the phone accounts ---
+    "rewardsOn": True,
+    "pointsPerDollar": 10,
+    "rewardItems": [],
+    # --- Marketing: homepage promo banner + social ad campaign bookkeeping (spend lands in
+    # the EOM report next to gross sales so ROI is one glance) ---
+    "bannerText": "",        # e.g. "Taco Tuesday: Street Tacos $4!" - blank hides the strip
+    "bannerLink": "",        # optional target when the banner is tapped
+    "marketingCampaigns": [],   # {id,name,platform,budget,spend,starts,ends,notes,active}
+    # --- Delivery & grocery partners: public "find us on" links + ops settings per platform
+    # (guides for signing up live in the admin Marketing tab) ---
+    "partnerGrubhubOn": False,   "partnerGrubhubLink": "",   "partnerGrubhubCommission": 0.20, "partnerGrubhubNote": "",
+    "partnerUberOn": False,      "partnerUberLink": "",      "partnerUberCommission": 0.20,    "partnerUberNote": "",
+    "partnerDoorDashOn": False,  "partnerDoorDashLink": "", "partnerDoorDashCommission": 0.20, "partnerDoorDashNote": "",
+    "partnerInstacartOn": False, "partnerInstacartLink": "", "partnerInstacartCommission": 0.25, "partnerInstacartNote": "",
 }
 
 PUBLIC_SETTINGS = ('businessName', 'tagline', 'brandLogo', 'copyrightLine', 'phone', 'email', 'social', 'location', 'hours',
                    'taxRate', 'orderingOpen', 'orderNote', 'avatarChatEnabled', 'aiAssistantEnabled',
                    'truckOffsetX', 'truckOffsetZ', 'truckRotation',
-                   'bgMusicEnabled', 'bgMusicFile', 'tvEnabled', 'tvVideoFile')
+                   'bgMusicEnabled', 'bgMusicFile', 'tvEnabled', 'tvVideoFile',
+                   # payments + promos + rewards are public-facing: the checkout needs them
+                   # (flags + handles only - never stripeSecret / stripeWebhookSecret)
+                   'payStripe', 'payCashapp', 'payZelle', 'payCash', 'cashappTag', 'zelleContact',
+                   'rewardsOn', 'pointsPerDollar', 'rewardItems',
+                   # marketing banner + delivery partner links (public "find us on" row)
+                   'bannerText', 'bannerLink',
+                   'partnerGrubhubOn', 'partnerGrubhubLink', 'partnerUberOn', 'partnerUberLink',
+                   'partnerDoorDashOn', 'partnerDoorDashLink', 'partnerInstacartOn', 'partnerInstacartLink')
 
 JOBS = {}   # job id -> {status, item, image, prompt, error, ts}
 
@@ -817,20 +868,431 @@ def menu_index(menu):
 class OrderError(Exception):
     def __init__(self, msg, code=400): super().__init__(msg); self.code = code
 
-def create_order(s, name, phone, notes, items, sms_consent, ip, method):
+# ---------- commerce: ledger · inventory · promos · rewards · stripe · EOM reports ----------
+# All flat files under data/ - append-only ledger.jsonl for the audit trail (orders.json keeps
+# only the last 2000, so reports regenerate from the ledger, never from trimmed history),
+# inventory.json for ingredients + per-item recipes, and data/reports/eom-<month>.json outputs.
+LEDGER_LOCK = threading.Lock()
+INV_LOCK = threading.Lock()
+REPORT_LOCK = threading.Lock()
+
+def ledger_append(ev):
+    """data/ledger.jsonl - append-only commerce trail: sale / void / payment / restock /
+    waste events. Never trimmed, so EOM reports can always be rebuilt from scratch."""
+    with LEDGER_LOCK:
+        with open(os.path.join(DATA, 'ledger.jsonl'), 'a') as f:
+            f.write(json.dumps({'ts': int(time.time()), **ev}) + '\n')
+
+def _slug(n):
+    return re.sub(r'[^a-z0-9]+', '-', str(n).lower()).strip('-') or 'x'
+
+def get_inventory():
+    """data/inventory.json; the first call seeds a starter sheet from the menu (a protein
+    ingredient per menu protein + category staples) so tracking works on day one - the
+    admin then tunes real quantities and stock levels in the Inventory tab."""
+    inv = load('inventory.json', None)
+    if inv is None:
+        staples = [('tortilla-corn', 'Corn tortilla', 2, 'Tacos'),
+                   ('tortilla-flour', 'Flour tortilla', 1, 'Burritos'),
+                   ('cup', 'Cup + lid + straw', 1, 'Bebidas')]
+        m = load('menu.json', {})
+        ings, seen = [], set()
+        def add_ing(iid, nm, unit, stock, low):
+            if iid in seen: return
+            seen.add(iid); ings.append({'id': iid, 'name': nm, 'unit': unit, 'stock': stock, 'lowAt': low})
+        for p in (m.get('proteins') or []): add_ing('pro-' + _slug(p), p, 'servings', 600, 100)
+        for iid, nm, _, _ in staples: add_ing(iid, nm, 'each', 1200, 200)
+        recipes = {}
+        for c in m.get('categories') or []:
+            staple = next((s for s in staples if s[3] and s[3] in str(c.get('name', ''))), None)
+            for it in c.get('items') or []:
+                r = []
+                if it.get('protein'): r.append({'ing': '$protein', 'qty': 1})
+                if staple: r.append({'ing': staple[0], 'qty': staple[2]})
+                if r: recipes[it['id']] = r
+        inv = {'ingredients': ings, 'recipes': recipes}
+        save('inventory.json', inv)
+    return inv
+
+def order_ingredients(o):
+    """Map an order to {ingredientId: qty} through inventory recipes. '$protein' resolves to
+    the chosen protein's own ingredient row (the truck uses one protein ingredient per item)."""
+    inv = get_inventory()
+    use = {}
+    for l in o.get('items') or []:
+        for r in (inv.get('recipes') or {}).get(l.get('id')) or []:
+            ing = r.get('ing')
+            qty = float(r.get('qty') or 0) * int(l.get('qty') or 0)
+            if ing == '$protein': ing = 'pro-' + _slug(l.get('protein') or '')
+            if not ing or not qty: continue
+            use[ing] = round(use.get(ing, 0) + qty, 2)
+    return use
+
+def inventory_consume(o):
+    """Order placed: deduct ingredients. Shortfalls just go negative - a festival truck never
+    stops selling, but the EOM report surfaces every negative dip as a restock reminder."""
+    use = order_ingredients(o)
+    if use:
+        with INV_LOCK:
+            inv = get_inventory()
+            for ing in inv['ingredients']:
+                if ing['id'] in use: ing['stock'] = round(float(ing.get('stock') or 0) - use[ing['id']], 2)
+            save('inventory.json', inv)
+    o['invUsed'] = use
+    return use
+
+def inventory_restore(o):
+    """Cancelled order: put the ingredients back (once per order)."""
+    if o.get('invRestored'): return {}
+    use = order_ingredients(o)
+    if use:
+        with INV_LOCK:
+            inv = get_inventory()
+            for ing in inv['ingredients']:
+                if ing['id'] in use: ing['stock'] = round(float(ing.get('stock') or 0) + use[ing['id']], 2)
+            save('inventory.json', inv)
+    o['invRestored'] = True
+    return use
+
+def inventory_adjust(ing_id, qty, kind, reason='', cost=None):
+    """Admin restock / waste: moves stock and logs it to the ledger. kind: 'restock' or 'waste'."""
+    with INV_LOCK:
+        inv = get_inventory()
+        for ing in inv['ingredients']:
+            if ing['id'] == ing_id:
+                ing['stock'] = round(float(ing.get('stock') or 0) + (qty if kind == 'restock' else -qty), 2)
+                break
+        else:
+            return False
+        save('inventory.json', inv)
+    ledger_append({'type': kind, 'ing': ing_id, 'qty': qty, 'reason': (reason or '')[:120], 'cost': cost})
+    return True
+
+def reverse_order_rewards(o):
+    """Cancelled order: un-bank its earned points and refund redeemed ones (once)."""
+    if o.get('rewardsReversed'): return
+    ph = ''.join(re.findall(r'\d', str(o.get('phone', ''))))[-10:]
+    if len(ph) == 10:
+        with ACCOUNTS_LOCK:
+            a = load('accounts.json', {})
+            rec = a.get(ph)
+            if rec:
+                rec['points'] = max(0, int(rec.get('points') or 0)
+                                    - int(o.get('pointsEarned') or 0) + int(o.get('pointsSpent') or 0))
+                a[ph] = rec; save('accounts.json', a)
+    o['rewardsReversed'] = True
+
+# ---------- promotions ----------
+def _promo_in_window(p, now=None):
+    now = now or time.time()
+    d = time.strftime('%Y-%m-%d', time.localtime(now))
+    starts, ends = str(p.get('starts') or ''), str(p.get('ends') or '')
+    if starts and d < starts: return False
+    if ends and d > ends: return False
+    return True
+
+def _promo_dow_ok(p):
+    dow = p.get('dow') or []
+    try: dow = [int(x) for x in dow]
+    except (TypeError, ValueError): return True
+    return (not dow) or (time.localtime().tm_wday in dow)
+
+def active_specials(s):
+    """itemId -> promo row for daily/weekly specials running right now (auto-pricing)."""
+    out = {}
+    for p in s.get('promos') or []:
+        if not p.get('active') or p.get('kind') != 'special' or not p.get('itemId'): continue
+        if not _promo_dow_ok(p) or not _promo_in_window(p): continue
+        if int(p.get('priceCents') or 0) > 0: out[p['itemId']] = p
+    return out
+
+def find_promo_code(s, code):
+    code = str(code or '').strip().upper()
+    if not code: return None
+    for p in s.get('promos') or []:
+        if (p.get('active') and p.get('kind') == 'code'
+                and str(p.get('code') or '').strip().upper() == code):
+            return p if (_promo_dow_ok(p) and _promo_in_window(p)) else None
+    return None
+
+# ---------- stripe (plain HTTPS, no pip package: checkout session + webhook signature) ----------
+def stripe_checkout(s, o, origin):
+    """One Stripe Checkout Session: the whole order is a single line item at o.total, so
+    specials / promo codes / rewards discounts are already priced in."""
+    key = str(s.get('stripeSecret') or '').strip()
+    if not (key.startswith('sk_test_') or key.startswith('sk_live_')):
+        return None, 'Stripe is not configured yet (admin settings → payments).'
+    form = {'mode': 'payment',
+            'success_url': f'{origin}/?order={o["id"]}&stripe=success',
+            'cancel_url': f'{origin}/?order={o["id"]}&stripe=cancel',
+            'client_reference_id': o['id'], 'metadata[orderId]': o['id'],
+            'line_items[0][quantity]': '1',
+            'line_items[0][price_data][currency]': 'usd',
+            'line_items[0][price_data][unit_amount]': str(int(round(float(o['total']) * 100))),
+            'line_items[0][price_data][product_data][name]':
+                f"{s.get('businessName') or 'El Otro Lado'} order #{o['number']}"}
+    req = urllib.request.Request('https://api.stripe.com/v1/checkout/sessions',
+                                 data=urlencode(form).encode(),
+                                 headers={'Authorization': 'Bearer ' + key})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            return json.loads(r.read().decode()), None
+    except urllib.error.HTTPError as e:
+        return None, f'Stripe rejected the session: {e.read().decode()[:300]}'
+    except Exception as e:
+        return None, f'Could not reach Stripe: {e}'
+
+def stripe_verify_webhook(raw, sig_header, whsec):
+    """Constant-time check of Stripe's t=…,v1=… signature (Stripe-Signature header)."""
+    if not whsec or not sig_header: return False
+    ts = sig = None
+    for part in sig_header.split(','):
+        k, _, v = part.strip().partition('=')
+        if k == 't': ts = v
+        if k == 'v1': sig = v
+    if not ts or not sig: return False
+    expected = hmac.new(whsec.encode(), f'{ts}.'.encode() + raw, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, sig)
+
+# ---------- EOM reports ----------
+def month_of(ts):
+    return time.strftime('%Y-%m', time.localtime(ts or 0))
+
+def ledger_events(month=None):
+    out = []
+    try:
+        with open(os.path.join(DATA, 'ledger.jsonl')) as f:
+            for line in f:
+                line = line.strip()
+                if not line: continue
+                try: ev = json.loads(line)
+                except json.JSONDecodeError: continue
+                if month is None or month_of(ev.get('ts') or 0) == month: out.append(ev)
+    except FileNotFoundError:
+        pass
+    return out
+
+def build_report(month):
+    """EOM stats from the append-only ledger plus a current stock snapshot. Marketing spend
+    comes from the admin campaign list so ROI sits right next to gross sales."""
+    evs = ledger_events(month)
+    sales = [e for e in evs if e.get('type') == 'sale']
+    pays = [e for e in evs if e.get('type') == 'payment']
+    voids = [e for e in evs if e.get('type') == 'void']
+    wastes = [e for e in evs if e.get('type') == 'waste']
+    restocks = [e for e in evs if e.get('type') == 'restock']
+    gross = sum(e.get('total') or 0 for e in sales)
+    disc = sum(e.get('discount') or 0 for e in sales)
+    tax = sum(e.get('tax') or 0 for e in sales)
+    by_method, by_item, by_hour, by_day = {}, {}, {}, {}
+    for e in sales:
+        d = by_method.setdefault(e.get('payMethod') or 'cash', {'orders': 0, 'sales': 0.0})
+        d['orders'] += 1; d['sales'] += e.get('total') or 0
+        lt = time.localtime(e.get('ts') or 0)
+        by_day[lt.tm_mday] = by_day.get(lt.tm_mday, 0) + (e.get('total') or 0)
+        by_hour[lt.tm_hour] = by_hour.get(lt.tm_hour, 0) + (e.get('total') or 0)
+        for it in e.get('items') or []:
+            d2 = by_item.setdefault(it.get('name'), {'qty': 0, 'sales': 0.0})
+            d2['qty'] += it.get('qty') or 0
+            d2['sales'] += (it.get('price') or 0) * (it.get('qty') or 0)
+    ing_use = {}
+    for e in sales:
+        for k, v in (e.get('ing') or {}).items(): ing_use[k] = ing_use.get(k, 0) + v
+    payments = {}
+    for e in pays:
+        d = payments.setdefault(e.get('method') or 'cash', {'count': 0, 'amount': 0.0})
+        d['count'] += 1; d['amount'] += e.get('amount') or 0
+    promos = {}
+    for e in sales:
+        if e.get('promo'): promos[e['promo']] = promos.get(e['promo'], 0) + 1
+    st = {**DEFAULT_SETTINGS, **load('settings.json', {})}
+    camps = [c for c in st.get('marketingCampaigns') or [] if c.get('active')]
+    spend = sum(float(c.get('spend') or 0) for c in camps)
+    inv = get_inventory()
+    name_of = {i['id']: i['name'] for i in inv.get('ingredients') or []}
+    return {'month': month, 'generated': int(time.time()),
+            'orders': len(sales), 'grossSales': round(gross, 2), 'discounts': round(disc, 2),
+            'taxCollected': round(tax, 2), 'netOfTax': round(gross - tax, 2),
+            'avgTicket': round(gross / len(sales), 2) if sales else 0,
+            'unpaidAtMonthEnd': round(gross - sum(e.get('total') or 0 for e in pays), 2),
+            'voids': {'count': len(voids), 'value': round(sum(e.get('total') or 0 for e in voids), 2)},
+            'byPaymentMethod': {m: {'orders': d['orders'], 'sales': round(d['sales'], 2)} for m, d in by_method.items()},
+            'confirmedPayments': payments,
+            'topItems': sorted(({'item': k, 'qty': v['qty'], 'sales': round(v['sales'], 2)} for k, v in by_item.items()),
+                               key=lambda x: -x['qty'])[:8],
+            'byItem': {k: {'qty': v['qty'], 'sales': round(v['sales'], 2)} for k, v in by_item.items()},
+            'busiestDay': max(by_day, key=by_day.get) if by_day else None,
+            'salesByDay': {str(k): round(v, 2) for k, v in sorted(by_day.items())},
+            'salesByHour': {str(k): round(v, 2) for k, v in sorted(by_hour.items())},
+            'promosUsed': promos,
+            'rewards': {'pointsEarned': sum(e.get('pointsEarned') or 0 for e in sales),
+                        'pointsSpent': sum(e.get('pointsSpent') or 0 for e in sales)},
+            'ingredients': {'used': {name_of.get(k, k): round(v, 2) for k, v in sorted(ing_use.items())},
+                            'wasted': {name_of.get(e.get('ing'), e.get('ing')): e.get('qty') for e in wastes},
+                            'restocked': {name_of.get(e.get('ing'), e.get('ing')): e.get('qty') for e in restocks}},
+            'marketing': {'campaigns': camps, 'spend': round(spend, 2),
+                          'roiGrossPerDollar': round(gross / spend, 2) if spend else None},
+            'stockSnapshot': [{'id': i['id'], 'name': i['name'], 'stock': i.get('stock'),
+                               'lowAt': i.get('lowAt')} for i in inv.get('ingredients') or []],
+            'lowStock': [i['name'] for i in inv.get('ingredients') or []
+                         if float(i.get('stock') or 0) < float(i.get('lowAt') or 0)]}
+
+def write_eom_report(month):
+    rep = build_report(month)
+    with REPORT_LOCK:
+        os.makedirs(os.path.join(DATA, 'reports'), exist_ok=True)
+        with open(os.path.join(DATA, 'reports', f'eom-{month}.json'), 'w') as f:
+            json.dump(rep, f, indent=2)
+    return rep
+
+# ---------- outreach: local-business partner search, contact emails, pairing pitches ----------
+# Flat file data/outreach.json = {searches:[], leads:[], templates:{}}. No API keys: the address
+# geocodes through OpenStreetMap's Nominatim, businesses come from Overpass (public OSM data),
+# and emails are read off each business's own website (homepage + /contact, 6s timeout, 200KB
+# cap, gentle pacing). Nothing is ever auto-sent - drafts are written for the admin to send.
+
+OUTREACH_LOCK = threading.Lock()
+
+def get_outreach():
+    return load('outreach.json', {'searches': [], 'leads': [], 'templates': {}})
+
+def save_outreach(o):
+    with OUTREACH_LOCK: save('outreach.json', o)
+
+# category -> (label, Overpass (tag,value) filters, the pairing angle for the pitch email)
+OUTREACH_CATS = {
+    'brewery': ('Bars & taprooms', [('amenity', 'bar'), ('amenity', 'pub'), ('craft', 'brewery')],
+                'your room and our window are the same night out - we park at your door on the slow weekday and hand you the crowd'),
+    'coffee': ('Coffee & tea shops', [('amenity', 'cafe')],
+               'your regulars already love good food - a taco-and-cortado bundle brings them back midweek'),
+    'gym': ('Gyms & fitness studios', [('leisure', 'fitness_centre'), ('leisure', 'sports_centre')],
+            'post-workout protein at your front door: members pre-order our high-protein bowls and skip the meal-prep'),
+    'salon': ('Salons & spas', [('shop', 'hairdresser'), ('shop', 'beauty'), ('shop', 'cosmetics'), ('leisure', 'spa')],
+              'your clients sit for hours - book a "blowout + birria" evening and we will run the line outside'),
+    'office': ('Offices & coworking', [('office', None), ('amenity', 'office')],
+               'one food-truck day a week in your parking lot is the cheapest employee perk you will ever approve'),
+    'venue': ('Event venues & theaters', [('amenity', 'events_venue'), ('amenity', 'theatre'), ('amenity', 'community_centre')],
+              'your event nights need food that never needs your kitchen - we roll up, serve, and roll out'),
+    'school': ('Schools & churches', [('amenity', 'school'), ('amenity', 'college'), ('amenity', 'place_of_worship')],
+               'fundraiser nights where a slice of every order goes straight back to your program'),
+    'retail': ('Retail shops', [('shop', 'mall'), ('shop', 'supermarket'), ('shop', 'clothes'), ('shop', 'books')],
+               'weekend foot traffic is our shared customer - a parked truck keeps shoppers on your lot longer'),
+}
+
+def _lead_category(tags):
+    for cat, (_, filters, _) in OUTREACH_CATS.items():
+        for k, v in filters:
+            if (v is None and k in tags) or tags.get(k) == v:
+                return cat
+    return 'retail'
+
+def _lead_address(tags):
+    parts = [tags.get('addr:housenumber'), tags.get('addr:street'), tags.get('addr:city')]
+    return ', '.join(p for p in parts if p)
+
+def geocode(address):
+    req = urllib.request.Request('https://nominatim.openstreetmap.org/search?'
+                                 + urlencode({'q': address, 'format': 'json', 'limit': 1}),
+                                 headers={'User-Agent': 'elotrolado-foodtruck-outreach/1.0'})
+    with urllib.request.urlopen(req, timeout=15) as r:
+        j = json.loads(r.read().decode())
+    return (float(j[0]['lat']), float(j[0]['lon']), j[0].get('display_name', '')) if j else None
+
+def overpass_search(lat, lon, radius, cats):
+    parts = []
+    for c in cats:
+        for k, v in OUTREACH_CATS[c][1]:
+            tag = f'["{k}"]' if v is None else f'["{k}"="{v}"]'
+            parts.append(f'nwr{tag}(around:{radius:.0f},{lat:.6f},{lon:.6f});')
+    q = '[out:json][timeout:25];(' + ''.join(parts) + ');out center tags 200;'
+    # overpass-api.de queues under load; the kumi.systems mirror is the standard fallback
+    last = None
+    for host in ('https://overpass-api.de/api/interpreter',
+                 'https://overpass.kumi.systems/api/interpreter'):
+        try:
+            req = urllib.request.Request(host, data=urlencode({'data': q}).encode(),
+                                         headers={'User-Agent': 'elotrolado-foodtruck-outreach/1.0'})
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return json.loads(r.read().decode()).get('elements') or []
+        except Exception as e:
+            last = e
+    raise last
+
+_EMAIL_RE = re.compile(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
+
+def site_emails(site):
+    """Public contact email off a business's own site: homepage then /contact, mailto links
+    first, then plain addresses, plus the common 'name (at) domain' obfuscation."""
+    found = []
+    for url in (site.rstrip('/') + '/', site.rstrip('/') + '/contact'):
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'elotrolado-foodtruck-outreach/1.0'})
+            with urllib.request.urlopen(req, timeout=6) as r:
+                page = r.read(200_000).decode('utf-8', 'ignore')
+        except Exception:
+            continue
+        found.extend(re.findall(r'mailto:([^"\'?>\s]+)', page)[:3])
+        found.extend(_EMAIL_RE.findall(page)[:3])
+        found.extend(f'{a}@{b}' for a, b in re.findall(
+            r'([a-zA-Z0-9._%+-]+)\s*\(\s*at\s*\)\s*([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', page)[:3])
+        if found: break
+    good = [e.strip('.').lower() for e in found
+            if not e.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'))]
+    return good[0] if good else ''
+
+DEFAULT_PITCH = (
+    'Subject: {our} x {business} - a food-truck night that fills both of our lots\n\n'
+    'Hi {business} team,\n\n'
+    'I run {our}, a Mesa food truck ({tagline}) - birria, asada and street tacos with a '
+    'text-when-ready pickup line that keeps crowds moving.\n\n'
+    'Why us: {angle}.\n\n'
+    'We handle everything - permits, power, waste, and the text-alert line so nobody waits. '
+    'You get the draw, we split the win, and the first date can be a one-evening pilot before '
+    'either of us commits to a schedule.\n\n'
+    'Menu + photos: {social}\nCall or text me any time: {phone}\n\n'
+    '- Summer & Jesse, {our}')
+
+def draft_pitch(lead, s, template=None):
+    """The admin's saved template wins; the default writes itself around {placeholders} with a
+    category-specific pairing line, so every email is about THEIR business + OUR truck."""
+    tpl = template or (get_outreach().get('templates') or {}).get('default') or DEFAULT_PITCH
+    label, _, angle = OUTREACH_CATS.get(lead.get('category')) or ('local business', None,
+        'a food-truck night your customers will thank you for')
+    fill = {'business': lead.get('name') or 'your business',
+            'category': label.lower(), 'angle': angle,
+            'address': lead.get('address') or '',
+            'our': s.get('businessName') or 'El Otro Lado',
+            'tagline': s.get('tagline') or 'The Other Side',
+            'phone': s.get('phone') or '',
+            'email': s.get('email') or '',
+            'social': s.get('social') or ''}
+    return re.sub(r'\{(\w+)\}', lambda m: str(fill.get(m.group(1), '')), tpl)
+
+def create_order(s, name, phone, notes, items, sms_consent, ip, method,
+                 pay_method='cash', promo_code='', reward_id=''):
     """Shared by the checkout form (/api/order) and the AI chat assistant (/api/assistant)'s
     place_order tool, so a chat-placed order is validated and priced exactly like a form one -
-    the AI never invents prices or item names, it only picks real menu ids this function checks."""
+    the AI never invents prices or item names, it only picks real menu ids this function checks.
+    Commerce v2: active specials auto-price matching items, one promo code + one reward
+    redemption per order (both re-validated here, never trusted from the client), ingredients
+    deducted from the flat-file inventory, points banked on the phone account, and the whole
+    sale lands in data/ledger.jsonl for the EOM reports."""
     if not s.get('orderingOpen'): raise OrderError('Online ordering is closed right now.', 403)
     name = str(name or '').strip()[:40]
     phone = re.sub(r'[^\d+()\- ]', '', str(phone or ''))[:20]
     if not name or len(re.sub(r'\D', '', phone)) < 7:
         raise OrderError('Name and a valid phone are required.', 400)
+    if pay_method not in ('cash', 'cashapp', 'zelle', 'stripe'): pay_method = 'cash'
+    if pay_method == 'cashapp' and not s.get('payCashapp'): pay_method = 'cash'
+    if pay_method == 'zelle' and not s.get('payZelle'): pay_method = 'cash'
+    if pay_method == 'stripe' and not s.get('payStripe'):
+        raise OrderError('Card payment is not available right now.', 400)
     now = time.time()
     ORDER_HITS[ip] = [t for t in ORDER_HITS.get(ip, []) if now - t < 600]
     if len(ORDER_HITS[ip]) >= 6:
         raise OrderError('Too many orders from this device. Please order at the window.', 429)
     idx = menu_index(load('menu.json', {}))
+    specials = active_specials(s)                      # {itemId: promo} — auto special pricing
     lines, sub_c = [], 0
     for l in (items or [])[:50]:
         if not isinstance(l, dict): continue
@@ -838,23 +1300,69 @@ def create_order(s, name, phone, notes, items, sms_consent, ip, method):
         try: q = int(l.get('qty', 0))
         except (TypeError, ValueError): continue
         if not it or not 1 <= q <= 50: continue
-        pc = int(round(float(it['price']) * 100))
+        sp = specials.get(it['id'])
+        pc = int(sp['priceCents']) if (sp and int(sp.get('priceCents') or 0) > 0) else int(round(float(it['price']) * 100))
         line = {'id': it['id'], 'name': it['name'], 'qty': q, 'price': pc / 100}
+        if sp: line['special'] = True
         if it.get('protein'): line['protein'] = str(l.get('protein', ''))[:30]
         lines.append(line); sub_c += q * pc
     if not lines: raise OrderError('Your cart is empty.', 400)
+    # ---- discounts: one promo code + one reward, both validated here, capped at the subtotal
+    promo = find_promo_code(s, promo_code)
+    disc_c = 0
+    if promo:
+        if int(promo.get('pctOff') or 0) > 0:
+            disc_c += sub_c * min(100, int(promo['pctOff'])) // 100
+        disc_c += max(0, int(promo.get('offCents') or 0))
+    reward, points_spent = None, 0
+    if reward_id and s.get('rewardsOn'):
+        reward = next((r for r in s.get('rewardItems') or [] if r.get('id') == str(reward_id)), None)
+        if reward and int(reward.get('points') or 0) <= 0: reward = None
+    ph = ''.join(re.findall(r'\d', phone))[-10:]
+    account = load('accounts.json', {}).get(ph) if len(ph) == 10 else None
+    if reward and not account:
+        raise OrderError('Rewards need an account - sign in at the arcade first.', 400)
+    if reward:
+        if int(account.get('points') or 0) < int(reward['points']):
+            raise OrderError(f"Not enough points for {reward.get('name') or 'that reward'} yet.", 400)
+        points_spent = int(reward['points'])
+    reward_off = max(0, int((reward or {}).get('offCents') or 0))
+    disc_c = min(disc_c + reward_off, sub_c)
     rate_micro = int(round(float(s.get('taxRate', 0)) * 1_000_000))
-    tax_c = (sub_c * rate_micro + 500_000) // 1_000_000
+    taxed_c = sub_c - disc_c
+    tax_c = (taxed_c * rate_micro + 500_000) // 1_000_000
+    points_earned = 0
+    if s.get('rewardsOn') and account and float(s.get('pointsPerDollar') or 0) > 0:
+        points_earned = int(taxed_c / 100 * float(s['pointsPerDollar']))
+    if points_spent or points_earned:
+        with ACCOUNTS_LOCK:
+            a = load('accounts.json', {})
+            rec = a.get(ph)
+            if rec:
+                rec['points'] = int(rec.get('points') or 0) - points_spent + points_earned
+                a[ph] = rec; save('accounts.json', a)
     with LOCK:
         orders = load('orders.json', [])
         num = (orders[-1]['number'] % 999 + 1) if orders else 1
         o = {'id': secrets.token_hex(6), 'number': num, 'ts': int(time.time()), 'name': name, 'phone': phone,
              'notes': str(notes or '')[:200], 'items': lines, 'subtotal': sub_c / 100, 'tax': tax_c / 100,
-             'total': (sub_c + tax_c) / 100, 'status': 'new', 'paid': False,
+             'total': (taxed_c + tax_c) / 100, 'status': 'new', 'paid': False,
+             'payMethod': pay_method, 'discount': disc_c / 100,
+             'pointsEarned': points_earned, 'pointsSpent': points_spent,
              'smsConsent': {'agreed': bool(sms_consent), 'ts': int(time.time()), 'ip': ip,
                             'method': method, 'version': SMS_CONSENT_VERSION}}
+        if promo: o['promo'] = {'name': promo.get('name') or promo.get('code'), 'code': promo.get('code')}
+        if reward: o['reward'] = {'name': reward.get('name'), 'off': reward_off / 100}
         ORDER_HITS[ip].append(now)
         orders.append(o); save('orders.json', orders[-2000:])
+        ing_used = inventory_consume(o)
+    ledger_append({'type': 'sale', 'orderId': o['id'], 'num': num, 'subtotal': o['subtotal'],
+                   'discount': o['discount'], 'tax': o['tax'], 'total': o['total'],
+                   'payMethod': pay_method, 'promo': (promo.get('name') or promo.get('code')) if promo else '',
+                   'reward': (reward.get('name') if reward else ''),
+                   'pointsEarned': points_earned, 'pointsSpent': points_spent,
+                   'items': [{'name': l['name'], 'qty': l['qty'], 'price': l['price']} for l in lines],
+                   'ing': ing_used})
     return o
 
 # ---------- AI order-taking chat assistant (local Ollama, tool-calling) ----------
@@ -993,6 +1501,62 @@ def assistant_reply(s, vid, user_text, ip):
 HELP_LOG = []              # visitor problem threads (data/help.json, flat file)
 HELP_LOCK = threading.Lock()
 ALERT_RATE = {}            # admin phone -> last alert ts (one burst per 90s)
+SMS_DRIVER_RATE = {}       # customer phone -> last DRIVER relay ts (1 per 10 min)
+SMS_HINT_RATE = {}         # customer phone -> last usage-hint reply ts (1 per 2 h)
+
+# ---------- self-managed SMS opt-outs (compliance) ----------
+# The campaign number is NOT in a Twilio Messaging Service, so once our custom webhook owns
+# inbound, Twilio does NOT auto-handle STOP - we do. Every outbound path funnels through
+# _sms_send(), which refuses opted-out recipients; data/sms-optouts.json is the record.
+
+def _sms_optouts():
+    return load('sms-optouts.json', {})
+
+def _sms_is_opted_out(to):
+    ph = ''.join(re.findall(r'\d', str(to or '')))[-10:]
+    return len(ph) == 10 and ph in _sms_optouts()
+
+def _sms_opt_out_set(phone, on, via='sms-keyword'):
+    ph = ''.join(re.findall(r'\d', str(phone or '')))[-10:]
+    if len(ph) != 10: return
+    d = _sms_optouts()
+    if on: d[ph] = {'ts': int(time.time()), 'via': via}
+    else: d.pop(ph, None)
+    save('sms-optouts.json', d)
+
+def _sms_admin_alert(s, text):
+    """Lean alert for inbound SMS problems / cancel requests: one text per 90 s to
+    settings.adminPhone (same burst discipline as the chat-problem alerts)."""
+    ap = _e164(s.get('adminPhone', ''))
+    if not (s.get('adminSmsAlerts', True) and ap):
+        return False
+    if time.time() - ALERT_RATE.get(ap, 0) < 90:
+        return False
+    ALERT_RATE[ap] = time.time()
+    try:
+        out = _sms_send(ap, ('EL OTRO LADO: ' + text)[:320])
+        return bool((out or {}).get('sid') or (out or {}).get('ok'))
+    except Exception:
+        return False
+
+def cancel_order(o, by, reason=''):
+    """Shared cancel path - admin button, SMS keyword automation, chat. Flips to cancelled
+    exactly once, restores ingredients, un-banks points, writes the void ledger event.
+    Returns True only for the call that actually flipped the order."""
+    if o.get('status') == 'cancelled':
+        return False
+    was = o.get('status')
+    o['status'] = 'cancelled'
+    o['cancelledBy'] = by
+    if reason: o['cancelReason'] = str(reason)[:200]
+    used_back = inventory_restore(o)
+    reverse_order_rewards(o)
+    ledger_append({'type': 'void', 'orderId': o['id'], 'num': o.get('number'),
+                   'total': o['total'], 'discount': o.get('discount') or 0,
+                   'pointsReversed': {'earned': o.get('pointsEarned') or 0,
+                                      'spent': o.get('pointsSpent') or 0},
+                   'ing': used_back, 'by': by, 'hadStarted': bool(was in ('cooking', 'ready'))})
+    return True
 
 def _load_help():
     global HELP_LOG
@@ -1278,8 +1842,13 @@ class H(SimpleHTTPRequestHandler):
         SESSIONS.pop(t, None); return False
     def site_gated(self, p):
         """True (and already responded 401) if the whole-site password gate is on and this
-        request didn't present it. Twilio's webhook can't send a password, so it's exempt."""
-        if p == '/api/sms/inbound': return False
+        request didn't present it. Twilio's webhook can't send a password, so it's exempt;
+        so are the other machine-to-machine + checkout paths (Stripe's webhook + redirect
+        flow, rewards balance lookup) that could never carry a site password."""
+        if p == '/api/sms/inbound' or p == '/api/stripe/webhook' or p == '/api/checkout/stripe':
+            return False
+        if p.startswith('/api/rewards/'):
+            return False
         s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
         if not s.get('siteGateEnabled'): return False
         auth = self.headers.get('Authorization', '')
@@ -1297,8 +1866,21 @@ class H(SimpleHTTPRequestHandler):
         return True
 
     def handle_sms_inbound(self):
-        """Twilio inbound-SMS webhook (Messaging Service inboundRequestUrl). Validates the
-        signature and replies with empty TwiML - there is no keyword opt-in on this number."""
+        """Twilio inbound-SMS webhook - the number's SmsUrl points here (SMS_INBOUND_PUBLIC_URL).
+        Validates the signature, then routes the keyword. The number is NOT in a Messaging
+        Service, so Twilio does NOT auto-handle keywords - this router owns compliance:
+          bare STOP/UNSUBSCRIBE/...  -> permanent opt-out (data/sms-optouts.json, honored by
+                                       every outbound send through _sms_send)
+          bare START/YES             -> re-subscribe
+          HELP/INFO/AYUDA           -> campaign help text
+          DRIVER/CONDUCTOR/CHOFER    -> relay to settings.driverPhone (1 per 10 min)
+          cancel prose ("cancel my order"): not started -> AUTO-CANCELLED (ingredients
+                                       restocked, points reversed, void ledgered, admin told);
+                                       already cooking/ready -> admin alert + make-it-right
+          PROBLEM/ISSUE/...          -> flags the order for the admin feed + admin text
+          STATUS/ESTADO/PEDIDO       -> the texter's latest open order status
+        Replies ride the TwiML response itself (atomic, loop-safe); cross-number forwards go
+        through _sms_send. Every inbound is audit-logged to data/sms-inbound.jsonl."""
         n = int(self.headers.get('Content-Length') or 0)
         if n > 20_000:
             self.send_response(400); self.end_headers(); return
@@ -1306,14 +1888,134 @@ class H(SimpleHTTPRequestHandler):
         params = {k: v[0] for k, v in parse_qs(raw.decode('utf-8', 'replace')).items()}
         if not _twilio_signature_valid(self.headers.get('X-Twilio-Signature', ''), params):
             self.send_response(403); self.end_headers(); return
-        # No keyword opt-in: the checkout checkbox is the ONLY opt-in method registered with TCR, so every
-        # inbound text gets an empty TwiML response. STOP/START/HELP are handled by Twilio itself.
-        twiml = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>'
-        b = twiml.encode()
-        self.send_response(200)
-        self.send_header('Content-Type', 'text/xml')
-        self.send_header('Content-Length', str(len(b)))
-        self.end_headers(); self.wfile.write(b)
+
+        def twiml(text=''):
+            inner = f'<Message>{_xml_escape(text)}</Message>' if text else ''
+            b = f'<?xml version="1.0" encoding="UTF-8"?><Response>{inner}</Response>'.encode()
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/xml')
+            self.send_header('Content-Length', str(len(b)))
+            self.end_headers(); self.wfile.write(b)
+
+        body = str(params.get('Body') or '').strip()[:400]
+        frm = str(params.get('From') or '')
+        ph = ''.join(re.findall(r'\d', frm))[-10:]
+        now = time.time()
+        s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
+        digits = lambda x: ''.join(re.findall(r'\d', str(x or '')))[-10:]
+
+        def log_in(action, reply=''):
+            try:
+                with LEDGER_LOCK:
+                    with open(os.path.join(DATA, 'sms-inbound.jsonl'), 'a') as f:
+                        f.write(json.dumps({'ts': int(now), 'from': frm, 'body': body[:200],
+                                            'action': action, 'reply': (reply or '')[:200]}) + '\n')
+            except OSError:
+                pass
+
+        def latest_order(open_only=True):
+            for o in reversed(load('orders.json', [])):
+                if digits(o.get('phone')) == ph:
+                    if (not open_only) or o.get('status') in ('new', 'cooking', 'ready'):
+                        return o
+            return None
+
+        # loop guard: never react to our own senders / admin / driver phones
+        if not ph or ph in {d for d in (digits('2525469420'), digits(s.get('adminPhone')),
+                                       digits(s.get('driverPhone')), digits(_e164(s.get('twilioFrom') or '')))
+                           if len(d) == 10}:
+            log_in('self-ignored', '')
+            return twiml()
+
+        w = re.sub(r'[^A-Z0-9 ]', ' ', body.upper())
+        # ---- compliance keywords (bare) ----
+        if re.fullmatch(r'\s*(STOP|STOPALL|UNSUBSCRIBE|CANCEL|END|QUIT|SALIR|DESUSCRIBIR\S*)\s*', w):
+            _sms_opt_out_set(ph, True, 'sms-keyword')
+            log_in('opt-out', '')
+            return twiml('El Otro Lado: unsubscribed - no more texts. Reply START to re-subscribe.')
+        if re.fullmatch(r'\s*(START|UNSTOP|YES|SI)\s*', w):
+            _sms_opt_out_set(ph, False, 'sms-keyword')
+            log_in('opt-in', '')
+            return twiml('El Otro Lado: welcome back! Order-ready texts are on again.')
+        if re.fullmatch(r'\s*(HELP|INFO|AYUDA|MORE INFO)\s*', w):
+            log_in('help', '')
+            return twiml('El Otro Lado alerts: 1 text when your order is ready. Reply STATUS for your '
+                         'order, PROBLEM if something is wrong, DRIVER to reach the driver, STOP to '
+                         'opt out. Msg&data rates may apply.')
+        # ---- DRIVER relay ----
+        if re.search(r'\b(DRIVER|CONDUCTOR|CHOFER)\b', w):
+            o = latest_order()
+            dp = _e164(s.get('driverPhone', ''))
+            rate_ok = now - SMS_DRIVER_RATE.get(ph, 0) > 600
+            if dp and rate_ok:
+                SMS_DRIVER_RATE[ph] = now
+                try:
+                    _sms_send(dp, f"Customer {('#' + str(o['number'])) if o else '(no order)'} "
+                                  f"({frm}): {body[:220]}")
+                except Exception:
+                    pass
+                log_in('driver-relay', '')
+                return twiml('Sent to the driver! They will text or call you back.')
+            log_in('driver-' + ('rate-limit' if not rate_ok else 'unconfigured'), '')
+            return twiml('The driver line is not set up yet - call the window for anything urgent.')
+        # ---- cancel automation: prose cancel ("cancel my order", not the bare keyword) ----
+        if re.search(r'\b(CANCEL|CANCELA|CHANGE|CAMBIA|FORGET|SCRAP)\w*', w):
+            o = latest_order()   # open orders only (new/cooking/ready) - anything else isn't cancellable
+            if o and o.get('status') == 'new':
+                with LOCK:
+                    orders = load('orders.json', [])
+                    for oo in orders:
+                        if oo['id'] == o['id']:
+                            if cancel_order(oo, 'sms-automation', body):   # restocks + reverses + ledger-voids
+                                save('orders.json', orders)
+                            break
+                _sms_admin_alert(s, f"#{o['number']} auto-cancelled by text (nothing started): {body[:110]}")
+                log_in('auto-cancel', f"order #{o['number']}")
+                return twiml(f"Cancelled - order #{o['number']}, nothing had started. No charge. See you next time!")
+            if o and o.get('status') in ('cooking', 'ready'):
+                _sms_admin_alert(s, f"CANCEL REQUEST #{o['number']} (already {o['status']}) · {o.get('name', '?')} · {frm}: {body[:110]}")
+                log_in('cancel-request-started', f"order #{o['number']}")
+                return twiml(f"The kitchen already started order #{o['number']} - I flagged your cancel "
+                            f"request to the owner; they will make it right at the window.")
+            log_in('cancel-no-open-order', '')
+            return twiml('No open order found for this number - reply PROBLEM and we will sort it out.')
+        # ---- problem report ----
+        if re.search(r'\b(PROBLEM|ISSUE|WRONG|MISSING|BURNT?|COLD|MESSED|PROBLEMA|MAL|EQUIVOCADO)\b\S*', w):
+            o = latest_order(open_only=False)
+            if o:
+                with LOCK:
+                    orders = load('orders.json', [])
+                    for oo in orders:
+                        if oo['id'] == o['id']:
+                            oo['problem'] = {'kind': 'other', 'text': body[:300], 'unseen': True,
+                                             'ts': int(now), 'via': 'sms'}
+                            save('orders.json', orders)
+                            break
+                _sms_admin_alert(s, f"#{o['number']} · {o.get('name', '?')} texted: {body[:110]}")
+            else:
+                _sms_admin_alert(s, f"text from {frm} (no order matched): {body[:110]}")
+            log_in('problem', '')
+            return twiml('Got it - the kitchen has been flagged. Someone will make it right at the window. '
+                         'Reply DRIVER to reach the driver.')
+        # ---- status ----
+        if re.search(r'\b(STATUS|ESTADO|ORDER|PEDIDO|WHERE)\b', w):
+            o = latest_order()
+            states = {'new': 'received - in the queue', 'cooking': 'cooking now',
+                      'ready': 'READY - come to the window!'}
+            log_in('status' if o else 'status-none', '')
+            if o:
+                return twiml(f"El Otro Lado: order #{o['number']} is {states.get(o['status'], o['status'])}. "
+                            f"We text you the moment it is ready.")
+            return twiml('El Otro Lado: no open order found for this number. Reply PROBLEM if something '
+                         'is wrong with a pickup today.')
+        # ---- anything else: one usage hint per number per 2 h (loop-safe) ----
+        if now - SMS_HINT_RATE.get(ph, 0) > 7200:
+            SMS_HINT_RATE[ph] = now
+            log_in('hint', '')
+            return twiml('El Otro Lado: reply STATUS for your order, PROBLEM if something is wrong, or '
+                         'DRIVER to reach the driver. STOP opts out.')
+        log_in('hint-suppressed', '')
+        return twiml()
 
     def handle_upload_media(self):
         """Admin-only upload for the truck's boombox music / TV monitor video / header brand logo (see scene.js).
@@ -1407,7 +2109,14 @@ class H(SimpleHTTPRequestHandler):
         if p == '/api/menu':
             m = load('menu.json', {})
             for k in ('taxNote', 'priceSource'): m.pop(k, None)   # internal notes, not for the public site
+            s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
+            sp = active_specials(s)
             m['categories'] = [{**c, 'items': [i for i in c.get('items', []) if not i.get('hidden')]} for c in m.get('categories', []) if not c.get('hidden')]
+            if sp:   # specials show their live price right on the menu card
+                for c in m['categories']:
+                    for i in c['items']:
+                        row = sp.get(i['id'])
+                        if row: i['specialCents'] = int(row['priceCents'])
             return self.send_json(m)
         if p == '/api/settings':   # public: business info only, never internal service config
             s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
@@ -1416,9 +2125,21 @@ class H(SimpleHTTPRequestHandler):
             oid = p.rsplit('/', 1)[-1]
             o = next((o for o in load('orders.json', []) if o['id'] == oid), None)
             return self.send_json({'id': oid, 'status': o['status']} if o else {'error': 'not found'}, 200 if o else 404)
+        if p.startswith('/api/rewards/'):   # checkout shows the phone's points balance live
+            ph = ''.join(re.findall(r'\d', p.rsplit('/', 1)[-1]))[-10:]
+            rec = load('accounts.json', {}).get(ph) if len(ph) == 10 else None
+            return self.send_json({'phone': ph, 'points': int(rec.get('points') or 0) if rec else 0,
+                                   'name': (rec.get('name') if rec else '')})
         if p.startswith('/api/admin/'):
             if not self.authed(): return self.send_json({'error': 'unauthorized'}, 401)
             if p == '/api/admin/menu': return self.send_json(load('menu.json', {}))
+            if p == '/api/admin/inventory': return self.send_json(get_inventory())
+            if p == '/api/admin/report':
+                q = parse_qs(urlparse(self.path).query).get('month', [''])[0]
+                month = re.sub(r'[^0-9\-]', '', q) or time.strftime('%Y-%m')
+                if not re.match(r'^\d{4}-\d{2}$', month): month = time.strftime('%Y-%m')
+                return self.send_json(build_report(month))
+            if p == '/api/admin/outreach': return self.send_json(get_outreach())
             if p == '/api/admin/settings': return self.send_json({**DEFAULT_SETTINGS, **load('settings.json', {})})
             if p == '/api/admin/orders': return self.send_json(load('orders.json', [])[-300:])
             if p.startswith('/api/admin/order/'):
@@ -1481,6 +2202,30 @@ class H(SimpleHTTPRequestHandler):
         if p == '/api/admin/upload-media':   # handled separately: needs a much bigger body cap than every other route
             if not self.authed(): return self.send_json({'error': 'unauthorized'}, 401)
             return self.handle_upload_media()
+
+        if p == '/api/stripe/webhook':   # needs the RAW body for the signature check, so it can't go through body()
+            n = int(self.headers.get('Content-Length') or 0)
+            if n > 200_000: return self.send_json({'error': 'too large'}, 400)
+            raw = self.rfile.read(n) or b''
+            s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
+            if not stripe_verify_webhook(raw, self.headers.get('Stripe-Signature') or '',
+                                         str(s.get('stripeWebhookSecret') or '')):
+                return self.send_json({'error': 'bad signature'}, 400)
+            try: ev = json.loads(raw.decode() or '{}')
+            except json.JSONDecodeError: return self.send_json({'error': 'bad payload'}, 400)
+            if ev.get('type') == 'checkout.session.completed':
+                obj = (ev.get('data') or {}).get('object') or {}
+                oid = (obj.get('metadata') or {}).get('orderId') or obj.get('client_reference_id')
+                with LOCK:
+                    orders = load('orders.json', [])
+                    for o in orders:
+                        if o['id'] == oid and not o.get('paid'):
+                            o['paid'] = True; o['paidLogged'] = True
+                            save('orders.json', orders)
+                            ledger_append({'type': 'payment', 'orderId': oid, 'num': o.get('number'),
+                                           'method': 'stripe', 'amount': o['total'], 'by': 'stripe-webhook'})
+                            break
+            return self.send_json({'received': True})
 
         try: data = self.body()
         except Exception: return self.send_json({'error': 'bad request'}, 400)
@@ -1644,10 +2389,26 @@ class H(SimpleHTTPRequestHandler):
             s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
             try:
                 o = create_order(s, data.get('name'), data.get('phone'), data.get('notes'),
-                                  data.get('items'), bool(data.get('smsConsent')), self.ip(), 'web-checkout-checkbox')
+                                  data.get('items'), bool(data.get('smsConsent')), self.ip(), 'web-checkout-checkbox',
+                                  pay_method=str(data.get('payMethod') or 'cash'),
+                                  promo_code=str(data.get('promoCode') or ''),
+                                  reward_id=str(data.get('rewardId') or ''))
             except OrderError as e:
                 return self.send_json({'error': str(e)}, e.code)
-            return self.send_json({'id': o['id'], 'number': o['number'], 'total': o['total']})
+            return self.send_json({'id': o['id'], 'number': o['number'], 'total': o['total'],
+                                   'discount': o['discount'], 'payMethod': o['payMethod']})
+
+        if p == '/api/checkout/stripe':   # public: turn a just-placed order into a Stripe Checkout redirect
+            s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
+            if not s.get('payStripe'): return self.send_json({'error': 'Card payment is off.'}, 403)
+            o = next((o for o in load('orders.json', []) if o['id'] == str(data.get('orderId') or '')), None)
+            if not o: return self.send_json({'error': 'Order not found'}, 404)
+            if o.get('paid'): return self.send_json({'error': 'Already paid.'}, 400)
+            origin = ((self.headers.get('X-Forwarded-Proto') or 'http').split(',')[0].strip()
+                      + '://' + (self.headers.get('Host') or 'localhost:8095'))
+            sess, err = stripe_checkout(s, o, origin)
+            if err: return self.send_json({'error': err}, 502)
+            return self.send_json({'url': sess.get('url')})
 
         if p == '/api/admin/login':
             ip = self.ip(); f = FAILS.get(ip, [0, time.time()])
@@ -1670,6 +2431,98 @@ class H(SimpleHTTPRequestHandler):
                     i['price'] = round(float(i.get('price', 0)), 2)
                     i['id'] = re.sub(r'[^a-z0-9_-]', '', str(i.get('id') or secrets.token_hex(3)).lower())[:24] or secrets.token_hex(3)
             with LOCK: save('menu.json', data)
+            return self.send_json({'ok': True})
+        if p == '/api/admin/inventory':   # whole-sheet save from the Inventory tab editor
+            if not isinstance(data.get('ingredients'), list) or not isinstance(data.get('recipes'), dict):
+                return self.send_json({'error': 'bad inventory'}, 400)
+            with INV_LOCK: save('inventory.json', {'ingredients': data['ingredients'], 'recipes': data['recipes']})
+            return self.send_json({'ok': True})
+        if p == '/api/admin/inventory/adjust':
+            try: qty = round(float(data.get('qty') or 0), 2)
+            except (TypeError, ValueError): return self.send_json({'error': 'bad qty'}, 400)
+            kind = data.get('kind')
+            if kind not in ('restock', 'waste') or qty <= 0 or not data.get('ing'):
+                return self.send_json({'error': 'bad adjust'}, 400)
+            ok = inventory_adjust(str(data['ing']), qty, kind, str(data.get('reason') or ''), data.get('cost'))
+            return self.send_json({'ok': bool(ok)}, 200 if ok else 404)
+        if p == '/api/admin/report/eom':   # writes data/reports/eom-<month>.json from the ledger
+            month = str(data.get('month') or time.strftime('%Y-%m'))
+            if not re.match(r'^\d{4}-\d{2}$', month): return self.send_json({'error': 'bad month'}, 400)
+            rep = write_eom_report(month)
+            return self.send_json({'ok': True, 'file': f'data/reports/eom-{month}.json', 'report': rep})
+        if p == '/api/admin/outreach/search':   # local-business partner search around an address
+            address = str(data.get('address') or '').strip()[:200]
+            if not address: return self.send_json({'error': 'address required'}, 400)
+            try: radius = min(20000, max(500, int(float(data.get('radiusM') or 4000))))
+            except (TypeError, ValueError): radius = 4000
+            cats = [c for c in data.get('categories') or [] if c in OUTREACH_CATS] or list(OUTREACH_CATS)
+            try:
+                geo = geocode(address)
+            except Exception as e:
+                return self.send_json({'error': f'Address lookup failed: {e}'}, 502)
+            if not geo: return self.send_json({'error': 'Address not found - try a full street address.'}, 404)
+            lat, lon, display = geo
+            try:
+                els = overpass_search(lat, lon, radius, cats)
+            except Exception as e:
+                return self.send_json({'error': f'Business search failed: {e}'}, 502)
+            s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
+            o = get_outreach()
+            have = {l['id']: l for l in o['leads']}
+            new = 0
+            for el in els:
+                t = el.get('tags') or {}
+                nm = str(t.get('name') or '').strip()
+                if not nm: continue
+                lid = f"{el.get('type','n')}-{el.get('id','')}"
+                if lid in have: continue
+                lead = {'id': lid, 'name': nm,
+                        'category': _lead_category(t),
+                        'address': _lead_address(t),
+                        'website': (t.get('website') or t.get('contact:website') or ''),
+                        'email': (t.get('email') or t.get('contact:email') or ''),
+                        'phone': (t.get('phone') or t.get('contact:phone') or ''),
+                        'lat': el.get('lat') or (el.get('center') or {}).get('lat'),
+                        'lon': el.get('lon') or (el.get('center') or {}).get('lon'),
+                        'status': 'new', 'ts': int(time.time())}
+                lead['draft'] = draft_pitch(lead, s)
+                have[lid] = lead; new += 1
+            o['leads'] = list(have.values())
+            o['searches'].append({'address': address, 'display': display, 'lat': lat, 'lon': lon,
+                                  'radiusM': radius, 'categories': cats, 'new': new, 'ts': int(time.time())})
+            save_outreach(o)
+            return self.send_json({'ok': True, 'center': {'lat': lat, 'lon': lon, 'display': display},
+                                   'new': new, 'leads': o['leads']})
+        if p == '/api/admin/outreach/find-emails':   # crawl lead websites for public contact emails
+            ids = set(data.get('ids') or [])
+            o = get_outreach()
+            found, tried = [], 0
+            for l in o['leads']:
+                if ids and l['id'] not in ids: continue
+                if l.get('email') or not l.get('website'): continue
+                tried += 1
+                em = site_emails(str(l['website']))
+                if em:
+                    l['email'] = em; found.append({'id': l['id'], 'name': l['name'], 'email': em})
+                time.sleep(0.5)   # be a good neighbor to their servers
+            save_outreach(o)
+            return self.send_json({'ok': True, 'tried': tried, 'found': found})
+        if p == '/api/admin/outreach/template':   # save the admin's pitch template (with {placeholders})
+            tpl = str(data.get('template') or '').strip()
+            if not tpl: return self.send_json({'error': 'template required'}, 400)
+            o = get_outreach(); o['templates'] = {'default': tpl[:6000]}; save_outreach(o)
+            return self.send_json({'ok': True})
+        if p == '/api/admin/outreach/lead':   # edit a lead's draft / email / status by hand
+            o = get_outreach()
+            for l in o['leads']:
+                if l['id'] == data.get('id'):
+                    for k in ('email', 'status', 'notes'):
+                        if k in data: l[k] = str(data[k])[:600]
+                    if 'draft' in data: l['draft'] = str(data['draft'])[:6000]
+                    break
+            else:
+                return self.send_json({'error': 'not found'}, 404)
+            save_outreach(o)
             return self.send_json({'ok': True})
         if p == '/api/admin/settings':
             s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
@@ -1695,7 +2548,16 @@ class H(SimpleHTTPRequestHandler):
                             if data['status'] == 'ready':
                                 send_order_ready_sms(o)   # only texts customers who opted in; sets o['smsStatus']
                                 sms = {'status': o.get('smsStatus'), 'outboxId': o.get('smsOutboxId'), 'error': o.get('smsError')}
-                        if 'paid' in data: o['paid'] = bool(data['paid'])
+                            if data['status'] == 'cancelled':
+                                cancel_order(o, 'admin-button')   # shared path: restock + points + void
+                        if 'paid' in data:
+                            was = o.get('paid')
+                            o['paid'] = bool(data['paid'])
+                            if o['paid'] and not was and not o.get('paidLogged'):   # log each real payment once
+                                o['paidLogged'] = True
+                                ledger_append({'type': 'payment', 'orderId': o['id'], 'num': o.get('number'),
+                                               'method': o.get('payMethod') or 'cash',
+                                               'amount': o['total'], 'by': 'admin'})
                 save('orders.json', orders)
             return self.send_json({'ok': True, 'sms': sms})
         if p == '/api/admin/genimage':

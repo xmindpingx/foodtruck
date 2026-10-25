@@ -4,8 +4,8 @@
 // HIGH SCORES board by the truck (click it) and the trivia bot's live-score questions stay true.
 // Lobby + done screens speak the language picked at sign-up (Account.lang()).
 import * as THREE from 'three';
-import {announce, clockNow, visitorName} from './avatars.js?v=5';
-import * as Account from './account.js?v=5';
+import {announce, clockNow, visitorName} from './avatars.js?v=6';
+import * as Account from './account.js?v=6';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 const rnd = a => a[Math.floor(Math.random() * a.length)];
