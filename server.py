@@ -254,7 +254,10 @@ DEFAULT_SETTINGS = {
     "taxRate": 0.083, "orderingOpen": True,
     "orderNote": "Pickup at the window. Pay when you pick up — card (Square) or cash.",
     # --- SMS carrier (outbound texts: order-ready + admin broadcasts) ---
-    "smsGateway": "twilio",   # twilio = newly approved direct REST account ("notifyhub"/"gateway" fallbacks)
+    # 'gateway' pins POST /send → project 'foodtruck' → PROJECT_FROM in the shared .env, which IS
+    # the TCR-registered 10DLC number (+12525469420) this campaign must text from. ('twilio' badge
+    # would inherit TWILIO_FROM_NUMBER=+18557854152 from that same .env — NOT this campaign's sender.)
+    "smsGateway": "gateway",
     "twilioSid": "",          # optional; normally inherited from the shared sms-gateway .env
     "twilioFrom": "",         # sender number; normally inherited from TWILIO_FROM_NUMBER in that .env
     "twilioServiceSid": "",   # optional messaging-service sid (overrides From when set)
