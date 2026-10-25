@@ -2,11 +2,11 @@
 // handling and the animation loop. Imports the truck from truck.js and the ordering UI from shop.js.
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
-import {CONFIG,MENU,money,open,hooks} from './shop.js?v=3';
-import {buildTruck,WX0,WX1,WY0,WY1,BW,BL,BH,bx0,FLOOR,CL} from './truck.js?v=3';
-import * as Avatars from './avatars.js?v=3';
-import * as Account from './account.js?v=3';   // phone-number arcade profiles (language-first sign-up)
-import * as Arcade from './arcade.js?v=3';     // 🎪 The Midway props + six minigames + HIGH SCORES board
+import {CONFIG,MENU,money,open,hooks} from './shop.js?v=4';
+import {buildTruck,WX0,WX1,WY0,WY1,BW,BL,BH,bx0,FLOOR,CL} from './truck.js?v=4';
+import * as Avatars from './avatars.js?v=4';
+import * as Account from './account.js?v=4';   // phone-number arcade profiles (language-first sign-up)
+import * as Arcade from './arcade.js?v=4';     // 🎪 The Midway props + six minigames + HIGH SCORES board
 
 const canvas=document.getElementById('c');
 const R=new THREE.WebGLRenderer({canvas,antialias:true});

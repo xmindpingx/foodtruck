@@ -5,7 +5,7 @@ export const hooks={goWindow:()=>{}};
 
 const getJ=u=>fetch(u).then(r=>r.ok?r.json():null).catch(()=>null);
 export const [CONFIG,MENU]=await Promise.all([getJ('/api/settings'),getJ('/api/menu')]).then(([s,m])=>[s||{},m||{categories:[],proteins:[]}]);
-import * as Account from './account.js?v=3';   // language chosen first at sign-up → localized order copy + stage events
+import * as Account from './account.js?v=4';   // language chosen first at sign-up → localized order copy + stage events
 export const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const money=n=>'$'+Number(n).toFixed(2);const soon = '<span class="muted">Coming soon</span>';
 // business rows: show the value, or hide the whole row when it is not set (no "Coming soon" placeholders on the public site)

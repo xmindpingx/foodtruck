@@ -6,7 +6,7 @@
 <title>El Otro Lado — Food Truck · Mesa, AZ</title>
 <meta name="description" content="El Otro Lado — “The Other Side.” Family owned, signature choices. Mesa, Arizona food truck owned and operated by John Switzer, Sole Proprietor. Order online; optional order-ready text alerts.">
 <link href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=Great+Vibes&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/site.css?v=3">
+<link rel="stylesheet" href="css/site.css?v=4">
 <script type="importmap">{"imports":{"three":"./lib/three.module.js","three/addons/":"./lib/addons/"}}</script>
 </head>
 <body>
@@ -97,14 +97,14 @@
  <form id="cform"><input name="name" placeholder="Your name" required><input name="from" placeholder="Phone or email" required><textarea name="msg" rows="3" placeholder="Event date, headcount, question…" required></textarea><button class="cta" style="width:100%">Send</button></form>
 </section>
 
-<script type="module" src="js/scene.js?v=3"></script>
-<script type="module" src="js/hotdog.js?v=3"></script>
+<script type="module" src="js/scene.js?v=4"></script>
+<script type="module" src="js/hotdog.js?v=4"></script>
 <script type="module">
 // Deep links so the checkout form (and its optional SMS opt-in checkbox) can be opened and reviewed directly:
 //   /#order  (also #checkout, #sms-optin, and the real paths /order /checkout /sms-optin served by server.py)
 //            -> opens the ordering panel scrolled to the checkout form
 //   /#menu, /#find, /#contact             -> opens that panel
-import {open} from './js/shop.js?v=3';
+import {open} from './js/shop.js?v=4';
 const go=()=>{const h=(location.hash.slice(1)||location.pathname.replace(/^\/+|\/+$/g,'')).toLowerCase();
   if(['menu','order','checkout','sms-optin'].includes(h)){open('menu');
     if(h!=='menu')setTimeout(()=>document.getElementById('smsOptIn')?.scrollIntoView({block:'center'}),300);}
