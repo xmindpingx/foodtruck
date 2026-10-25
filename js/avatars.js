@@ -1,0 +1,441 @@
+// avatars.js — MMORPG-style live presence. Everyone else currently looking at the site
+// shows up as a named avatar wandering the lot in front of the truck, can type short public
+// chat messages that show as a speech bubble over their avatar, and (if they pick a name)
+// keeps that name on return visits. Plain polling (no websockets) against server.py's
+// /api/presence and /api/chat - good enough for a handful of visitors and needs nothing
+// extra on the Python http.server side.
+//
+// NOTE: visitor chat here is live and NOT moderated in real time. The admin "Live chat" tab
+// is an after-the-fact audit log, and Settings has an on/off switch if it's ever misused.
+import * as THREE from 'three';
+import {WX0, WX1, BW, FLOOR} from './truck.js';
+import {CONFIG} from './shop.js?v=2';
+
+const ID_KEY = 'eol-visitor-id', NAME_KEY = 'eol-visitor-name', PROFILE_KEY = 'eol-visitor-profile';
+const CAP_STYLES = ['', 'ball', 'cowboy', 'beret', 'cone'];
+const SKIN_TONES = [0xe8b98c, 0xd9a978, 0xc78f5e, 0xa8714a, 0x8a5a35, 0x6b4626];
+let myId = localStorage.getItem(ID_KEY);
+if (!myId) {
+  myId = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)) + Date.now().toString(36);
+  try { localStorage.setItem(ID_KEY, myId); } catch (e) {}
+}
+let myName = (() => { try { return localStorage.getItem(NAME_KEY) || ''; } catch (e) { return ''; } })();
+// visitor's own avatar look customization: shirt hue + skin tone + hat style. Kept in
+// localStorage and always sent with the presence heartbeat so anyone who joins sees it.
+let myProfile = (() => {
+  try { const p = JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null') || {}; return {
+    hue: Number.isFinite(+p.hue) ? Math.max(0, Math.min(359, +p.hue | 0)) : null,
+    sk: Number.isFinite(+p.sk) ? Math.max(0, Math.min(5, +p.sk | 0)) : null,
+    cap: CAP_STYLES.includes(p.cap) ? p.cap : ''}; } catch (e) { return {hue: null, sk: null, cap: ''}; }
+})();
+function saveProfile() {
+  try { localStorage.setItem(PROFILE_KEY, JSON.stringify(myProfile)); } catch (e) {}
+  reskinLive();
+  heartbeat();
+}
+
+// instant restyle of my on-screen avatar (name ball caps, skin, shirt) so the picker feels live
+function reskinLive() {
+  const a = live.get(myId);
+  if (!a) return;
+  const hue = selfHue();
+  a.group.traverse(o => {
+    if (!o.material || !o.userData || !o.userData.custom) return;
+    if (o.userData.custom === 'shirt') o.material.color.setHSL(hue / 360, .55, .48);
+    else if (o.userData.custom === 'skin') o.material.color.setHex(SKIN_TONES[(myProfile.sk != null ? myProfile.sk : hue) % SKIN_TONES.length]);
+    else if (o.userData.custom === 'cap') o.material.color.setHSL(hue / 360, .6, .3);
+  });
+}
+
+const live = new Map();   // visitor id -> avatar state
+let S = null;
+let since = Date.now() / 1000;   // only show chat sent after this page load, not a replay of old messages
+const MAX_SHOWN = 14;             // cap render count - the lot should feel alive, not crowded
+const BUBBLE_MS = 9000;           // how long a chat bubble stays up
+// chat lines starting with this sentinel are hot-dog-contest control traffic: they are peeled
+// off here and handed to the contest panel as DOM events, never shown as chat
+const HD_TAG = '@hd ';
+const HD_EVENT = 'eol:hd';
+
+export function init(scene) {
+  S = scene;
+  buildDock();
+  heartbeat();
+  setInterval(heartbeat, 7000);
+  poll();
+  setInterval(poll, 3000);
+  // menu/order state → avatar staging: browsing the menu = your avatar queues at the window;
+  // placed an order = it walks over and takes a seat at a lunch table until the glow fades.
+  addEventListener('eol:order-placed', () => { menuOpen = false; ordered = true;
+    setTimeout(() => { ordered = false; }, 22000);
+    heartbeat(true); });
+  addEventListener('eol:menu-open', () => { menuOpen = true; heartbeat(); });
+  addEventListener('eol:menu-close', () => { menuOpen = false; heartbeat(); });
+}
+let menuOpen = false, ordered = false;
+
+function myStatus() {
+  if (ordered) return 'ordering';
+  if (menuOpen) return 'menu';
+  return 'browsing';
+}
+
+async function heartbeat(ordered) {
+  try {
+    const r = await fetch('/api/presence', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({id: myId, ordered: !!ordered, menu: menuOpen, name: myName, profile: myProfile}),
+    });
+    const j = await r.json().catch(() => null);
+    if (j && j.name) updateDockName(j.name);
+  } catch (e) {}
+}
+
+async function sendChat(text) {
+  text = text.trim().slice(0, 140);
+  if (!text) return;
+  try {
+    const r = await fetch('/api/chat', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({id: myId, text}),
+    });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); logLine('system', j.error || 'Message not sent.'); }
+    else if (!text.startsWith(HD_TAG)) logLine(myName || 'You', text, true);
+  } catch (e) { logLine('system', 'Message not sent — connection issue.'); }
+}
+
+// broadcast-only line for the contest: no local echo (the contest panel logs its own events)
+export function announce(text) {
+  try { fetch('/api/chat', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({id: myId, text})}); } catch (e) {}
+}
+
+// server-clock offset + current name, shared with the hot-dog contest so every browser's
+// countdown aims at the same moment regardless of how skewed each device's clock is
+export async function clockNow() {
+  try {
+    const j = await fetch(`/api/presence?id=${encodeURIComponent(myId)}&since=${since}`).then(r => r.ok ? r.json() : null);
+    if (j && j.now) return j.now * 1000;
+  } catch (e) {}
+  return Date.now();
+}
+export function visitorName() { return myName || 'Guest'; }
+export const HD = {TAG: HD_TAG, EVENT: HD_EVENT};
+
+// AI order-taking assistant - same dock, different mode. Private to this visitor (never
+// broadcast like public chat); the backend is the only thing that can actually touch the menu
+// or place an order, so whatever the model says, it can't invent items or prices.
+async function sendToAssistant(text) {
+  text = text.trim().slice(0, 400);
+  if (!text) return;
+  logLine(myName || 'You', text, true);
+  try {
+    const r = await fetch('/api/assistant', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({id: myId, text}),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { logLine('system', j.error || 'Assistant is unavailable right now.'); return; }
+    logLine('Assistant', j.reply || '…');
+  } catch (e) { logLine('system', 'Assistant is unavailable — connection issue.'); }
+}
+
+async function poll() {
+  if (!S) return;
+  let j;
+  try { j = await fetch(`/api/presence?id=${encodeURIComponent(myId)}&since=${since}`).then(r => r.ok ? r.json() : null); }
+  catch (e) { j = null; }
+  if (!j) return;
+  if (j.now) since = j.now;
+
+  const seen = new Set();
+  for (const o of (j.others || []).slice(0, MAX_SHOWN)) {
+    seen.add(o.id);
+    let a = live.get(o.id);
+    if (!a) { a = spawn(o.id, o.hue, o.name, o.profile); live.set(o.id, a); }
+    setStatus(a, o.status, o.name);
+  }
+  for (const [id, a] of live) { if (!seen.has(id) && id !== myId) { despawn(a); live.delete(id); } }
+
+  // my own avatar: invisible while just wandering, but staged the second I open the menu
+  // (joins the window line) or place an order (walks to a lunch table and sits)
+  const st = myStatus();
+  if (st !== 'browsing') {
+    let me = live.get(myId);
+    if (!me) { me = spawn(myId, selfHue(), myName, myProfile); live.set(myId, me); }
+    me.self = true;
+    setStatus(me, st, myName, true);
+  } else if (live.get(myId)) { despawn(live.get(myId)); live.delete(myId); }
+
+  for (const m of (j.chat || [])) {
+    if (m.id === myId) continue;              // we already echoed our own line locally
+    if (String(m.text || '').startsWith(HD_TAG)) {   // contest control traffic → hot-dog panel
+      dispatchEvent(new CustomEvent(HD_EVENT, {detail: {id: m.id, name: m.name, text: m.text.slice(HD_TAG.length)}}));
+      continue;
+    }
+    logLine(m.name, m.text);
+    const a = live.get(m.id);
+    if (a) showBubble(a, m.text);
+  }
+}
+
+function randSpot() {   // a point on the lawn behind the truck facing the service window
+  const x = WX0 + Math.random() * (WX1 - WX0);
+  const z = BW / 2 + 4 + Math.random() * 4;
+  return new THREE.Vector3(x, FLOOR, z);
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath(); ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+
+function makeBody(hue, prof = {}) {
+  const g = new THREE.Group();
+  const skIdx = prof.sk != null ? (+prof.sk % SKIN_TONES.length) : hue % SKIN_TONES.length;
+  const skin = new THREE.MeshStandardMaterial({color: SKIN_TONES[skIdx], roughness: .8});
+  const shirt = new THREE.MeshStandardMaterial({color: new THREE.Color().setHSL((prof.hue ?? hue) / 360, .55, .48), roughness: .75});
+  const cap = new THREE.MeshStandardMaterial({color: new THREE.Color().setHSL((prof.hue ?? hue) / 360, .6, .3), roughness: .7});
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(.17, .5, 4, 8), shirt);
+  body.position.y = .5; body.castShadow = true; body.userData.custom = 'shirt'; g.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(.14, 16, 12), skin);
+  head.position.y = .92; head.castShadow = true; head.userData.custom = 'skin'; g.add(head);
+  const style = prof.cap || 'ball';
+  const hatY = 1.03;
+  if (style === 'ball') {
+    const hat = new THREE.Mesh(new THREE.ConeGeometry(.15, .1, 16), cap);
+    hat.position.y = hatY; hat.userData.custom = 'cap'; g.add(hat);
+  } else if (style === 'cowboy') {
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(.23, .24, .015, 16), cap);
+    brim.position.y = hatY; brim.userData.custom = 'cap'; g.add(brim);
+    const crown = new THREE.Mesh(new THREE.CylinderGeometry(.09, .11, .12, 12), cap);
+    crown.position.y = hatY + .07; crown.userData.custom = 'cap'; g.add(crown);
+  } else if (style === 'beret') {
+    const b = new THREE.Mesh(new THREE.SphereGeometry(.17, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2.6), cap);
+    b.position.y = hatY - .04; b.scale.y = .5; b.rotation.x = .18;
+    b.userData.custom = 'cap'; g.add(b);
+  } else if (style === 'cone') {
+    const party = new THREE.MeshStandardMaterial({color: 0xff8a3c, roughness: .5});
+    const c = new THREE.Mesh(new THREE.ConeGeometry(.09, .26, 12), party);
+    c.position.y = hatY + .08; c.castShadow = true; g.add(c);
+  }
+  return g;
+}
+
+// one text->sprite helper, reused for both the nameplate (small, always on) and the chat/order
+// bubble (bigger, shown briefly) so there's only one canvas-drawing routine to keep correct.
+function textSprite({text, font, fg, bg, stroke, pad = 10, w = 256, h = 72}) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  if (bg) { ctx.fillStyle = bg; roundRect(ctx, 2, 2, w - 4, h - 4, 14); ctx.fill(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 3; roundRect(ctx, 2, 2, w - 4, h - 4, 14); ctx.stroke(); }
+  ctx.fillStyle = fg; ctx.font = font; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  wrapText(ctx, text, w / 2, h / 2, w - pad * 2, h < 90 ? h : 26);
+  const tex = new THREE.CanvasTexture(c);
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({map: tex, transparent: true, depthTest: false}));
+  spr.renderOrder = 999;
+  return spr;
+}
+function wrapText(ctx, text, cx, cy, maxW, lineH) {
+  const words = String(text).split(' ');
+  let line = '', lines = [];
+  for (const wd of words) {
+    const test = line ? line + ' ' + wd : wd;
+    if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = wd; } else line = test;
+  }
+  lines.push(line);
+  lines = lines.slice(0, 3);
+  const top = cy - ((lines.length - 1) * lineH) / 2;
+  lines.forEach((l, i) => ctx.fillText(l, cx, top + i * lineH));
+}
+
+function selfHue() {
+  if (myProfile && myProfile.hue !== null) return myProfile.hue;
+  let h = 0; for (const c of myId) h = (h + c.charCodeAt(0) * 7) % 360;
+  return h;
+}
+
+function queueSpot(k) {   // a numbered spot in the walk-up line at the service window
+  const x = WX1 - .45 - (k % 6) * .62, z = BW / 2 + 1.5 + Math.floor(k / 6) * 1.1;
+  return new THREE.Vector3(x, FLOOR, z);
+}
+function seatSpot(id) {   // a lunch-table seat on the lawn (world coords, drag-corrected live)
+  const seats = window.__EOL_SEATS && window.__EOL_SEATS() || [];
+  if (!seats.length) return randSpot();
+  let h = 0; for (const c of String(id)) h = (h + c.charCodeAt(0) * 13) % 997;
+  const st = seats[h % seats.length];
+  return new THREE.Vector3(st.x * 1 + Math.cos(h) * .12, FLOOR, st.z * 1 + Math.sin(h) * .12);
+}
+
+function spawn(id, hue, name, prof) {
+  const group = makeBody(hue, prof);
+  group.position.copy(randSpot());
+  const nameSpr = textSprite({text: name || 'Guest', font: 'bold 26px Inter, sans-serif', fg: '#fff',
+    bg: 'rgba(10,8,5,.55)', w: 220, h: 56});
+  nameSpr.scale.set(.85, .22, 1); nameSpr.position.y = 1.28; group.add(nameSpr);
+  const bubbleAnchor = new THREE.Group(); bubbleAnchor.position.y = 1.55; group.add(bubbleAnchor);
+  const glow = new THREE.PointLight(new THREE.Color().setHSL(hue / 360, .8, .6), 0, 2.4, 2);
+  glow.position.y = .6; group.add(glow);
+  S.add(group);
+  return {id, group, nameSpr, bubbleAnchor, bubble: null, bubbleUntil: 0, glow, name,
+    target: randSpot(), wait: 1 + Math.random() * 3, status: 'browsing', phase: Math.random() * 10};
+}
+
+function despawn(a) { S.remove(a.group); }
+
+function setStatus(a, status, name, self) {
+  if (name && name !== a.name) { a.name = name; a.group.remove(a.nameSpr);
+    a.nameSpr = textSprite({text: name, font: 'bold 26px Inter, sans-serif', fg: '#fff', bg: 'rgba(10,8,5,.55)', w: 220, h: 56});
+    a.nameSpr.scale.set(.85, .22, 1); a.nameSpr.position.y = 1.28; a.group.add(a.nameSpr);
+  }
+  if (a.status === status) return;
+  a.status = status;
+  if (status === 'menu') {         // browsing the menu: hop into the walk-up line at the window
+    let h = 0; for (const c of a.id || '') h = (h + c.charCodeAt(0) * 3) % 6;
+    a.target = queueSpot(self ? 0 : h);
+    showBubble(a, 'In line for food…', 7000);
+  } else if (status === 'ordering') {   // order placed: grab a seat at a lawn table
+    a.target = seatSpot(a.id || myId);
+    showBubble(a, 'Ordered! Grabbing a table 🌭', 7000);
+  }
+}
+
+function showBubble(a, text, ms = BUBBLE_MS) {
+  if (a.bubble) { a.bubbleAnchor.remove(a.bubble); a.bubble.material.map.dispose(); a.bubble.material.dispose(); }
+  a.bubble = textSprite({text, font: 'bold 24px Inter, sans-serif', fg: '#f3e4b8', bg: 'rgba(20,16,10,.9)', stroke: 'rgba(224,178,0,.9)', w: 280, h: 88});
+  a.bubble.scale.set(1.15, .36, 1);
+  a.bubbleAnchor.add(a.bubble);
+  a.bubbleUntil = performance.now() + ms;
+}
+
+export function tick(t, dt) {
+  const now = performance.now();
+  for (const a of live.values()) {
+    const g = a.group;
+    const d = a.target.clone().sub(g.position); d.y = 0;
+    const dist = d.length();
+    if (dist > 0.08) {
+      d.normalize(); g.position.addScaledVector(d, Math.min(dist, dt * 0.9));
+      g.rotation.y = Math.atan2(d.x, d.z);
+      g.position.y = FLOOR + Math.abs(Math.sin(t * 6 + a.phase)) * 0.03;   // walk bob
+    } else {
+      a.wait -= dt;
+      g.position.y = FLOOR + Math.sin(t * 1.6 + a.phase) * 0.01;   // idle breathing
+      if (a.wait <= 0 && a.status !== 'ordering') { a.target = randSpot(); a.wait = 2 + Math.random() * 3; }
+    }
+    if (a.glow) { const gt = a.status === 'ordering' ? 1.1 : 0; a.glow.intensity += (gt - a.glow.intensity) * Math.min(1, dt * 4); }
+    if (a.bubble && now > a.bubbleUntil) { a.bubbleAnchor.remove(a.bubble); a.bubble.material.map.dispose(); a.bubble.material.dispose(); a.bubble = null; }
+  }
+}
+
+// ---------- 2D overlay: name picker, chat input, recent-messages ticker ----------
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c])); }
+
+let logEl, dockNameBtn, chatIn;
+function logLine(name, text, mine) {
+  if (!logEl) return;
+  const row = document.createElement('div');
+  row.style.cssText = 'margin-top:3px;opacity:.95';
+  row.innerHTML = name === 'system'
+    ? `<span style="opacity:.7;font-style:italic">${esc(text)}</span>`
+    : `<b style="color:${mine ? '#f2c14e' : '#bcd4ff'}">${esc(name)}:</b> ${esc(text)}`;
+  logEl.appendChild(row);
+  while (logEl.children.length > 5) logEl.removeChild(logEl.firstChild);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function updateDockName(resolvedName) {
+  if (dockNameBtn) dockNameBtn.textContent = resolvedName;
+}
+
+function askName() {
+  const v = prompt('Pick a name other visitors will see above your avatar (max 24 characters):', myName || '');
+  if (v === null) return;
+  myName = v.trim().slice(0, 24);
+  try { localStorage.setItem(NAME_KEY, myName); } catch (e) {}
+  updateDockName(myName || '…');
+  heartbeat();
+}
+
+let mode = 'chat';   // 'chat' = public avatar chat, 'ai' = private order-taking assistant - same dock either way
+function buildDock() {
+  const chatOn = !CONFIG || CONFIG.avatarChatEnabled !== false;
+  const aiOn = !!(CONFIG && CONFIG.aiAssistantEnabled);
+  if (!chatOn && !aiOn) return;   // owner turned both off
+  mode = chatOn ? 'chat' : 'ai';
+  const wrap = document.createElement('div');
+  wrap.id = 'eolDock';
+  wrap.innerHTML = `
+    <div id="eolChatLog"></div>
+    <div id="eolDockRow">
+      <button id="eolNameBtn" title="Change your name"></button>
+      <button id="eolLookBtn" title="Customize your avatar">🎨</button>
+      ${chatOn && aiOn ? `<button id="eolModeBtn" title="Switch between public chat and ordering">🤖</button>` : ''}
+      <input id="eolChatIn" maxlength="400" placeholder="${mode === 'ai' ? 'Ask about the menu or order…' : 'Say something…'}" autocomplete="off">
+      <button id="eolChatSend" aria-label="Send">&#10148;</button>
+    </div>
+    <div id="eolLook" hidden>
+      <div class="eolLookRow"><b>Customize your avatar</b><button id="eolLookX" aria-label="Close">✕</button></div>
+      <div class="eolLookCap">Shirt</div><div id="eolLookShirt" class="eolLookSw"></div>
+      <div class="eolLookCap">Skin tone</div><div id="eolLookSkin" class="eolLookSw"></div>
+      <div class="eolLookCap">Hat</div><div id="eolLookCap" class="eolLookChips"></div>
+      <button id="eolLookSave" class="eolLookSave">Save look</button>
+    </div>`;
+  document.body.appendChild(wrap);
+  logEl = wrap.querySelector('#eolChatLog');
+  dockNameBtn = wrap.querySelector('#eolNameBtn');
+  chatIn = wrap.querySelector('#eolChatIn');
+  dockNameBtn.textContent = myName || 'Set name';
+  dockNameBtn.onclick = askName;
+  // avatar-customization popover: swatch clicks restyle YOUR avatar live, Save look persists
+  // it and pushes to everyone else's screen on the next 7-second presence heartbeat.
+  const lookBtn = wrap.querySelector('#eolLookBtn'), lookPanel = wrap.querySelector('#eolLook');
+  const swWrap = (el, colors, key) => {
+    if (key === 'sk' && myProfile.sk == null) { myProfile.sk = selfHue() % 6; }
+    colors.forEach((c, i) => {
+      const b = document.createElement('button');
+      b.className = 'eolLookSwBtn' + ((key === 'sk' ? myProfile.sk === i : (typeof c === 'number' && myProfile.hue === c)) ? ' on' : '');
+      b.style.background = key === 'hue'
+        ? '#' + new THREE.Color().setHSL(c / 360, .55, .48).getHexString()
+        : '#' + new THREE.Color(c).getHexString();
+      b.onclick = () => {
+        if (key === 'hue') myProfile.hue = c;
+        else myProfile.sk = i;
+        el.querySelectorAll('.eolLookSwBtn.on').forEach(x => x.classList.remove('on'));
+        b.classList.add('on');
+        saveProfile(); reskinLive();
+      };
+      el.appendChild(b);
+    });
+  };
+  const HUES = [...Array(12)].map((_, i) => i * 30 + 8);
+  swWrap(wrap.querySelector('#eolLookShirt'), HUES, 'hue');
+  swWrap(wrap.querySelector('#eolLookSkin'), SKIN_TONES, 'sk');
+  wrap.querySelector('#eolLookCap').innerHTML = CAP_STYLES.map(c =>
+    `<button class="eolLookChip${myProfile.cap === c ? ' on' : ''}" data-cap="${c}">${c === '' ? 'None' : c[0].toUpperCase() + c.slice(1)}</button>`).join('');
+  wrap.querySelectorAll('.eolLookChip').forEach(b => b.onclick = () => {
+    myProfile.cap = b.dataset.cap;
+    wrap.querySelectorAll('.eolLookChip').forEach(x => x.classList.remove('on')); b.classList.add('on');
+    saveProfile();
+  });
+  lookBtn.onclick = () => { lookPanel.hidden = !lookPanel.hidden; };
+  wrap.querySelector('#eolLookX').onclick = () => { lookPanel.hidden = true; };
+  wrap.querySelector('#eolLookSave').onclick = () => { saveProfile(); lookPanel.hidden = true; };
+  const modeBtn = wrap.querySelector('#eolModeBtn');
+  if (modeBtn) modeBtn.onclick = () => {
+    mode = mode === 'chat' ? 'ai' : 'chat';
+    modeBtn.textContent = mode === 'chat' ? '🤖' : '💬';
+    chatIn.placeholder = mode === 'ai' ? 'Ask about the menu or order…' : 'Say something…';
+    if (mode === 'ai') logLine('system', 'Ask about the menu, or say what you want — it can place the order.');
+  };
+  const send = () => {
+    const v = chatIn.value;
+    if (mode === 'ai') sendToAssistant(v); else sendChat(v);
+    chatIn.value = '';
+  };
+  wrap.querySelector('#eolChatSend').onclick = send;
+  chatIn.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+  if (mode === 'ai') logLine('system', 'Ask about the menu, or say what you want — it can place the order.');
+  else if (!myName) logLine('system', 'Tap the name button to pick a name others will see.');
+}

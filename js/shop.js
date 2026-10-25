@@ -6,12 +6,28 @@ export const hooks={goWindow:()=>{}};
 const getJ=u=>fetch(u).then(r=>r.ok?r.json():null).catch(()=>null);
 export const [CONFIG,MENU]=await Promise.all([getJ('/api/settings'),getJ('/api/menu')]).then(([s,m])=>[s||{},m||{categories:[],proteins:[]}]);
 export const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export const money=n=>'$'+Number(n).toFixed(2);
-const soon = '<span class="muted">Coming soon</span>';
-const set=(id,v,href)=>document.getElementById(id).innerHTML = v ? (href?`<a style="color:inherit" href="${esc(href)}">${esc(v)}</a>`:esc(v)) : soon;
+export const money=n=>'$'+Number(n).toFixed(2);const soon = '<span class="muted">Coming soon</span>';
+// business rows: show the value, or hide the whole row when it is not set (no "Coming soon" placeholders on the public site)
+const set=(id,v,href)=>{const el=document.getElementById(id);if(!v){const r=el.closest('.row');if(r)r.style.display='none';return;}
+  el.innerHTML = href?`<a style="color:inherit" href="${esc(href)}">${esc(v)}</a>`:esc(v);};
 set('cfgPhone',CONFIG.phone,CONFIG.phone&&'tel:'+CONFIG.phone.replace(/[^\d+]/g,''));
 set('cfgEmail',CONFIG.email,CONFIG.email&&'mailto:'+CONFIG.email);
 set('cfgSocial',CONFIG.social); set('cfgLoc',CONFIG.location); set('cfgHours',CONFIG.hours);
+
+// ---------- brand / logo / copyright (edited in /admin → Settings → Business) ----------
+// Cosmetic-only: anything missing here falls back to the static markup, so this can never
+// blank the header or footer on its own.
+try{
+  const b=document.querySelector('.brand');
+  if(b&&CONFIG.businessName){
+    b.textContent=CONFIG.businessName;
+    if(CONFIG.tagline)b.insertAdjacentHTML('beforeend',`<small>“${esc(CONFIG.tagline)}”</small>`);
+    if(CONFIG.brandLogo)b.insertAdjacentHTML('afterbegin',`<img class="brandLogo" src="/media/${esc(CONFIG.brandLogo)}" alt="${esc(CONFIG.businessName)}">`);
+    document.title=`${CONFIG.businessName}${CONFIG.tagline?` — ${CONFIG.tagline} · `:' · '}Food Truck · Mesa, AZ`;
+  }
+  const cl=document.getElementById('copyLine');
+  if(cl&&CONFIG.copyrightLine)cl.textContent=CONFIG.copyrightLine;
+}catch(err){/* branding is cosmetic; never block the shop */}
 
 // ---------- menu + cart ----------
 const ITEMS={};MENU.categories.forEach(c=>c.items.forEach(i=>ITEMS[i.id]=i));
@@ -42,10 +58,11 @@ if(CONFIG.orderNote)document.querySelector('#oform .muted').textContent=CONFIG.o
 if(CONFIG.orderingOpen===false){document.getElementById('oform').innerHTML='<p><b>Online ordering is closed right now.</b> Come order at the window!</p>';}
 document.getElementById('oform').onsubmit=async e=>{e.preventDefault();if(!cart.length)return alert('Your cart is empty.');
   const f=new FormData(e.target),btn=document.getElementById('placeBtn');btn.disabled=true;btn.textContent='Sending…';
-  try{const r=await fetch('/api/order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:f.get('name'),phone:f.get('phone'),notes:f.get('notes'),items:cart})});
+  try{const r=await fetch('/api/order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:f.get('name'),phone:f.get('phone'),notes:f.get('notes'),items:cart,smsConsent:f.get('smsConsent')==='on'})});
     const j=await r.json();if(!r.ok)throw new Error(j.error||'Order failed');
+    dispatchEvent(new Event('eol:order-placed'));   // tells avatars.js to make my avatar walk to the window
     cart.length=0;renderCart();e.target.style.display='none';const d=document.getElementById('ordDone');d.style.display='block';
-    d.innerHTML=`<div class="tiles"></div><h2 style="font-size:26px">¡Gracias!</h2><p>Order <b style="color:var(--gold);font-size:22px">#${j.number}</b> — total ${money(j.total)}.</p><p id="ostat" class="muted">Status: received</p><p class="muted">Pay at the window when you pick up.</p><button type="button" class="cta" id="newOrder" style="width:100%">Start a new order</button>`;
+    d.innerHTML=`<div class="tiles"></div><h2 style="font-size:26px">¡Gracias!</h2><p>Order <b style="color:var(--gold);font-size:22px">#${j.number}</b> — total ${money(j.total)}.</p><p id="ostat" class="muted">Status: received</p>${f.get('smsConsent')==='on'?`<p class="muted" id="smsNote">Order-ready text alert: <b>ON</b>. El Otro Lado (John Switzer) will send one text to ${esc(f.get('phone'))} when this order is ready. Msg &amp; data rates may apply. Reply STOP to opt out, HELP for help.</p>`:''}<p class="muted">Pay at the window when you pick up.</p><button type="button" class="cta" id="newOrder" style="width:100%">Start a new order</button>`;
     d.scrollIntoView({behavior:'smooth',block:'start'});   // show the order number, not the top of the menu
     clearInterval(window.__poll);
     window.__poll=setInterval(async()=>{const s=await getJ('/api/order/'+j.id);if(!s)return;const t={new:'received',cooking:'cooking 🔥',ready:'READY — come to the window!',done:'picked up',cancelled:'cancelled — please see the window'}[s.status]||s.status;
@@ -56,6 +73,7 @@ document.getElementById('oform').onsubmit=async e=>{e.preventDefault();if(!cart.
 document.getElementById('cform').onsubmit=e=>{e.preventDefault();const f=new FormData(e.target);
   if(!CONFIG.email){alert('Contact email not set up yet.');return;}
   location.href=`mailto:${CONFIG.email}?subject=${encodeURIComponent('Food truck inquiry from '+f.get('name'))}&body=${encodeURIComponent(f.get('msg')+'\n\nReply to: '+f.get('from'))}`;};
-export const open=id=>{document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('open',p.id===id));};
+export const open=id=>{document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('open',p.id===id));
+  dispatchEvent(new Event(id==='menu'?'eol:menu-open':'eol:menu-close'));};
 document.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{open(b.dataset.p);if(b.dataset.p==='menu')hooks.goWindow();});
 document.querySelectorAll('.x').forEach(b=>b.onclick=()=>open(null));

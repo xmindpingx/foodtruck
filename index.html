@@ -4,16 +4,38 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>El Otro Lado — Food Truck · Mesa, AZ</title>
-<meta name="description" content="El Otro Lado — “The Other Side.” Family owned, signature choices. Mesa, Arizona food truck.">
+<meta name="description" content="El Otro Lado — “The Other Side.” Family owned, signature choices. Mesa, Arizona food truck owned and operated by John Switzer, Sole Proprietor. Order online; optional order-ready text alerts.">
 <link href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=Great+Vibes&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/site.css">
+<link rel="stylesheet" href="css/site.css?v=2">
 <script type="importmap">{"imports":{"three":"./lib/three.module.js","three/addons/":"./lib/addons/"}}</script>
 </head>
 <body>
 <div id="load">el Otro Lado…</div>
+<noscript><style>#load,#c,#hint{display:none!important}#menu.panel{display:block}body{overflow:auto}</style></noscript>
+<script>
+// Loader safety net. The 3D scene needs WebGL; reviewers, locked-down browsers and some
+// automated tools don't have it. Never leave the splash screen covering the page: reveal the
+// UI and open the ordering panel so the menu, checkout form and SMS opt-in are always visible.
+(function(){var done=false,gl=false;
+ try{var c=document.createElement('canvas');
+  gl=!!(c.getContext('webgl2')||c.getContext('webgl')||c.getContext('experimental-webgl'));}catch(err){gl=false;}
+ function openMenu(){var m=document.getElementById('menu');
+  if(m&&!document.querySelector('.panel.open'))m.classList.add('open');}
+ function reveal(nogl){if(done)return;done=true;var l=document.getElementById('load');
+  if(l){l.style.opacity=0;setTimeout(function(){l.remove();},700);}
+  if(nogl){document.body.classList.add('nogl');
+   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',openMenu);else openMenu();}}
+ addEventListener('error',function(e){if(!e||!e.message)return;
+  reveal(!gl||/webgl|three|scene\.js/i.test((e.message||'')+' '+(e.filename||'')));});
+ addEventListener('unhandledrejection',function(){reveal(!gl);});
+ if(!gl)reveal(true);
+ setTimeout(function(){reveal(false);},25000);
+})();
+</script>
 <canvas id="c"></canvas>
 <header>
  <div class="brand">el Otro Lado<small>“The Other Side”</small></div>
+ <footer id="foot"><span id="copyLine">© 2026 John Switzer, Sole Proprietor, DBA El Otro Lado &middot; Mesa, AZ</span> &middot; <a href="https://privacy.signaturediversified.com">Privacy Policy</a> &middot; <a href="https://terms.signaturediversified.com">Terms &amp; Conditions</a> &middot; <a href="https://poc.signaturediversified.com">SMS program &amp; opt-in</a></footer>
  <nav>
   <button data-p="menu">Menu</button>
   <button data-p="find">Find Us</button>
@@ -36,7 +58,19 @@
   <div class="row" style="font-size:18px"><span>Total</span><b id="tot">$0.00</b></div>
   <form id="oform">
    <input name="name" placeholder="Name for the order" required maxlength="40">
-   <input name="phone" placeholder="Phone (we text when it's ready)" required maxlength="20" inputmode="tel">
+   <input name="phone" placeholder="Phone number" required maxlength="20" inputmode="tel">
+   <!-- SMS opt-in: OPTIONAL and unchecked by default. Consent is not a condition of purchase.
+        Wording version 2026-10-20 - registered verbatim with Twilio/TCR (A2P 10DLC campaign
+        message_flow) and quoted on poc.signaturediversified.com. If it changes: bump
+        SMS_CONSENT_VERSION in server.py, update poc.*, and edit/resubmit the campaign. -->
+   <div id="smsOptIn" style="margin:8px 0;padding:10px 12px;border:1px solid rgba(255,255,255,.35);border-radius:10px">
+    <div style="font-size:10.5px;font-weight:800;letter-spacing:.5px;color:var(--gold);margin-bottom:6px">OPTIONAL &mdash; TEXT ME WHEN MY ORDER IS READY</div>
+    <label style="display:flex;gap:8px;align-items:flex-start;font-size:12.5px;line-height:1.35;color:inherit;cursor:pointer" for="smsConsent">
+     <input type="checkbox" id="smsConsent" name="smsConsent" style="width:18px;height:18px;margin:2px 0 0;padding:0;flex:none;accent-color:var(--gold)">
+     <span style="flex:1;min-width:0">I agree to receive one (1) text message per order from El Otro Lado (John Switzer, Sole Proprietor) at the number provided when my order is ready for pickup. Msg &amp; data rates may apply. Reply STOP to opt out, HELP for help. View our <a href="https://privacy.signaturediversified.com" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">Privacy Policy</a> and <a href="https://terms.signaturediversified.com" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">Terms &amp; Conditions</a>.</span>
+    </label>
+    <div style="font-size:11px;line-height:1.35;opacity:.8;margin-top:6px;padding-left:25px">Message frequency: 1 message per order. Consent is not a condition of purchase &mdash; this box is unchecked by default and is not required; you can place your order without checking it and your order status will show on this page. Texts are sent by John Switzer, Sole Proprietor, doing business as El Otro Lado, Mesa, AZ.</div>
+   </div>
    <textarea name="notes" rows="2" placeholder="Notes: no onions, extra salsa…" maxlength="200"></textarea>
    <p class="muted">Pickup at the window. Pay when you pick up — card (Square) or cash.</p>
    <button class="cta" style="width:100%" id="placeBtn">Place Order</button>
@@ -62,9 +96,20 @@
  <div class="row"><span>Social</span><b id="cfgSocial"></b></div>
  <form id="cform"><input name="name" placeholder="Your name" required><input name="from" placeholder="Phone or email" required><textarea name="msg" rows="3" placeholder="Event date, headcount, question…" required></textarea><button class="cta" style="width:100%">Send</button></form>
 </section>
-<div id="hint">Drag to look around · scroll/pinch to zoom · tap the menu board to order</div>
 
-
-<script type="module" src="js/scene.js"></script>
+<script type="module" src="js/scene.js?v=2"></script>
+<script type="module" src="js/hotdog.js?v=2"></script>
+<script type="module">
+// Deep links so the checkout form (and its optional SMS opt-in checkbox) can be opened and reviewed directly:
+//   /#order  (also #checkout, #sms-optin, and the real paths /order /checkout /sms-optin served by server.py)
+//            -> opens the ordering panel scrolled to the checkout form
+//   /#menu, /#find, /#contact             -> opens that panel
+import {open} from './js/shop.js?v=2';
+const go=()=>{const h=(location.hash.slice(1)||location.pathname.replace(/^\/+|\/+$/g,'')).toLowerCase();
+  if(['menu','order','checkout','sms-optin'].includes(h)){open('menu');
+    if(h!=='menu')setTimeout(()=>document.getElementById('smsOptIn')?.scrollIntoView({block:'center'}),300);}
+  else if(['find','contact'].includes(h))open(h);};
+addEventListener('hashchange',go);go();
+</script>
 </body>
 </html>

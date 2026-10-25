@@ -4,6 +4,7 @@
 header{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:14px 18px;pointer-events:none;z-index:3}
 .brand{pointer-events:auto;font-family:'UnifrakturMaguntia',serif;font-size:clamp(26px,4vw,44px);text-shadow:0 2px 0 #000,0 0 18px rgba(232,58,115,.6)}
 .brand small{display:block;font-family:'Great Vibes',cursive;font-size:.55em;color:var(--gold);margin-top:-6px}
+.brandLogo{height:1.5em;width:auto;border-radius:8px;vertical-align:middle;margin-right:8px;box-shadow:0 2px 10px rgba(0,0,0,.4)}
 nav{pointer-events:auto;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 nav button,.cta{border:0;border-radius:999px;padding:10px 16px;font:600 14px Inter;cursor:pointer;color:#fff;background:rgba(27,21,70,.75);backdrop-filter:blur(8px);box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.25)}
 nav button:hover{background:var(--pink)}
@@ -28,15 +29,69 @@ nav button:hover{background:var(--pink)}
 #cartBar[hidden]{display:none}
 .tiles{height:10px;border-radius:6px;margin:14px 0;background:repeating-linear-gradient(90deg,var(--pink) 0 14px,var(--navy) 14px 18px,var(--pink) 18px 32px,var(--violet) 32px 36px)}
 form input,form textarea{width:100%;margin:6px 0;padding:10px;border-radius:10px;border:0;background:rgba(255,255,255,.1);color:#fff;font:14px Inter}
-#hint{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:3;font-size:13px;padding:8px 14px;border-radius:999px;background:rgba(0,0,0,.45);white-space:nowrap}
+#hint{position:fixed;left:50%;bottom:40px;transform:translateX(-50%);z-index:3;font-size:13px;padding:8px 14px;border-radius:999px;background:rgba(0,0,0,.45);white-space:nowrap}
+/* footer lived at the bottom and collided with the chat dock + hint pill on phones; it now rides
+in the header strip at the top (brand · legal line · nav), centered between them on desktop */
+#foot{flex:1;min-width:0;margin:0 14px;font-size:11px;line-height:1.3;text-align:center;color:#ddd;opacity:.9;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:auto}
+#foot a{color:#fff}
+body.nogl{background:linear-gradient(160deg,#1b1546,#4b2c8f);overflow:auto}body.nogl #c,body.nogl #hint,body.nogl #tour{display:none}
 #load{position:fixed;inset:0;display:grid;place-items:center;background:#0d0a26;z-index:9;font-family:'UnifrakturMaguntia',serif;font-size:42px;transition:opacity .6s}
+/* chat dock: a column parked on the left — message log above, controls row below. Styles live
+here (not inline) so breakpoints can restack the controls instead of colliding with the
+footer/hint pills that used to occupy the same bottom strip. */
+#eolDock{position:fixed;left:12px;bottom:12px;z-index:5;font:13px/1.35 Inter,system-ui,sans-serif;pointer-events:none;max-width:min(340px,64vw);width:max-content}
+/* hot dog contest panel + its launcher pill: floats low-right, above the hint pill */
+#eolHdPill{position:fixed;right:12px;bottom:44px;z-index:6;font:600 13px Inter,system-ui,sans-serif;padding:8px 12px;border-radius:999px;
+  border:1px solid rgba(232,58,115,.55);background:rgba(20,12,26,.82);color:#f6e7c8;cursor:pointer}
+#eolHdPill:hover{background:rgba(72,22,46,.9)}
+#eolHd{position:fixed;right:12px;bottom:84px;z-index:7;width:min(340px,88vw);max-height:70vh;overflow:auto;
+  border:1px solid rgba(232,58,115,.5);border-radius:16px;background:rgba(16,10,22,.95);color:#f6e7c8;
+  font:13px/1.4 Inter,system-ui,sans-serif;padding:10px 12px;box-shadow:0 8px 30px rgba(0,0,0,.5)}
+#eolHd .eolHdHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:15px}
+#eolHd .eolHdHead button{background:none;border:0;color:#f6e7c8;font-size:14px;cursor:pointer}
+.eolHdMuted{opacity:.78}
+.eolHdButtons{display:flex;gap:8px;align-items:center;margin-top:8px}
+.eolHdButtons button{flex:0 0 auto;padding:8px 14px;border-radius:999px;border:0;cursor:pointer;font:600 13px Inter;color:#14101a;background:#cfd3d8}
+.eolHdButtons button.p{background:#e83a73;color:#fff}
+.eolHdButtons button:disabled{opacity:.55;cursor:default}
+.eolHdMeter{display:flex;justify-content:space-between;margin-bottom:6px;font-size:15px}
+.eolHdDial{display:block;margin:0 auto;width:min(250px,72vw)}
+.eolHdButtons .eolHdEat{font-size:16px;padding:10px 22px}
+.eolHdButtons .eolHdEat.eolHdMiss{animation:eolHdShake .28s}
+@keyframes eolHdShake{25%{transform:translateX(-4px)}50%{transform:translateX(4px)}75%{transform:translateX(-3px)}}
+.eolHdBoard div{padding:2px 0}
+.eolHdBoard b{color:#f2c14e}
+#eolChatLog{pointer-events:none;color:#f3e4b8;text-shadow:0 1px 3px rgba(0,0,0,.9);max-height:110px;overflow:hidden;margin-bottom:6px}
+#eolDockRow{display:flex;gap:6px;pointer-events:auto;align-items:center}
+#eolLookBtn{background:#221833;color:#f6e7c8;border:1px solid rgba(255,255,255,.25);border-radius:999px;font-size:13px;cursor:pointer;padding:4px 8px}
+#eolLook{margin-top:6px;background:rgba(14,10,20,.94);border:1px solid rgba(232,58,115,.4);border-radius:12px;padding:8px 10px;pointer-events:auto}
+#eolLook[hidden]{display:none}
+#eolLookRow{display:flex;justify-content:space-between;align-items:center}
+#eolLookRow button{background:none;border:0;color:#f6e7c8;cursor:pointer}
+.eolLookCap{margin:6px 0 3px;font-weight:600;color:#f2c14e;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px}
+.eolLookSw{display:flex;gap:4px;flex-wrap:wrap}
+.eolLookSwBtn{width:20px;height:20px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0}
+.eolLookSwBtn.on{border-color:#fff}
+.eolLookChips{display:flex;gap:5px;flex-wrap:wrap}
+.eolLookChip{font:11px Inter,sans-serif;padding:4px 9px;border-radius:999px;border:1px solid rgba(255,255,255,.35);background:rgba(30,22,40,.85);color:#f6e7c8;cursor:pointer}
+.eolLookChip.on{background:#e83a73;border-color:#e83a73;color:#fff}
+.eolLookSave{margin-top:8px;width:100%;padding:7px 0;border-radius:999px;border:0;background:#e83a73;color:#fff;font:600 12px Inter,system-ui,sans-serif;cursor:pointer}
+#eolNameBtn{flex:none;border:none;border-radius:20px;padding:0 10px;height:34px;background:rgba(20,16,10,.78);color:#f2c14e;font:700 12px Inter,sans-serif;cursor:pointer;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#eolModeBtn{flex:none;border:none;border-radius:50%;width:34px;height:34px;background:rgba(20,16,10,.78);color:#f2c14e;font-size:16px;cursor:pointer;padding:0}
+#eolChatIn{flex:1;min-width:0;padding:8px 12px;border-radius:20px;border:1px solid rgba(255,255,255,.3);background:rgba(20,16,10,.78);color:#f3e4b8;font:13px Inter,sans-serif;outline:none}
+#eolChatSend{flex:none;border:none;border-radius:50%;width:34px;height:34px;background:#f2c14e;color:#1a1510;font-weight:800;cursor:pointer}
 @media(max-width:640px){
  header{flex-direction:column;align-items:stretch;gap:8px;padding:10px 12px}
  .brand{font-size:26px;white-space:nowrap}.brand small{display:inline;margin:0 0 0 8px;font-size:.62em}
- nav{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+ nav{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;scrollbar-width:none;-webkit-overflow-scrolling:touch;order:1}
+ #foot{order:2;white-space:normal;overflow:visible;text-align:left;font-size:10px;opacity:.8}
  nav::-webkit-scrollbar{display:none}
  nav button{flex:none;padding:8px 12px;font-size:13px}
- .panel,#menu{top:104px;bottom:12px;left:12px;right:12px;width:auto;max-height:none}
- #hint{white-space:normal;width:calc(100vw - 32px);text-align:center;font-size:12px;bottom:10px;border-radius:14px}
+ .panel,#menu{top:104px;bottom:34px;left:12px;right:12px;width:auto;max-height:none}
+ #hint{white-space:normal;width:auto;left:auto;right:8px;transform:none;max-width:44vw;text-align:left;font-size:12px;bottom:8px;border-radius:14px}
+ #eolDock{left:8px;bottom:8px;max-width:min(340px,56vw)}
+ #eolDockRow{flex-wrap:wrap}
+ #eolNameBtn{flex:1 0 100%}
  form input,form textarea,.item select{font-size:16px}   /* stops iPhone auto-zoom on focus */
 }
