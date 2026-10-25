@@ -69,6 +69,12 @@ footer/hint pills that used to occupy the same bottom strip. */
   padding:7px 10px;border-radius:12px;background:rgba(16,12,8,.85);border:1px solid rgba(255,255,255,.18);
   box-shadow:0 4px 14px rgba(0,0,0,.35);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
 #eolChatLog:empty{display:none}   /* no tinted box hanging around before the first message */
+/* drag grip under the log: the log itself stays pointer-events:none so clicks fall through to the
+scene — a CSS resize corner would need pointer events over the whole box and block the scene. */
+#eolChatGrip{display:flex;justify-content:flex-end;align-items:center;pointer-events:auto;cursor:ns-resize;touch-action:none;user-select:none;-webkit-user-select:none;padding:3px 4px;margin:-2px 0 1px}
+#eolChatGrip::before{content:"";width:36px;height:5px;border-radius:999px;background:rgba(255,255,255,.3);box-shadow:0 1px 2px rgba(0,0,0,.45)}
+#eolChatGrip:hover::before,#eolChatGrip:active::before{background:#f2c14e}
+#eolDock:has(#eolChatLog:empty) #eolChatGrip{display:none}   /* grip is pointless with no messages */
 #eolDockRow{display:flex;gap:6px;pointer-events:auto;align-items:center}
 #eolLookBtn{background:#221833;color:#f6e7c8;border:1px solid rgba(255,255,255,.25);border-radius:999px;font-size:13px;cursor:pointer;padding:4px 8px}
 #eolLook{margin-top:6px;background:rgba(14,10,20,.94);border:1px solid rgba(232,58,115,.4);border-radius:12px;padding:8px 10px;pointer-events:auto}

@@ -414,7 +414,7 @@ function logLine(name, text, mine) {
     ? `<span style="opacity:.7;font-style:italic">${esc(text)}</span>`
     : `<b style="color:${mine ? '#f2c14e' : '#bcd4ff'}">${esc(name)}:</b> ${esc(text)}`;
   logEl.appendChild(row);
-  while (logEl.children.length > 5) logEl.removeChild(logEl.firstChild);
+  while (logEl.children.length > 10) logEl.removeChild(logEl.firstChild);   // 10 rows: makes an expanded (resized) log actually worth scrolling back through
   logEl.scrollTop = logEl.scrollHeight;
 }
 
@@ -441,6 +441,7 @@ function buildDock() {
   wrap.id = 'eolDock';
   wrap.innerHTML = `
     <div id="eolChatLog"></div>
+    <div id="eolChatGrip" title="Drag to resize the chat box"></div>
     <div id="eolDockRow">
       <button id="eolNameBtn" title="Change your name"></button>
       <button id="eolLookBtn" title="Customize your avatar">🎨</button>
@@ -458,6 +459,29 @@ function buildDock() {
     </div>`;
   document.body.appendChild(wrap);
   logEl = wrap.querySelector('#eolChatLog');
+  const grip = wrap.querySelector('#eolChatGrip');
+  let savedH = 0;
+  try { savedH = parseInt(localStorage.getItem('eolChatLogH') || '', 10) || 0; } catch (e) {}
+  if (savedH >= 40) logEl.style.maxHeight = Math.min(savedH, 340) + 'px';   // remembered size beats the 110px default
+  grip.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    const startY = e.clientY, startH = logEl.getBoundingClientRect().height;
+    try { grip.setPointerCapture(e.pointerId); } catch (err) { /* synthetic/no active pointer */ }
+    const move = ev => {
+      const nh = Math.max(40, Math.min(340, Math.round(startH + ev.clientY - startY)));
+      logEl.style.maxHeight = nh + 'px';
+    };
+    const up = ev => {
+      move(ev);
+      try { localStorage.setItem('eolChatLogH', '' + Math.round(logEl.getBoundingClientRect().height)); } catch (err) {}
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+    };
+    window.addEventListener('pointermove', move, { passive: false });
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  });
   dockNameBtn = wrap.querySelector('#eolNameBtn');
   chatIn = wrap.querySelector('#eolChatIn');
   chipsBox = document.createElement('div');           // suggested replies, context-driven
