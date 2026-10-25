@@ -268,9 +268,9 @@ function buildTVMonitor(){
   return {group:g,screenMesh:screen};
 }
 const jukebox=buildBoombox();
-// ground-standing jukebox on the serving-side lawn — off the roof, clear of the counter, off
-// the menu board's sightline and out of the walk-up lane
-jukebox.position.set(bx0+BL/2-1.9,0,-BW/2-1.05);jukebox.rotation.y=Math.PI;
+// ground-standing jukebox pulled off the serving-side lawn to stand beside the HIGH SCORES
+// board (east flank; claw machine on the west) — user layout pass
+jukebox.position.set(-1.7,0,-8.3);jukebox.rotation.y=.32;
 truckRig.add(jukebox);
 // TV monitors: two hang on both cab side walls, just over the side windows near the front
 // (leaning slightly against the roofline); the service wall TV is tucked in the clear strip
@@ -399,10 +399,13 @@ const UMCYC=[0xe8578a,0xf2c14e,0x4fc3d9];   // pink / gold / teal canopies cycli
 const TRUCK_CX=-2.9;                                        // centre of the truck footprint
 let openIdx=0;
 const OCC_T=[[[-.42,-1,0],[.42,-1,1],[0,1,2]]];             // pre-seated trios in table-local coords
+const RELOC={0:[3.2,-4.1],3:[10.6,4.9],4:[3.9,7.0],12:[-13.4,-5.6],13:[-15.1,-1.4]};   // layout pass: s0/s13 clear the serving-window front, s12 leaves the HIGH SCORES board lawn, s3/s4 get off the Impala
 for(let s=0;s<14;s++){
-  const a=-Math.PI/2+(s+1)*2*Math.PI/14, r=s%2?9.9:8.0;   // ring pushed out ~1/3 for walking room
+  let a,px,pz;
+  if(RELOC[s]){[px,pz]=RELOC[s];a=Math.atan2(pz,px-TRUCK_CX);}   // relocated tables keep bench-facing-the-truck rotation
+  else{a=-Math.PI/2+(s+1)*2*Math.PI/14;const r=s%2?9.9:8.0;px=TRUCK_CX+Math.cos(a)*r;pz=Math.sin(a)*r;}   // ring pushed out ~1/3 for walking room
   const tab=buildTable(s<2?[0xe8578a,0xf2c14e][s]:UMCYC[openIdx++%3]);
-  tab.position.set(TRUCK_CX+Math.cos(a)*r,0,Math.sin(a)*r);
+  tab.position.set(px,0,pz);
   tab.rotation.y=Math.PI/2-a;                 // one long side (bench) always faces the truck
   truckRig.add(tab);TABLE_HIT.push(tab);
   if(s<2)for(const [dx,seat,li] of OCC_T[0]){  // occupied: a pair + one across, all mid-bite
@@ -664,7 +667,7 @@ function tickSmoke(parts,dt){
 // reads as THE make-shift festival stage (the only one - owner nixed a small truck-side stage):
 // uploaded TV video across its backdrop, fat sweeping laser beams off the truss lamps,
 // colored spotlights, an animated performer mid-deck, and random fog-machine smoke puffs.
-const stageRB=buildStage({W:32,D:13,H:2});const stageBack=stageRB.group;stageBack.position.set(8,0,-47);S.add(stageBack);
+const stageRB=buildStage({W:32,D:13,H:2});const stageBack=stageRB.group;stageBack.position.set(8,0,-70);S.add(stageBack);   // pushed ~25 yd (23 m) back so the truck zone breathes
 if(sharedVideoTexture){   // same uploaded TV video, playing across the big stage's backdrop
   stageRB.backdrop.material=new THREE.MeshBasicMaterial({map:sharedVideoTexture,side:THREE.DoubleSide,fog:false});
 }
@@ -760,9 +763,9 @@ function tickPuff(p,dt){
 // the stage's truck-facing side now: a wide pit band across the full deck width plus flank
 // packs at either end - nobody hangs behind the deck.
 for(let i=0;i<13;i++) spawnCrowd(-28+Math.random()*72, -4+Math.random()*24, 1);
-for(let i=0;i<22;i++) spawnCrowd(-8+Math.random()*32, -38.5+Math.random()*8, 1);    // pit, at the stage front
-for(let i=0;i<5;i++) spawnCrowd(-14.5+Math.random()*5, -38+Math.random()*7, 1);     // west flank pack
-for(let i=0;i<5;i++) spawnCrowd(26.5+Math.random()*5, -38+Math.random()*7, 1);      // east flank pack
+for(let i=0;i<22;i++) spawnCrowd(-8+Math.random()*32, -61.5+Math.random()*8, 1);    // pit, at the stage front (shifted with the stage)
+for(let i=0;i<5;i++) spawnCrowd(-14.5+Math.random()*5, -61+Math.random()*7, 1);     // west flank pack
+for(let i=0;i<5;i++) spawnCrowd(26.5+Math.random()*5, -61+Math.random()*7, 1);      // east flank pack
 
 // ~200 extra festival-goers ringing the big stage - but cheap: two InstancedMeshes (bodies +
 // heads) is the whole thing, two draw calls, no per-frame updates, no shadow casters. Phones
@@ -775,7 +778,7 @@ for(let i=0;i<5;i++) spawnCrowd(26.5+Math.random()*5, -38+Math.random()*7, 1);  
  const heads=new THREE.InstancedMesh(new THREE.SphereGeometry(.11,6,5),
    new THREE.MeshStandardMaterial({roughness:.7}),N);
  const M=new THREE.Matrix4(),Q=new THREE.Quaternion(),P=new THREE.Vector3(),Sc=new THREE.Vector3(),C=new THREE.Color();
- const SX=14,SZ=-78,BOOTH=[[16,-52],[36,-64],[-24,-50]];
+ const SX=14,SZ=-101,BOOTH=[[16,-52],[36,-64],[-24,-50]];   // ring shifted -23 m with the pushed-back stage
  let placed=0;
  while(placed<N){
    const a=Math.random()*Math.PI*2,r=(10+Math.pow(Math.random(),.55)*30)*1.06;

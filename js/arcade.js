@@ -170,7 +170,7 @@ function buildProps() {
   arm.position.y = .75; arm.position.z = -.3; claw.add(arm);
   claw.userData.arm = arm;
   claw.traverse(o => { o.userData.midway = 'claw'; });
-  claw.position.set(3.6, 0, -3.7); claw.rotation.y = .18; rig.add(claw); props.claw = claw;
+  claw.position.set(-6.9, 0, -8.3); claw.rotation.y = .3; rig.add(claw); props.claw = claw;   // west flank of the HIGH SCORES board (was mid serving-side lawn) — user layout pass
 
   // 🎯 two bean-bag boards angled toward the toss line, west lawn
   for (let i = 0; i < 2; i++) {
