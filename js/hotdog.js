@@ -7,6 +7,7 @@
 // three clean bites swallow a dog, a miss costs a jaw-lockout, so rhythm beats mashing.
 // Plain DOM + one small canvas; the 3D scene never has to drop a frame for a contest.
 import {announce, clockNow, visitorName, HD} from './avatars.js?v=6';
+import {CONFIG} from './shop.js?v=6';               // Settings → Games can switch the contest off
 
 const DUR = 60;         // seconds per round
 const COLLECT_MS = 25000;
@@ -34,6 +35,8 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '
 const normA = a => { a = (a % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI); return a > Math.PI ? a - 2 * Math.PI : a; };
 
 export function init() {
+  if (CONFIG && CONFIG.hotdogOn === false) return;   // owner switched the 🌭 contest off: no pill, no panel,
+                                                      // no lawn-table listener — the game never opens here
   pill = document.createElement('button');
   pill.id = 'eolHdPill'; pill.textContent = '🌭 Contest';
   pill.title = 'Hot dog eating contest — solo or against everyone';

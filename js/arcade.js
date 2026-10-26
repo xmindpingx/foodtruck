@@ -5,6 +5,7 @@
 // Lobby + done screens speak the language picked at sign-up (Account.lang()).
 import * as THREE from 'three';
 import {announce, clockNow, visitorName} from './avatars.js?v=6';
+import {CONFIG} from './shop.js?v=6';                // games on/off switches (Admin → Settings → Games)
 import * as Account from './account.js?v=6';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
@@ -33,6 +34,16 @@ const BL = {   // per-game name/blurb in the language picked at sign-up
 };
 const gameN = id => (BL[id] || {})[ES() ? 'es' : 'en'] || (GAMES.find(g => g.id === id) || {});
 const DUELABLE = {c4: 1, ttt: 1};
+
+// ---------- games on/off (Admin → Settings → Games) ----------
+// midwayOn switches the whole Midway off (no props, no panel); a per-game flag hides that
+// game's prop, tab and score row. Old settings files lack the keys, so !== false keeps every
+// default ON — flipping one off in admin is what hides it here.
+const gameOn = id => !CONFIG || CONFIG['game' + id.charAt(0).toUpperCase() + id.slice(1) + 'On'] !== false;
+const MIDWAY_ON = () => !CONFIG || CONFIG.midwayOn !== false;
+const HOTDOG_ON = () => !CONFIG || CONFIG.hotdogOn !== false;
+const gamesOn = () => GAMES.filter(g => gameOn(g.id));
+
 let miniItems = [];                               // mini menu-item prize pool (from the live menú)
 
 const TT = {
@@ -50,6 +61,7 @@ const TT = {
     again: '▶ Again', home: '← Midway',
     duelEnd: {me: p => '🏆 You beat ' + esc(p) + '!', draw: p => '🤝 Draw with ' + esc(p) + '!', them: (w, p) => esc(w || p) + ' won the duel.'},
     aiWon: 'The AI won this round.', drawOnly: 'A dead-even draw!', connect: '🎯 Brilliant connect!', cat: "Cat's game — nobody scores.",
+    closed: 'The games are switched off right now — the trivia chat and prize shelf still run!',
   },
   es: {
     lobby: 'Los ganadores reciben <b>artículos del menú en miniatura</b> para su colección.',
@@ -65,6 +77,7 @@ const TT = {
     again: '▶ Otra vez', home: '← El Midway',
     duelEnd: {me: p => '🏆 ¡Venciste a ' + esc(p) + '!', draw: p => '🤝 Empate con ' + esc(p) + '!', them: (w, p) => esc(w || p) + ' ganó el duelo.'},
     aiWon: 'La IA ganó esta ronda.', drawOnly: '¡Empate parejo!', connect: '🎯 ¡Conexión brillante!', cat: 'El gato se lo llevó — nadie anota.',
+    closed: 'Los juegos están apagados ahorita — ¡la trivia del chat y el estante de premios siguen!',
   },
 };
 const tt = k => (TT[ES() ? 'es' : 'en'] || TT.en)[k] || TT.en[k];
@@ -112,7 +125,7 @@ function armDuelStart() {                         // both sides start once the c
 addEventListener('eol:pa', onPa);
 function onPa({id, name, text}) {
   const p = String(text || '').split(/\s+/), cmd = p[0], g = p[1] || '';
-  if (cmd === 'open' && DUELABLE[g]) {
+  if (cmd === 'open' && DUELABLE[g] && gameOn(g)) {
     if (myRooms[g] === 'host') return;            // my own opening echoed back? never self-join
     chal.game = g; chal.role = 'invited'; chal.peer = {id, name};
     chal.deadline = (+p[2] || Date.now() + 14000) - (clockSkew || 0);
@@ -149,31 +162,34 @@ function onPa({id, name, text}) {
 // ---------- 3D props (all in truck-rig space; serving side is -z) ----------
 function box(w, h, d, color) { return new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({color, roughness: .6})); }
 function buildProps() {
-  // 🦞 claw machine on the serving side, lit from inside
-  const claw = new THREE.Group();
-  const cab = box(1.15, 1.95, .95, 0x7a1f2b); cab.position.y = .97; claw.add(cab);
-  const glass = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.1, .06),
-    new THREE.MeshStandardMaterial({color: 0xbfe3ff, transparent: true, opacity: .32, roughness: .1}));
-  glass.position.set(0, 1.18, -.5); claw.add(glass);
-  const marquee = box(1.2, .3, .4, 0xf2c14e); marquee.position.set(0, 2.06, -.25); claw.add(marquee);
-  const chute = box(.5, .3, .85, 0x2b1620); chute.position.set(0, .16, .1); claw.add(chute);
-  const TINTS = [0xe5534a, 0xf2c14e, 0x53a86e, 0x4f76e5, 0xd77bd0, 0x74dbe6];
-  for (let i = 0; i < 6; i++) {
-    const p = box(.16, .13, .14, TINTS[i]);
-    p.position.set(-.32 + (i % 3) * .32, 1.06 + (i > 2 ? .16 : 0), -.14);
-    p.rotation.y = .4; claw.add(p);
+  // 🦞 claw machine on the serving side, lit from inside (only when its game is on)
+  let claw = null;
+  if (gameOn('claw')) {
+    claw = new THREE.Group();
+    const cab = box(1.15, 1.95, .95, 0x7a1f2b); cab.position.y = .97; claw.add(cab);
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.1, .06),
+      new THREE.MeshStandardMaterial({color: 0xbfe3ff, transparent: true, opacity: .32, roughness: .1}));
+    glass.position.set(0, 1.18, -.5); claw.add(glass);
+    const marquee = box(1.2, .3, .4, 0xf2c14e); marquee.position.set(0, 2.06, -.25); claw.add(marquee);
+    const chute = box(.5, .3, .85, 0x2b1620); chute.position.set(0, .16, .1); claw.add(chute);
+    const TINTS = [0xe5534a, 0xf2c14e, 0x53a86e, 0x4f76e5, 0xd77bd0, 0x74dbe6];
+    for (let i = 0; i < 6; i++) {
+      const p = box(.16, .13, .14, TINTS[i]);
+      p.position.set(-.32 + (i % 3) * .32, 1.06 + (i > 2 ? .16 : 0), -.14);
+      p.rotation.y = .4; claw.add(p);
+    }
+    const arm = new THREE.Group();                              // idle sway animated in tick()
+    const al = box(.05, .5, .05, 0x202020); al.position.set(-.45, .75, 0); arm.add(al);
+    const ar = box(.05, .5, .05, 0x202020); ar.position.set(.45, .75, 0); arm.add(ar);
+    const beam = box(.95, .07, .07, 0x202020); beam.position.set(0, .78, 0); arm.add(beam);
+    arm.position.y = .75; arm.position.z = -.3; claw.add(arm);
+    claw.userData.arm = arm;
+    claw.traverse(o => { o.userData.midway = 'claw'; });
+    claw.position.set(-6.9, 0, -8.3); claw.rotation.y = .3; rig.add(claw); props.claw = claw;   // west flank of the HIGH SCORES board (was mid serving-side lawn) — user layout pass
   }
-  const arm = new THREE.Group();                              // idle sway animated in tick()
-  const al = box(.05, .5, .05, 0x202020); al.position.set(-.45, .75, 0); arm.add(al);
-  const ar = box(.05, .5, .05, 0x202020); ar.position.set(.45, .75, 0); arm.add(ar);
-  const beam = box(.95, .07, .07, 0x202020); beam.position.set(0, .78, 0); arm.add(beam);
-  arm.position.y = .75; arm.position.z = -.3; claw.add(arm);
-  claw.userData.arm = arm;
-  claw.traverse(o => { o.userData.midway = 'claw'; });
-  claw.position.set(-6.9, 0, -8.3); claw.rotation.y = .3; rig.add(claw); props.claw = claw;   // west flank of the HIGH SCORES board (was mid serving-side lawn) — user layout pass
 
-  // 🎯 two bean-bag boards angled toward the toss line, west lawn
-  for (let i = 0; i < 2; i++) {
+  // 🎯 two bean-bag boards angled toward the toss line, west lawn (skipped when the game is off)
+  if (gameOn('bbt')) for (let i = 0; i < 2; i++) {
     const g = new THREE.Group();
     const board = box(1.1, 1.4, .08, 0x3d6b35); board.rotation.x = -.5; board.position.set(0, .62, 0);
     const sb = new THREE.Mesh(new THREE.TorusGeometry(.22, .05, 8, 24), new THREE.MeshStandardMaterial({color: 0xf2c14e}));
@@ -187,18 +203,21 @@ function buildProps() {
     rig.add(g); props.bbt.push(g);
   }
 
-  // 🚩 tag arena: painted ring + pennant flag, east of the tables
-  const tag = new THREE.Group();
-  const ring = new THREE.Mesh(new THREE.RingGeometry(2.2, 2.45, 40),
-    new THREE.MeshBasicMaterial({color: 0xf2c14e, transparent: true, opacity: .5, side: THREE.DoubleSide}));
-  ring.rotation.x = -Math.PI / 2; ring.position.y = .02; tag.add(ring);
-  const base = box(.3, .1, .3, 0x027a74); base.position.y = .05; tag.add(base);
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(.04, .05, 2.3, 8), new THREE.MeshStandardMaterial({color: 0x8a6d3b}));
-  pole.position.y = 1.15; tag.add(pole);
-  const flag = new THREE.Mesh(new THREE.PlaneGeometry(.66, .42), new THREE.MeshStandardMaterial({color: 0xe5534a, side: THREE.DoubleSide}));
-  flag.position.set(.33, 2.0, 0); tag.add(flag); flag.userData.flag = true;
-  tag.traverse(o => { o.userData.midway = 'tag'; });
-  tag.position.set(7.9, 0, -6.0); rig.add(tag); props.tag = tag;
+  // 🚩 tag arena: painted ring + pennant flag, east of the tables (skipped when the game is off)
+  let tag = null;
+  if (gameOn('tag')) {
+    tag = new THREE.Group();
+    const ring = new THREE.Mesh(new THREE.RingGeometry(2.2, 2.45, 40),
+      new THREE.MeshBasicMaterial({color: 0xf2c14e, transparent: true, opacity: .5, side: THREE.DoubleSide}));
+    ring.rotation.x = -Math.PI / 2; ring.position.y = .02; tag.add(ring);
+    const base = box(.3, .1, .3, 0x027a74); base.position.y = .05; tag.add(base);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(.04, .05, 2.3, 8), new THREE.MeshStandardMaterial({color: 0x8a6d3b}));
+    pole.position.y = 1.15; tag.add(pole);
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(.66, .42), new THREE.MeshStandardMaterial({color: 0xe5534a, side: THREE.DoubleSide}));
+    flag.position.set(.33, 2.0, 0); tag.add(flag); flag.userData.flag = true;
+    tag.traverse(o => { o.userData.midway = 'tag'; });
+    tag.position.set(7.9, 0, -6.0); rig.add(tag); props.tag = tag;
+  }
 
   // 🏆 HIGH SCORES standing sign, out by the west lawn (the user asked "off to the side")
   const board = new THREE.Group();
@@ -217,7 +236,7 @@ function buildProps() {
   board.traverse(o => { o.userData.midway = 'board'; });
   board.position.set(-4.7, 0, -7.6); board.rotation.y = .32; rig.add(board); props.board = board;
 
-  pills = [claw, ...props.bbt, tag, board];
+  pills = [claw, ...props.bbt, tag, board].filter(Boolean);   // click targets for whatever got built
 }
 function signTexture(txt, col) {
   const c = document.createElement('canvas'); c.width = 256; c.height = txt.includes('\n') ? 112 : 56;
@@ -254,6 +273,7 @@ export function openFrom(obj) {
 // ---------- MIDWAY panel scaffolding ----------
 export function openPanel(g) {
   if (!panel) return;
+  if (g && g !== 'lobby' && !gameOn(g)) g = 'lobby';   // switched off since this prop/tab was open
   if (panel.hidden) panel.hidden = false;
   if (g) tab = g;
   render();
@@ -261,11 +281,13 @@ export function openPanel(g) {
 function closePanel() { panel.hidden = true; stopGames(); }
 function render() {
   if (!panel) return;
+  const on = gamesOn();
+  if (!on.find(g => g.id === tab)) tab = on.length ? on[0].id : 'lobby';   // stale/off tab → first live one
   panel.innerHTML = `
     <div class="eolMidHead"><b>🎪 Midway</b>
       <span class="eolMidPts">🪙 ${Math.round(Account.points())} pts</span>
       <button id="eolMidX" aria-label="Close">✕</button></div>
-    <div class="eolMidTabs">${GAMES.map(g =>
+    <div class="eolMidTabs">${on.map(g =>
       `<button class="eolMidTab${g.id === tab ? ' on' : ''}" data-t="${g.id}">${g.icon} <span>${esc(gameN(g.id).name || g.name)}</span></button>`).join('')}</div>
     <div id="eolMidwayBody"></div>`;
   panel.querySelector('#eolMidX').onclick = closePanel;
@@ -275,7 +297,12 @@ function render() {
 }
 function paintLobby() {
   if (!body) return;
-  const g = GAMES.find(x => x.id === tab) || GAMES[0];
+  const on = gamesOn();
+  if (!on.length) {                     // every minigame switched off — the board + trivia still run
+    body.innerHTML = `<p class="eolMidBlurb">${tt('closed')}</p>`;
+    return;
+  }
+  const g = on.find(x => x.id === tab) || on[0];
   const playing = Boolean(g.id === 'claw' || g.id === 'bbt' || g.id === 'tag' || g.id === 'pin');
   const invitedHere = chal.role === 'invited' && chal.game === g.id;
   body.innerHTML = `
@@ -359,6 +386,7 @@ function mount() {
   return {canvas: c, cx: c.getContext('2d'), w: 340, h: 240, hint: body.querySelector('.eolMidHint')};
 }
 function startGame(id) {
+  if (!gameOn(id)) { tab = 'lobby'; render(); return; }   // owner switched this game off mid-session
   if (panel.hidden) panel.hidden = false;
   tab = id; render();
   ({claw: clawStart, bbt: bbtStart, tag: tagStart, pin: pinStart, c4: () => c4Start(mode()), ttt: () => tttStart(mode())}[id] || (() => {}))();
@@ -843,9 +871,11 @@ function paintScores(j) {
       `<div class="eolScoreR"><span>🏆 ${esc(best.name || '—')} <b>${best.value ?? ''}</b></span>` +
       `<span>🕐 ${L.last}: ${esc(last.name || '—')}</span></div></div>`;
   };
+  const rows = [['hotdog', '🌭'], ['claw', '🦞'], ['bbt', '🎯'], ['tag', '🚩'], ['c4', '🔴'], ['ttt', '⭕'], ['pin', '🪅']]
+    .filter(([k]) => (k === 'hotdog' ? HOTDOG_ON() : gameOn(k)));   // switched-off games don't get rows
   scorePanel.innerHTML = `<div class="eolScoreHead"><b>${L.head}</b><button id="eolScoreX" aria-label="Close">✕</button></div>` +
     `<div class="eolScoreRows">` +
-    row('hotdog', '🌭') + row('claw', '🦞') + row('bbt', '🎯') +    row('tag', '🚩') + row('c4', '🔴') + row('ttt', '⭕') + row('pin', '🪅') +
+    rows.map(([k, icon]) => row(k, icon)).join('') +
     (j && j.collection && j.collection.holder ? `<div class="eolScoreRow big"><div class="eolScoreL"><b>${L.shelf}</b></div><div class="eolScoreR"><span>${esc(j.collection.holder)} · ${j.collection.count}</span></div></div>` : '') +
     (j && j.points && j.points.holder ? `<div class="eolScoreRow big"><div class="eolScoreL"><b>${L.king}</b></div><div class="eolScoreR"><span>${esc(j.points.holder)} · 🪙 ${Math.round(j.points.points)}</span></div></div>` : '') +
     `</div><div class="eolScoreFoot"><button id="eolScoreRef">${L.refresh}</button></div>`;
@@ -855,6 +885,8 @@ function paintScores(j) {
 
 // ---------- init + tick ----------
 export function init(params) {
+  if (!MIDWAY_ON()) return;   // owner switched the whole Midway off: no props, no panel, no listeners —
+                              // targets()/walkBalls() stay empty so scene.js click/walk code is inert
   S = params.scene; rig = params.rig; MENU = params.menu || {categories: []};
   miniItems = (MENU.categories || []).flatMap(c => c.items || []).filter(i => i && i.id && i.name);
   clockNow().then(n => { clockSkew = n - Date.now(); }).catch(() => {});

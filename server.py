@@ -304,6 +304,16 @@ DEFAULT_SETTINGS = {
     # --- AI order-taking chat assistant ---
     "aiAssistantEnabled": True,
     "aiAssistantModel": "qwen3:1.7b",
+    # --- Games (Admin → Settings → Games): the 🎪 Midway arcade, each of its six minigames,
+    # the 🌭 hot dog contest and the 🤖 trivia bot can all be switched off individually.
+    # midwayOn is the master switch (props + panel + HIGH SCORES board); a per-game flag hides
+    # that game's prop, tab and score row; triviaBotOn stops new questions immediately (banked
+    # points and collections always stay). Everything defaults on ---
+    "midwayOn": True,
+    "gameClawOn": True, "gameBbtOn": True, "gameTagOn": True,
+    "gameC4On": True, "gameTttOn": True, "gamePinOn": True,
+    "hotdogOn": True,
+    "triviaBotOn": True,
     # --- 3D scene: truck position, set by dragging it in layout mode (see scene.js) ---
     "truckOffsetX": 0.0,
     "truckOffsetZ": 0.0,
@@ -361,7 +371,10 @@ PUBLIC_SETTINGS = ('businessName', 'tagline', 'brandLogo', 'copyrightLine', 'pho
                    # marketing banner + delivery partner links (public "find us on" row)
                    'bannerText', 'bannerLink',
                    'partnerGrubhubOn', 'partnerGrubhubLink', 'partnerUberOn', 'partnerUberLink',
-                   'partnerDoorDashOn', 'partnerDoorDashLink', 'partnerInstacartOn', 'partnerInstacartLink')
+                   'partnerDoorDashOn', 'partnerDoorDashLink', 'partnerInstacartOn', 'partnerInstacartLink',
+                   # games on/off switches — the 3D lot, the contest and the chat trivia gate on these
+                   'midwayOn', 'gameClawOn', 'gameBbtOn', 'gameTagOn', 'gameC4On', 'gameTttOn', 'gamePinOn',
+                   'hotdogOn', 'triviaBotOn')
 
 JOBS = {}   # job id -> {status, item, image, prompt, error, ts}
 
@@ -651,6 +664,14 @@ SHOP_MAP = {e['item']: e for e in SHOP_ITEMS}
 TQ = {'i': 0, 'q': None}                             # next row index / open question {'a','cat','at','scored','nudged'}
 TQ_LOCK = threading.Lock()
 
+GAME_FLAGS = {'claw': 'gameClawOn', 'bbt': 'gameBbtOn', 'tag': 'gameTagOn', 'c4': 'gameC4On',
+              'ttt': 'gameTttOn', 'pin': 'gamePinOn', 'hotdog': 'hotdogOn'}   # game id -> settings key
+def _game_allowed(s, game):
+    """Admin → Settings → Games can switch any single game off. A disabled game's props/tabs
+    never render client-side; this keeps a stale client from recording scores for it too."""
+    key = GAME_FLAGS.get(str(game or '').strip())
+    return bool(s.get(key, True)) if key else True   # unknown game ids pass (flat-file stays permissive)
+
 # ---------- leaderboards (data/scores.json) + score-driven trivia ----------
 # Every minigame finish (and each hot-dog contest round) reports its result to /api/score. The
 # flat file keeps a small rolling ring per game plus best/last shortcuts; /api/scores feeds the
@@ -746,6 +767,9 @@ def _trivia_post(text):
 
 def _trivia_next():
     if not TRIVIA: return
+    if not {**DEFAULT_SETTINGS, **load('settings.json', {})}.get('triviaBotOn', True):
+        with TQ_LOCK: TQ['q'] = None   # owner switched the bot off: close any open race immediately
+        return
     live = None
     with TQ_LOCK:
         n = TQ.get('n', 0) + 1                       # served-question counter (every 3rd mirrors the lot)
@@ -773,6 +797,7 @@ def _trivia_answer_check(myid, text, name, phone=''):
     who lands it inside the 20s window. One award per user per question. Returns the points banked
     (int), 0 for an unsigned correct guess (one nudge posted), or None."""
     if not TRIVIA: return None
+    if not {**DEFAULT_SETTINGS, **load('settings.json', {})}.get('triviaBotOn', True): return None   # bot is off
     with TQ_LOCK:
         q = TQ['q']
         if not q: return None
@@ -2359,6 +2384,9 @@ class H(SimpleHTTPRequestHandler):
                                    'wins': rec.get('wins', {}),
                                    'won': {'item': item, 'name': row['label']}})
         if p == '/api/score':                       # ⛹ minigame + contest result reporting (no account needed)
+            s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
+            if not _game_allowed(s, data.get('game')):
+                return self.send_json({'ok': True})   # switched off in Settings → Games: drop silently
             _score_record(data.get('game'), _score_name(data), data.get('value'), data.get('label'))
             return self.send_json({'ok': True})
 
