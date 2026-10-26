@@ -305,9 +305,10 @@ function buildProps() {
   board.traverse(o => { o.userData.midway = 'board'; });
   // 🏆 the HIGH SCORES board now rides the truck ROOF as a rooftop marquee (user pass): its
   // posts sink into the cargo box (roof top = FLOOR+BH = 3.0, so y 2.0 parks the panel just
-  // above the roofline) and the +z sign face is turned to greet the default spawn view
-  // (camera (-1.6,·,7.8) rig space → ~0.065 rad aim). Re-placeable via #layout like every prop.
-  board.position.set(-2.1, 2.0, 0); board.rotation.y = .065;
+  // above the roofline) and the sign face is turned to greet the spawn view — which stands on
+  // the WINDOW side by the jukebox at (-1.6,·,-7.8) rig space, so the front flips around to
+  // ~π and aims ~4° east at the camera. Re-placeable via #layout like every prop.
+  board.position.set(-2.1, 2.0, 0); board.rotation.y = Math.PI - .065;
   rig.add(board); props.board = board;
 
   pills = [claw, ...props.bbt, tag, board].filter(Boolean);   // click targets for whatever got built

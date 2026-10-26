@@ -6,7 +6,7 @@ import {CONFIG,MENU,money,open,hooks} from './shop.js?v=6';
 import {buildTruck,WX0,WX1,WY0,WY1,BW,BL,BH,bx0,FLOOR,CL} from './truck.js?v=6';
 import * as Avatars from './avatars.js?v=7';
 import * as Account from './account.js?v=6';   // phone-number arcade profiles (language-first sign-up)
-import * as Arcade from './arcade.js?v=9';     // 🎪 The Midway props + six minigames + HIGH SCORES board
+import * as Arcade from './arcade.js?v=10';    // 🎪 The Midway props + six minigames + HIGH SCORES board
 
 const canvas=document.getElementById('c');
 const R=new THREE.WebGLRenderer({canvas,antialias:true});
@@ -19,7 +19,10 @@ export const cam=new THREE.PerspectiveCamera(50,innerWidth/innerHeight,0.1,400);
 // distance needed so a span of 2*halfW meters fits across the screen (phones in portrait need to stand back)
 const fitDist=(halfW,minD)=>{const hf=Math.atan(Math.tan(THREE.MathUtils.degToRad(cam.fov/2))*cam.aspect);return Math.max(minD,halfW/Math.tan(hf));};
 const portrait=()=>cam.aspect<1;
-if(portrait()) cam.position.set(-1.55,1.9,fitDist(2.7,7.8)); else cam.position.set(-1.6,1.7,7.8);
+// spawn view: standing on the WINDOW side of the lot (north, right beside the jukebox),
+// facing the truck's serving window + menu board dead-on — the queue, the claw machine and
+// the bean-bag boards frame the first view (the stage/crowd side is now behind the camera)
+if(portrait()) cam.position.set(-1.55,1.9,-fitDist(2.7,7.8)); else cam.position.set(-1.6,1.7,-7.8);
 const ctl=new OrbitControls(cam,canvas);ctl.target.set(portrait()?-1.55:-2.1,1.6,0);ctl.enableDamping=true;
 // these assume the truck sits unrotated at world (0,0) - kept as the "base" view and re-applied
 // through the truck's actual position/rotation once that's known (see truckRig setup below).
@@ -108,9 +111,10 @@ const panoC=document.createElement('canvas');panoC.width=2048;panoC.height=1024;
     g.strokeStyle='rgba(255,255,255,.7)';g.lineWidth=1.1;
     g.beginPath();g.moveTo(x-r,HOR);g.lineTo(x-r-6,HOR-4);g.moveTo(x+r,HOR);g.lineTo(x+r+6,HOR-4);g.stroke();}}
  // the main stage: large roofed structure across ~10° of azimuth, gradient scrim festival
- // palette, deck lip, twin rafters with a cross-brace and PA stacks each side. u=.765 is what
- // the default camera (-z view) looks dead-center at, so the stage fronts the first view; the
- // scrim rides high so its festival colors show above the truck's roofline from the start view.
+ // palette, deck lip, twin rafters with a cross-brace and PA stacks each side. u=.765 was
+ // picked for the old +z spawn (stage dead-center in the first view); the spawn now stands on
+ // the window side by the jukebox, so the stage crowns the lot behind it instead — still
+ // fully there for the orbit/tour and walking.
  {const SX=W*.765,SW=W*.1,SH=86;
   for(const dx of [-W,0,W]){
    const cx=SX+dx,y0=HOR,hx=SW/2;
