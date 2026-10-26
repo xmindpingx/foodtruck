@@ -4,9 +4,9 @@ import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {CONFIG,MENU,money,open,hooks} from './shop.js?v=6';
 import {buildTruck,WX0,WX1,WY0,WY1,BW,BL,BH,bx0,FLOOR,CL} from './truck.js?v=6';
-import * as Avatars from './avatars.js?v=6';
+import * as Avatars from './avatars.js?v=7';
 import * as Account from './account.js?v=6';   // phone-number arcade profiles (language-first sign-up)
-import * as Arcade from './arcade.js?v=8';     // 🎪 The Midway props + six minigames + HIGH SCORES board
+import * as Arcade from './arcade.js?v=9';     // 🎪 The Midway props + six minigames + HIGH SCORES board
 
 const canvas=document.getElementById('c');
 const R=new THREE.WebGLRenderer({canvas,antialias:true});
@@ -561,6 +561,34 @@ lexus.userData.baseY=0;
 truckRig.add(lexus);
 lexus.userData.hopSeed=Math.random()*6;lexus.userData.hopSide=Math.random()<.5?-1:1;
 ALL_HYDRAULICS.push(lexus);   // "on switches" - gets a random hydraulic hop in the main render loop
+
+// ---------- movable lot props (#layout registry) + the saved layout EVERY visitor gets ----------
+// Everything the owner might want to re-place is registered here with its compiled-in base
+// (rig-local x/z + rotation in degrees). All visitors get the admin-saved arrangement
+// (Settings layoutProps, written by #layout's "Save as default"); a #layout session previews
+// in localStorage first. Prop ids are stable — they persist in settings.json.
+const LAYOUT_MOVERS=[];   // {id,label,obj,base} — the truck itself is handled separately (own settings keys)
+{const reg=(id,label,obj)=>{if(obj)LAYOUT_MOVERS.push({id,label,obj,base:{x:obj.position.x,z:obj.position.z,y:obj.position.y,
+  r:((obj.rotation.y*180/Math.PI)%360+360)%360}});};
+ reg('jukebox','Jukebox',jukebox);
+ reg('claw','Claw machine',Arcade.prop('claw'));
+ (Arcade.prop('bbt')||[]).forEach((b,i)=>reg('bbt'+i,'Bean-bag board '+(i+1),b));
+ reg('tag','Tag arena',Arcade.prop('tag'));
+ reg('scores','HIGH SCORES board',Arcade.prop('board'));
+ reg('impala','Impala lowrider',lexus);
+ TABLE_HIT.forEach((t,i)=>reg('table'+i,'Picnic table '+(i+1),t));}
+const propLayoutAll=()=>Object.fromEntries(LAYOUT_MOVERS.map(m=>{const v={x:+m.obj.position.x.toFixed(2),z:+m.obj.position.z.toFixed(2),
+  r:+(((m.obj.rotation.y*180/Math.PI)%360+360)%360).toFixed(1)};if(m.id==='scores')v.y=+m.obj.position.y.toFixed(2);return [m.id,v];}));
+function applyPropLayout(src){
+  for(const m of LAYOUT_MOVERS){const v=(src||{})[m.id];if(!v)continue;
+    m.obj.position.set(+v.x||0,(v.y!=null?+v.y:m.obj.position.y)||0,+v.z||0);
+    m.obj.rotation.y=(+v.r||0)*Math.PI/180;}
+}
+{let saved=null;try{saved=JSON.parse(localStorage.getItem('eol_layoutProps')||'null');}catch{}
+ applyPropLayout(saved||CONFIG.layoutProps||{});}   // this browser's #layout preview > admin-saved > built-in
+window.__EOL_PROPS=()=>LAYOUT_MOVERS.map(m=>{const w=new THREE.Vector3();m.obj.getWorldPosition(w);
+  return {id:m.id,x:+w.x.toFixed(2),z:+w.z.toFixed(2)};});   // 📱 GPS app: live prop positions for the lot map
+
 // a little billboard hint so the switches/car are discoverable: sprites are a single quad,
 // always camera-facing, and recolored for the same hand-painted tone as the rest of the prop text
 {const hc=document.createElement('canvas');hc.width=256;hc.height=72;const hg=hc.getContext('2d');
@@ -879,6 +907,7 @@ canvas.addEventListener('pointerdown',e=>{tapX=e.clientX;tapY=e.clientY;tapArmed
 const isTap=e=>tapArmed&&Math.hypot(e.clientX-tapX,e.clientY-tapY)<=8;
 const CAR_HIT=ALL_HYDRAULICS.filter(c=>c.userData.switches);   // lowriders with switch consoles are tap targets:
 canvas.addEventListener('click',e=>{m2.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1);ray.setFromCamera(m2,cam);
+  if(location.hash.includes('layout')){tapArmed=false;return;}   // #layout: editing the lot, not playing it — suppress game/menu taps
   const used=isTap(e);tapArmed=false;if(!used)return;   // flip a switch = arm/disarm a hydraulics bank, tap the body = popped burst
   const hitCar=CAR_HIT.length?ray.intersectObjects(CAR_HIT,true):[];
   if(hitCar.length){
@@ -891,6 +920,8 @@ canvas.addEventListener('click',e=>{m2.set(e.clientX/innerWidth*2-1,-(e.clientY/
       else if((car.userData.burst||0)<3)car.userData.burst=(car.userData.burst||0)+1;}
   }else if(Arcade.targets().length&&ray.intersectObjects(Arcade.targets(),true).length){   // 🎪 midway prop → its minigame / score board
     Arcade.openFrom(ray.intersectObjects(Arcade.targets(),true)[0].object);
+  }else if(jukebox.parent&&ray.intersectObject(jukebox,true).length){   // 💿 jukebox → pay points to play a song (js/jukebox.js)
+    dispatchEvent(new Event('eol:juke-open'));
   }else if(ray.intersectObjects(TABLE_HIT,true).length){   // tap a lawn table → the contest
     dispatchEvent(new Event('eol:hd-open-table'));
   }else if(ray.intersectObjects(CLICK,true).length){open('menu');goWindow();}});
@@ -899,7 +930,8 @@ canvas.addEventListener('pointermove',e=>{m2.set(e.clientX/innerWidth*2-1,-(e.cl
   const hitTruck=CAR_HIT.length?ray.intersectObjects(CAR_HIT,true).length>0:false;
   const hitTable=ray.intersectObjects(TABLE_HIT,true).length>0;
   const hitArc=Arcade.targets().length?ray.intersectObjects(Arcade.targets(),true).length>0:false;
-  canvas.style.cursor=(hit||hitTruck||hitTable||hitArc)?'pointer':'';T.board.material.emissiveIntensity=hit?.8:.55;});
+  const hitJb=jukebox.parent?ray.intersectObject(jukebox,true).length>0:false;   // 💿 jukebox counts as a tappable prop
+  canvas.style.cursor=(hit||hitTruck||hitTable||hitArc||hitJb)?'pointer':'';T.board.material.emissiveIntensity=hit?.8:.55;});
 
 // ---------- 3rd-person walk mode ----------
 // When nothing is open (no shop menu, contest panel, look picker, chat typing) the arrow keys
@@ -907,10 +939,11 @@ canvas.addEventListener('pointermove',e=>{m2.set(e.clientX/innerWidth*2-1,-(e.cl
 // jumps - and the camera trails behind. Any UI opening, Escape, or clicking off hands control
 // straight back to the orbit camera at the walker's spot.
 const walk={on:false,keys:new Set(),yaw:0,py:0,vy:0,x:0,z:0,hold:0,grp:null};
+window.__EOL_WALK=()=>({x:+walk.x.toFixed(2),z:+walk.z.toFixed(2),on:walk.on,yaw:+walk.yaw.toFixed(2)});   // 📱 GPS app: your ground position + heading
 const walkTyping=()=>{const a=document.activeElement;
   return !!a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.isContentEditable);};
 const walkUI=()=>(!!document.querySelector('.panel.open'))||
-  ['eolHd','eolLook','eolMidway','eolScores','eolAcct'].some(id=>{const el=document.getElementById(id);return el&&!el.hidden;})||
+  ['eolHd','eolLook','eolMidway','eolScores','eolAcct','eolJuke'].some(id=>{const el=document.getElementById(id);return el&&!el.hidden;})||
   walkTyping();
 const walkChip=document.createElement('div');walkChip.id='eolWalkHint';walkChip.hidden=true;
 walkChip.textContent='◀ ▲ ▼ ▶ move · space jump · esc stop';document.body.appendChild(walkChip);
@@ -1012,63 +1045,93 @@ addEventListener('blur',()=>walk.keys.clear());
   addEventListener('pointermove',e=>{if(!(dragging&&walk.on))return;walk.hold-=(e.clientX-dragX)*.006;dragX=e.clientX;});
   addEventListener('pointerup',()=>dragging=false);
 }
-// ---------- layout mode: drag the truck (plus its queue + parked car, as one cluster) to
-// reposition it - e.g. to line it up convincingly against the panorama's festival grounds,
-// instead of guessing offsets. Visit the site with #layout in the address bar to turn it on;
-// normal visitors never see this panel or get drag behavior.
+// ---------- layout mode: drag to move + buttons to turn — the TRUCK cluster (queue + parked
+// car ride along) AND every standalone prop (picnic tables, jukebox, claw machine, bean-bag
+// boards, tag arena, HIGH SCORES board, Impala). Visit with #layout; normal visitors never
+// see the panel or drag behavior, but they DO get whatever arrangement the admin saved.
 if(location.hash.includes('layout')){
   const dragPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
-  const dragPt=new THREE.Vector3(), dragOffset=new THREE.Vector3();
-  let dragging=false;
+  const dragPt=new THREE.Vector3(),dragW=new THREE.Vector3(),dragOffset=new THREE.Vector3();
+  let dragging=null;   // the object under the pointer (truckRig or one of the movers)
   const panel=document.createElement('div');
-  panel.style.cssText='position:fixed;left:12px;bottom:12px;z-index:9999;background:rgba(20,16,40,.92);color:#fff;font:13px/1.4 system-ui,sans-serif;padding:10px 12px;border-radius:10px;max-width:260px;box-shadow:0 4px 18px rgba(0,0,0,.4)';
-  panel.innerHTML='<b>Layout mode</b><br>Drag the truck to reposition it. Use the buttons to turn it.<br>'+
-    '<span id="layoutPos"></span><br>'+
+  panel.style.cssText='position:fixed;left:12px;bottom:12px;z-index:9999;background:rgba(20,16,40,.92);color:#fff;font:13px/1.4 system-ui,sans-serif;padding:10px 12px;border-radius:10px;max-width:300px;box-shadow:0 4px 18px rgba(0,0,0,.4)';
+  panel.innerHTML='<b>Layout mode</b><br>Pick an object below or just <b>click it in the lot</b>, then drag to move. Dragging the truck carries its whole cluster (tables, jukebox, claw, Impala ride along).<br>'+
+    '<select id="layoutSel" style="margin-top:6px;max-width:100%;padding:4px 6px;border-radius:6px"></select><br>'+
+    '<span id="layoutPos" style="display:block;margin-top:4px;opacity:.85"></span>'+
+    '<button id="layoutRoof" style="display:none;margin-top:6px;padding:4px 8px;border-radius:6px;border:0;background:#444;color:#fff;cursor:pointer">⇅ Roof / Ground</button><br>'+
     '<button id="layoutRotL" style="margin-top:6px;padding:4px 8px;border-radius:6px;border:0;background:#444;color:#fff;cursor:pointer">⟲ 15°</button> '+
-    '<button id="layoutRotR" style="padding:4px 8px;border-radius:6px;border:0;background:#444;color:#fff;cursor:pointer">15° ⟳</button><br>'+
+    '<button id="layoutRotR" style="padding:4px 8px;border-radius:6px;border:0;background:#444;color:#fff;cursor:pointer">15° ⟳</button> '+
+    '<button id="layoutReset" style="padding:4px 8px;border-radius:6px;border:0;background:#444;color:#fff;cursor:pointer">Reset this</button><br>'+
     '<button id="layoutSave" style="margin-top:6px;padding:4px 10px;border-radius:6px;border:0;background:#e83a73;color:#fff;cursor:pointer">Save as default (everyone)</button> '+
-    '<button id="layoutReset" style="margin-top:6px;padding:4px 8px;border-radius:6px;border:0;background:#444;color:#fff;cursor:pointer">Reset</button>';
+    '<button id="layoutResetAll" style="padding:4px 8px;border-radius:6px;border:0;background:#444;color:#fff;cursor:pointer">Reset all</button>';
   document.body.appendChild(panel);
-  const posEl=panel.querySelector('#layoutPos');
-  const persist=()=>localStorage.setItem('eol_truckOffset',JSON.stringify({x:truckRig.position.x,z:truckRig.position.z,r:truckRig.rotation.y*180/Math.PI}));
-  const updatePos=()=>{const deg=((truckRig.rotation.y*180/Math.PI)%360+360)%360;
-    posEl.textContent=`x=${truckRig.position.x.toFixed(2)}, z=${truckRig.position.z.toFixed(2)}, rot=${deg.toFixed(0)}° — saved only in this browser until you hit Save`;};
+  const selEl=panel.querySelector('#layoutSel'),posEl=panel.querySelector('#layoutPos'),roofEl=panel.querySelector('#layoutRoof');
+  const truckMover={id:'truck',label:'Truck (whole cluster)',obj:truckRig,base:{x:0,z:0,y:0,r:0}};
+  const RAY_ORDER=[...LAYOUT_MOVERS,truckMover];        // props first: a click on a prop beats the truck's group hit
+  const SEL_ORDER=[truckMover,...LAYOUT_MOVERS];        // dropdown reads better with the truck up top
+  selEl.innerHTML=SEL_ORDER.map(m=>`<option value="${m.id}">${m.label}</option>`).join('');
+  let selected=truckMover;
+  const persist=()=>{localStorage.setItem('eol_truckOffset',JSON.stringify({x:truckRig.position.x,z:truckRig.position.z,r:truckRig.rotation.y*180/Math.PI}));
+    localStorage.setItem('eol_layoutProps',JSON.stringify(propLayoutAll()));};
+  const updatePos=()=>{const o=selected.obj,deg=((o.rotation.y*180/Math.PI)%360+360)%360;
+    posEl.textContent=selected.label+` — x=${o.position.x.toFixed(2)}, z=${o.position.z.toFixed(2)}, rot=${deg.toFixed(0)}°`+
+      (selected.id==='scores'?', y='+o.position.y.toFixed(2):'')+' — saved in this browser only until you hit Save';
+    roofEl.style.display=selected.id==='scores'?'':'none';
+    roofEl.textContent='⇅ '+(o.position.y>1?'Put on the ground':'Put on the roof');};
+  const select=id=>{const m=RAY_ORDER.find(x=>x.id===id);if(m){selected=m;selEl.value=id;updatePos();}};
+  selEl.onchange=()=>select(selEl.value);
   updatePos();
-  panel.querySelector('#layoutRotL').onclick=()=>{truckRig.rotation.y-=Math.PI/12;persist();updatePos();};
-  panel.querySelector('#layoutRotR').onclick=()=>{truckRig.rotation.y+=Math.PI/12;persist();updatePos();};
-  panel.querySelector('#layoutReset').onclick=()=>{truckRig.position.set(0,0,0);truckRig.rotation.y=0;localStorage.removeItem('eol_truckOffset');updatePos();};
+  panel.querySelector('#layoutRotL').onclick=()=>{selected.obj.rotation.y-=Math.PI/12;persist();updatePos();};
+  panel.querySelector('#layoutRotR').onclick=()=>{selected.obj.rotation.y+=Math.PI/12;persist();updatePos();};
+  roofEl.onclick=()=>{if(selected.id!=='scores')return;const o=selected.obj;o.position.y=o.position.y>1?0:2.0;persist();updatePos();};
+  panel.querySelector('#layoutReset').onclick=()=>{  // this object back to its compiled-in spot
+    if(selected.id==='truck'){selected.obj.position.set(0,0,0);selected.obj.rotation.y=0;localStorage.removeItem('eol_truckOffset');}
+    else{const b=selected.base;selected.obj.position.set(b.x,b.y,b.z);selected.obj.rotation.y=b.r*Math.PI/180;}
+    persist();updatePos();};
+  panel.querySelector('#layoutResetAll').onclick=()=>{  // the whole lot back to how it shipped
+    truckRig.position.set(0,0,0);truckRig.rotation.y=0;
+    for(const m of LAYOUT_MOVERS){const b=m.base;m.obj.position.set(b.x,b.y,b.z);m.obj.rotation.y=b.r*Math.PI/180;}
+    localStorage.removeItem('eol_truckOffset');localStorage.removeItem('eol_layoutProps');
+    select('truck');updatePos();};
   panel.querySelector('#layoutSave').onclick=async()=>{
-    const pw=prompt('Admin password, to save this truck position for every visitor:');
+    const pw=prompt('Admin password, to save this layout (truck + every prop) for every visitor:');
     if(!pw)return;
     const btn=panel.querySelector('#layoutSave');
     try{
       const lr=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
       const lj=await lr.json();if(!lr.ok)throw new Error(lj.error||'login failed');
       const sr=await fetch('/api/admin/settings',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+lj.token},
-        body:JSON.stringify({truckOffsetX:truckRig.position.x,truckOffsetZ:truckRig.position.z,truckRotation:truckRig.rotation.y*180/Math.PI})});
+        body:JSON.stringify({truckOffsetX:truckRig.position.x,truckOffsetZ:truckRig.position.z,truckRotation:truckRig.rotation.y*180/Math.PI,
+          layoutProps:propLayoutAll()})});
       const sj=await sr.json();if(!sr.ok)throw new Error(sj.error||'save failed');
       btn.textContent='Saved ✓';
     }catch(e){alert('Could not save: '+e.message);}
   };
   canvas.addEventListener('pointerdown',e=>{
     m2.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1);ray.setFromCamera(m2,cam);
-    if(ray.intersectObject(truckRig,true).length){
-      ray.ray.intersectPlane(dragPlane,dragPt);
-      dragOffset.copy(truckRig.position).sub(dragPt);
-      dragging=true;ctl.enabled=false;canvas.style.cursor='grabbing';
-    }
+    let best=null,bd=1e9;
+    for(const m of RAY_ORDER){const h=ray.intersectObject(m.obj,true)[0];if(h&&h.distance<bd){bd=h.distance;best=m;}}
+    if(!best)return;
+    select(best.id);
+    ray.ray.intersectPlane(dragPlane,dragPt);
+    best.obj.getWorldPosition(dragW);
+    dragOffset.copy(dragW).sub(dragPt);
+    dragging=best.obj;ctl.enabled=false;canvas.style.cursor='grabbing';
   });
   addEventListener('pointermove',e=>{
     if(!dragging)return;
     m2.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1);ray.setFromCamera(m2,cam);
-    if(ray.ray.intersectPlane(dragPlane,dragPt)){truckRig.position.set(dragPt.x+dragOffset.x,0,dragPt.z+dragOffset.z);updatePos();}
+    if(ray.ray.intersectPlane(dragPlane,dragPt)){
+      const tw=dragPt.clone().add(dragOffset);   // target world position on the ground plane
+      if(dragging===truckRig)truckRig.position.set(tw.x,0,tw.z);
+      else{const lp=dragging.parent.worldToLocal(tw.clone());   // props live in truck-rig space
+        dragging.position.set(lp.x,dragging.position.y,lp.z);}  // y untouched: ground props stay grounded, the roof board stays on the roof
+      updatePos();
+    }
   });
-  addEventListener('pointerup',()=>{
-    if(!dragging)return;
-    dragging=false;ctl.enabled=true;canvas.style.cursor='';
-    persist();
-  });
+  addEventListener('pointerup',()=>{if(!dragging)return;dragging=null;ctl.enabled=true;canvas.style.cursor='';persist();});
 }
+
 
 let fly=null;
 function flyTo(p,t,ms=1400){fly={p0:cam.position.clone(),t0:ctl.target.clone(),p,t,s:performance.now(),ms};}

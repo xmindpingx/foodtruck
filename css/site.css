@@ -116,7 +116,7 @@ scene — a CSS resize corner would need pointer events over the whole box and b
  color:#f2c14e;font-size:15px;cursor:pointer;padding:0}
 
 /* --- account pill + profile panel (mobile first) --- */
-#eolAcctPill{position:fixed;right:14px;bottom:calc(78px + env(safe-area-inset-bottom,0px));z-index:52;
+#eolAcctPill{position:fixed;left:14px;top:calc(88px + env(safe-area-inset-top,0px));z-index:52;
  background:#221833e0;color:#f6e7c8;border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:9px 14px;
  font:700 13px Inter,system-ui,sans-serif;cursor:pointer;box-shadow:0 6px 18px #0008}
 #eolAcct{position:fixed;right:10px;bottom:calc(122px + env(safe-area-inset-bottom,0px));z-index:56;
@@ -197,7 +197,7 @@ scene — a CSS resize corner would need pointer events over the whole box and b
 .eolMidHint{font-size:11px;opacity:.8;line-height:1.35}
 
 /* --- 🏆 HIGH SCORES panel --- */
-#eolScores{position:fixed;left:10px;top:66px;z-index:56;width:min(94vw,380px);max-height:74vh;
+#eolScores{position:fixed;left:10px;top:calc(120px + env(safe-area-inset-top,0px));z-index:56;width:min(94vw,380px);max-height:74vh;
  display:flex;flex-direction:column;background:#141021f2;border:1px solid rgba(242,193,78,.45);
  border-radius:18px;color:#f6e7c8;overflow:hidden;box-shadow:0 18px 50px #000c}
 #eolScores[hidden]{display:none}
@@ -218,7 +218,7 @@ scene — a CSS resize corner would need pointer events over the whole box and b
 
 @media(max-width:640px){
  #eolAcct{right:5vw;left:5vw;width:90vw}
- #eolAcctPill{right:auto;left:8px;bottom:calc(64px + env(safe-area-inset-bottom,0px))}
+ #eolAcctPill{right:auto;left:8px;top:calc(128px + env(safe-area-inset-top,0px))}
  #eolMidway{left:5vw;width:90vw}
  #eolScores{left:5vw;width:90vw}
 }

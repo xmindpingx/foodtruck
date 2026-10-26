@@ -4,7 +4,7 @@
 // HIGH SCORES board by the truck (click it) and the trivia bot's live-score questions stay true.
 // Lobby + done screens speak the language picked at sign-up (Account.lang()).
 import * as THREE from 'three';
-import {announce, clockNow, visitorName} from './avatars.js?v=6';
+import {announce, clockNow, visitorName, aboveDock} from './avatars.js?v=7';
 import {CONFIG} from './shop.js?v=6';                // games on/off switches (Admin → Settings → Games)
 import * as Account from './account.js?v=6';
 
@@ -162,28 +162,97 @@ function onPa({id, name, text}) {
 // ---------- 3D props (all in truck-rig space; serving side is -z) ----------
 function box(w, h, d, color) { return new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({color, roughness: .6})); }
 function buildProps() {
-  // 🦞 claw machine on the serving side, lit from inside (only when its game is on)
+  // 🦞 claw machine — realistic arcade build: plinth + painted cabinet, coin door, joystick
+  // control deck, four-pane glass case with chrome posts, a prize pile (exactly six — the 🤖
+  // World trivia grades "6 mini prizes in the claw window"), a lit marquee and a chrome gantry
+  // whose carriage drifts and prongs breathe in tick() (only when its game is on)
   let claw = null;
   if (gameOn('claw')) {
     claw = new THREE.Group();
-    const cab = box(1.15, 1.95, .95, 0x7a1f2b); cab.position.y = .97; claw.add(cab);
-    const glass = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.1, .06),
-      new THREE.MeshStandardMaterial({color: 0xbfe3ff, transparent: true, opacity: .32, roughness: .1}));
-    glass.position.set(0, 1.18, -.5); claw.add(glass);
-    const marquee = box(1.2, .3, .4, 0xf2c14e); marquee.position.set(0, 2.06, -.25); claw.add(marquee);
-    const chute = box(.5, .3, .85, 0x2b1620); chute.position.set(0, .16, .1); claw.add(chute);
-    const TINTS = [0xe5534a, 0xf2c14e, 0x53a86e, 0x4f76e5, 0xd77bd0, 0x74dbe6];
-    for (let i = 0; i < 6; i++) {
-      const p = box(.16, .13, .14, TINTS[i]);
-      p.position.set(-.32 + (i % 3) * .32, 1.06 + (i > 2 ? .16 : 0), -.14);
-      p.rotation.y = .4; claw.add(p);
+    // materials: candy-red paint, charcoal plinth, brushed chrome, clear warm glass
+    const matBody = new THREE.MeshStandardMaterial({color: 0xa32638, roughness: .42, metalness: .12});
+    const matDark = new THREE.MeshStandardMaterial({color: 0x1c1424, roughness: .8});
+    const matTrim = new THREE.MeshStandardMaterial({color: 0x3a2430, roughness: .55, metalness: .25});
+    const matGold = new THREE.MeshStandardMaterial({color: 0xf2c14e, roughness: .4, metalness: .3});
+    const matChrome = new THREE.MeshStandardMaterial({color: 0xd9dee6, roughness: .25, metalness: .85});
+    const matGlass = new THREE.MeshStandardMaterial({color: 0xcfe8ff, transparent: true, opacity: .17, roughness: .06});
+    const matPlush = c => new THREE.MeshStandardMaterial({color: c, roughness: .95});
+    // plinth (kick vents) + painted lower cabinet with gold pinstripes
+    const plinth = new THREE.Mesh(new THREE.BoxGeometry(1.26, .3, 1.03), matDark); plinth.position.y = .15; claw.add(plinth);
+    for (let i = 0; i < 2; i++) {
+      const v = new THREE.Mesh(new THREE.BoxGeometry(.5, .025, .02), matTrim);
+      v.position.set(0, .1 + i * .07, -.515); claw.add(v);
     }
-    const arm = new THREE.Group();                              // idle sway animated in tick()
-    const al = box(.05, .5, .05, 0x202020); al.position.set(-.45, .75, 0); arm.add(al);
-    const ar = box(.05, .5, .05, 0x202020); ar.position.set(.45, .75, 0); arm.add(ar);
-    const beam = box(.95, .07, .07, 0x202020); beam.position.set(0, .78, 0); arm.add(beam);
-    arm.position.y = .75; arm.position.z = -.3; claw.add(arm);
-    claw.userData.arm = arm;
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.15, .88, .95), matBody); body.position.y = .74; claw.add(body);
+    for (const sx of [-1, 1]) {
+      const s = new THREE.Mesh(new THREE.BoxGeometry(.01, .7, .82), matGold);
+      s.position.set(sx * .578, .74, 0); claw.add(s);
+    }
+    // coin door + slot (left) and the prize-drop chute (center) on the lower front
+    const coinDoor = new THREE.Mesh(new THREE.BoxGeometry(.46, .38, .02), matTrim); coinDoor.position.set(-.3, .7, -.485); claw.add(coinDoor);
+    const slot = new THREE.Mesh(new THREE.BoxGeometry(.1, .016, .03), matChrome); slot.position.set(-.3, .84, -.492); claw.add(slot);
+    const drop = new THREE.Mesh(new THREE.BoxGeometry(.3, .2, .06), matDark); drop.position.set(0, .42, -.478); claw.add(drop);
+    const sill = new THREE.Mesh(new THREE.BoxGeometry(.36, .03, .08), matChrome); sill.position.set(0, .31, -.48); claw.add(sill);
+    // joystick + buttons control deck (right), angled up toward the player
+    const deck = new THREE.Group(); deck.position.set(.27, 1.0, -.44); deck.rotation.x = -.5; claw.add(deck);
+    const deckTop = new THREE.Mesh(new THREE.BoxGeometry(.5, .05, .3), matTrim); deck.add(deckTop);
+    const stick = new THREE.Mesh(new THREE.CylinderGeometry(.012, .012, .12, 8), matChrome); stick.position.set(-.14, .08, 0); deck.add(stick);
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(.032, 12, 10), new THREE.MeshStandardMaterial({color: 0xe5534a, roughness: .35})); knob.position.set(-.14, .15, 0); deck.add(knob);
+    for (const [bx, bc] of [[.05, 0xf2c14e], [.17, 0x53a86e]]) {
+      const b = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, .025, 12), new THREE.MeshStandardMaterial({color: bc, roughness: .35}));
+      b.position.set(bx, .035, .05); deck.add(b);
+    }
+    // glass case: steel floor plate, four separate panes (faces catch light like real glass),
+    // chrome corner posts and a top frame
+    const floorM = new THREE.Mesh(new THREE.BoxGeometry(.98, .04, .8),
+      new THREE.MeshStandardMaterial({color: 0xb9c1cc, roughness: .3, metalness: .6})); floorM.position.y = 1.2; claw.add(floorM);
+    const gF = new THREE.Mesh(new THREE.BoxGeometry(1.0, .78, .02), matGlass); gF.position.set(0, 1.58, -.39); claw.add(gF);
+    const gB = gF.clone(); gB.position.z = .39; claw.add(gB);
+    const gL = new THREE.Mesh(new THREE.BoxGeometry(.02, .78, .78), matGlass); gL.position.set(-.49, 1.58, 0); claw.add(gL);
+    const gR = gL.clone(); gR.position.x = .49; claw.add(gR);
+    for (const sx of [-.51, .51]) for (const sz of [-.4, .4]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(.05, .8, .05), matChrome); post.position.set(sx, 1.58, sz); claw.add(post);
+    }
+    const railF = new THREE.Mesh(new THREE.BoxGeometry(1.06, .04, .05), matChrome); railF.position.set(0, 1.97, -.4); claw.add(railF);
+    const railB = railF.clone(); railB.position.z = .4; claw.add(railB);
+    const railL = new THREE.Mesh(new THREE.BoxGeometry(.05, .04, .83), matChrome); railL.position.set(-.51, 1.97, 0); claw.add(railL);
+    const railR = railL.clone(); railR.position.x = .51; claw.add(railR);
+    // prize pile — exactly SIX (World trivia grades on it): three plush balls, two prize capsules,
+    // one mini item box, resting on the steel floor
+    const plush = (r, c, x, z) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 12), matPlush(c)); m.position.set(x, 1.22 + r, z); claw.add(m); };
+    plush(.08, 0xf2c14e, -.24, -.12); plush(.075, 0x74dbe6, .2, -.17); plush(.085, 0xe5534a, .02, .18);
+    for (const [c, x, z, ry] of [[0xd77bd0, -.1, .21, .7], [0x53a86e, .3, .07, -.4]]) {
+      const m = new THREE.Mesh(new THREE.CapsuleGeometry(.042, .07, 6, 10), matPlush(c));
+      m.position.set(x, 1.262, z); m.rotation.set(0, ry, Math.PI / 2); claw.add(m);
+    }
+    const mini = new THREE.Mesh(new THREE.BoxGeometry(.17, .14, .15), new THREE.MeshStandardMaterial({color: 0x4f76e5, roughness: .6}));
+    mini.position.set(-.3, 1.29, .06); mini.rotation.y = .5; claw.add(mini);
+    // chrome gantry: two side rails, a carriage that drifts across the case (tick()), a cable
+    // down to a three-prong claw head that sways and breathes — hovering just above the pile
+    for (const zr of [-.3, .3]) {
+      const r = new THREE.Mesh(new THREE.BoxGeometry(.92, .035, .035), matChrome); r.position.set(0, 1.88, zr); claw.add(r);
+    }
+    const carriage = new THREE.Group(); carriage.position.set(0, 1.85, 0); claw.add(carriage);
+    const cBar = new THREE.Mesh(new THREE.BoxGeometry(.07, .05, .68), matChrome); cBar.position.y = .02; carriage.add(cBar);
+    const cable = new THREE.Mesh(new THREE.CylinderGeometry(.008, .008, .24, 6), matChrome); cable.position.y = -.14; carriage.add(cable);
+    const head = new THREE.Group(); head.position.y = -.28; carriage.add(head);
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(.045, .045, .05, 12), matChrome); head.add(hub);
+    const prongs = [];
+    for (let i = 0; i < 3; i++) {
+      const pg = new THREE.Group(); pg.rotation.y = i * Math.PI * 2 / 3;
+      const prong = new THREE.Mesh(new THREE.BoxGeometry(.026, .15, .04), matChrome);
+      prong.position.set(0, -.06, .055); prong.rotation.x = .55; prong.userData.base = .55;
+      pg.add(prong); head.add(pg); prongs.push(prong);
+    }
+    claw.userData = {carriage, head, prongs};
+    // lit marquee canopy with a sign face + chrome cap, warm interior light bar
+    const canopy = new THREE.Mesh(new THREE.BoxGeometry(1.22, .2, 1.0), matBody); canopy.position.y = 2.08; claw.add(canopy);
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(.98, .22),
+      new THREE.MeshBasicMaterial({map: signTexture('🦞 CLAW'), transparent: true}));
+    sign.position.set(0, 2.08, -.51); claw.add(sign);
+    const capTrim = new THREE.Mesh(new THREE.BoxGeometry(1.26, .04, 1.04), matChrome); capTrim.position.y = 2.19; claw.add(capTrim);
+    const glow = new THREE.Mesh(new THREE.BoxGeometry(.78, .03, .56), new THREE.MeshBasicMaterial({color: 0xfff0c9}));
+    glow.position.y = 1.925; claw.add(glow);
     claw.traverse(o => { o.userData.midway = 'claw'; });
     claw.position.set(-6.9, 0, -8.3); claw.rotation.y = .3; rig.add(claw); props.claw = claw;   // west flank of the HIGH SCORES board (was mid serving-side lawn) — user layout pass
   }
@@ -234,10 +303,16 @@ function buildProps() {
     new THREE.MeshBasicMaterial({map: signTexture('tap to view scores\nper minigame', '#fdf3d0'), transparent: true}));
   sub2.position.set(0, 1.42, .05); board.add(sub2);
   board.traverse(o => { o.userData.midway = 'board'; });
-  board.position.set(-4.7, 0, -7.6); board.rotation.y = .32; rig.add(board); props.board = board;
+  // 🏆 the HIGH SCORES board now rides the truck ROOF as a rooftop marquee (user pass): its
+  // posts sink into the cargo box (roof top = FLOOR+BH = 3.0, so y 2.0 parks the panel just
+  // above the roofline) and the +z sign face is turned to greet the default spawn view
+  // (camera (-1.6,·,7.8) rig space → ~0.065 rad aim). Re-placeable via #layout like every prop.
+  board.position.set(-2.1, 2.0, 0); board.rotation.y = .065;
+  rig.add(board); props.board = board;
 
   pills = [claw, ...props.bbt, tag, board].filter(Boolean);   // click targets for whatever got built
 }
+export function prop(id) { return props[id] || null; }   // scene.js #layout mode: movable prop groups by id
 function signTexture(txt, col) {
   const c = document.createElement('canvas'); c.width = 256; c.height = txt.includes('\n') ? 112 : 56;
   const g = c.getContext('2d');
@@ -275,6 +350,7 @@ export function openPanel(g) {
   if (!panel) return;
   if (g && g !== 'lobby' && !gameOn(g)) g = 'lobby';   // switched off since this prop/tab was open
   if (panel.hidden) panel.hidden = false;
+  panel.style.bottom = aboveDock(60);                 // clear the (resizable) chat dock below
   if (g) tab = g;
   render();
 }
@@ -919,9 +995,18 @@ export function init(params) {
   addEventListener('eol:acct-ready', () => refreshPts());
   addEventListener('eol:account-updated', () => refreshPts());
   addEventListener('eol:lang', () => { if (panel && !panel.hidden) render(); });
+  // the chat dock below is resizable: keep the panel riding above its live top edge
+  const lift = () => { if (panel && !panel.hidden) panel.style.bottom = aboveDock(60); };
+  addEventListener('pointerup', lift);
+  addEventListener('resize', lift);
 }
 export function tick(dt, t) {
-  if (props.claw && props.claw.userData.arm) props.claw.userData.arm.rotation.y = Math.sin(t * .9) * .16;
+  if (props.claw) {                                   // 🦞 idle gantry life: the carriage drifts across the
+    const cu = props.claw.userData;                   // case, the claw head swings on its cable and the
+    if (cu.carriage) cu.carriage.position.x = Math.sin(t * .35) * .26;          // prongs breathe open/closed
+    if (cu.head) cu.head.rotation.z = Math.sin(t * .9) * .15;
+    if (cu.prongs) for (const p of cu.prongs) p.rotation.x = (p.userData.base || .55) + Math.sin(t * 1.6) * .13;
+  }
   if (props.tag) {
     const f = props.tag.children.find(o => o.userData.flag);
     if (f) { f.rotation.y = Math.sin(t * 3 + 1) * .45; f.rotation.x = .15 + Math.sin(t * 2.2) * .1; }

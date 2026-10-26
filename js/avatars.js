@@ -129,6 +129,13 @@ export async function clockNow() {
   } catch (e) {}
   return Date.now();
 }
+// "panels that would cover this chat dock" helper: a bottom offset in px that always clears
+// the dock's LIVE height (the log is resizable) — Midway, jukebox and friends sit above it
+export function aboveDock(pad = 10) {
+  const d = document.getElementById('eolDock');
+  if (!d) return pad + 'px';
+  return Math.max(pad, Math.round(innerHeight - d.getBoundingClientRect().top + 10)) + 'px';
+}
 export function visitorName() { return myName || 'Guest'; }
 export const HD = {TAG: HD_TAG, EVENT: HD_EVENT};
 

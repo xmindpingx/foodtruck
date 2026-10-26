@@ -323,6 +323,18 @@ DEFAULT_SETTINGS = {
     "bgMusicFile": "",       # filename under media/, set by /api/admin/upload-media
     "tvEnabled": False,
     "tvVideoFile": "",       # filename under media/, set by /api/admin/upload-media
+    # --- 🎵 jukebox: visitors spend arcade POINTS to play a song for the WHOLE lot (songs are
+    # admin-uploaded via upload-media kind=song; rows: {file,title,cost}; each paid play runs
+    # jukeboxPlaySecs then the next queued song takes over - state in data/jukebox.json) ---
+    "jukeboxOn": True,
+    "jukeboxSongs": [],      # [{file,title,cost}]
+    "jukeboxPlaySecs": 150,
+    # --- 🗺️ geocaching: visitors hide caches on the lot — optionally stashing one of THEIR
+    # collectibles inside — and hunt each other's for points + the prize (Settings → Games) ---
+    "geocacheOn": True,
+    # --- #layout mode's "Save as default": {moverId:{x,z,r}} for the movable lot props
+    # (jukebox, claw machine, bean-bag boards, tag arena, HIGH SCORES board, Impala, tables) ---
+    "layoutProps": {},
     # --- admin text alerts (visitor problems reported through the chat assistant) ---
     "adminPhone": "",        # E.164 number that gets problem reports texted to it immediately
     "adminSmsAlerts": True,  # off switch for those texts (reports still show in admin)
@@ -374,7 +386,9 @@ PUBLIC_SETTINGS = ('businessName', 'tagline', 'brandLogo', 'copyrightLine', 'pho
                    'partnerDoorDashOn', 'partnerDoorDashLink', 'partnerInstacartOn', 'partnerInstacartLink',
                    # games on/off switches — the 3D lot, the contest and the chat trivia gate on these
                    'midwayOn', 'gameClawOn', 'gameBbtOn', 'gameTagOn', 'gameC4On', 'gameTttOn', 'gamePinOn',
-                   'hotdogOn', 'triviaBotOn')
+                   'hotdogOn', 'triviaBotOn',
+                   # jukebox (public: catalog + on/off) + geocaching switch + saved #layout defaults for the lot props
+                   'jukeboxOn', 'jukeboxSongs', 'geocacheOn', 'layoutProps')
 
 JOBS = {}   # job id -> {status, item, image, prompt, error, ts}
 
@@ -671,6 +685,45 @@ def _game_allowed(s, game):
     never render client-side; this keeps a stale client from recording scores for it too."""
     key = GAME_FLAGS.get(str(game or '').strip())
     return bool(s.get(key, True)) if key else True   # unknown game ids pass (flat-file stays permissive)
+
+# ---------- 🎵 jukebox: visitors spend arcade POINTS to play songs for the whole lot ----------
+# data/jukebox.json: {"now": {file,title,by,at} or None, "queue": [{file,title,by}, ...]}. A paid
+# play takes the stage or joins a short queue (max 3); each play runs jukeboxPlaySecs, and any
+# visitor's poll advances the queue once the window passes. Points deduct server-side from the
+# phone account (same authority as the 🏬 collectible shop) — the payer can never tip themselves.
+def _juke_play_secs(s):
+    try: return max(30, min(900, int(s.get('jukeboxPlaySecs') or 150)))
+    except (TypeError, ValueError): return 150
+def _jukebox_advance(j, play_secs):
+    """Expire a finished play, promoting the next queued song (called on every read)."""
+    now = j.get('now')
+    if now and time.time() - (now.get('at') or 0) > play_secs:
+        q = j.setdefault('queue', [])
+        nxt = q.pop(0) if q else None
+        j['now'] = ({'file': nxt.get('file'), 'title': nxt.get('title'), 'by': nxt.get('by'),
+                     'at': time.time()} if nxt else None)
+        return True
+    return False
+
+# ---------- 🗺️ geocaching: hide caches on the lot, hunt them for points + collectibles ----------
+# data/geocaches.json: [{id,x,z,by,note,phone,at,prize:{item,label}|None,founds:[{phone,name,at}]}].
+# Coords are lot/world space (never rig-local — a #layout truck move never moves a buried
+# cache). The public list fuzzes every pin by ±2m, deterministic per id, so the pin never
+# jitters between polls but never shows the exact spot; your OWN pins come back exact via
+# ?phone=. A cache stashed with a collectible retires on its first find — the prize transfers
+# server-side to the finder's account (same authority as the 🏬 shop). Points: first finder
+# +12, everyone after +6, +4 on top when a prize was inside.
+GEO_MAX = 24            # active caches on the lot — the oldest already-found ones retire first
+GEO_RATE_S = 600        # one hide per visitor per 10 minutes
+GEO_FIND_M = 4.0        # "close enough to dig": the pin fuzz is ±2m, so the search circle is wider
+GEO_LOCK = threading.Lock()
+GEO_LAST = {}           # phone -> last-hide ts (in-memory rate limit, same pattern as CHAT_RATE)
+
+def _geo_fuzz(cid, x, z):
+    """Stable ±2m pin fuzz per cache id — hunters navigate to an AREA, then search on foot."""
+    h = int(hashlib.sha1(('geo' + str(cid)).encode()).hexdigest(), 16)
+    return (round(float(x) + ((h % 41) - 20) * .1, 2), round(float(z) + ((h // 41 % 41) - 20) * .1, 2))
+
 
 # ---------- leaderboards (data/scores.json) + score-driven trivia ----------
 # Every minigame finish (and each hot-dog contest round) reports its result to /api/score. The
@@ -2047,8 +2100,9 @@ class H(SimpleHTTPRequestHandler):
         Body is JSON {kind:'audio'|'video'|'image', filename, data:<base64>} - there's no multipart
         parser anywhere else in this server, so this matches the rest of the API: JSON in,
         JSON out. Caps are generous but bounded so one upload can't fill the disk."""
-        LIMITS = {'audio': 20_000_000, 'video': 60_000_000, 'image': 3_000_000}   # decoded-file byte caps
-        EXT_OK = {'audio': ('.mp3', '.m4a', '.ogg', '.wav'), 'video': ('.mp4', '.webm', '.mov'),
+        LIMITS = {'audio': 20_000_000, 'song': 20_000_000, 'video': 60_000_000, 'image': 3_000_000}   # decoded-file byte caps
+        EXT_OK = {'audio': ('.mp3', '.m4a', '.ogg', '.wav'), 'song': ('.mp3', '.m4a', '.ogg', '.wav'),
+                  'video': ('.mp4', '.webm', '.mov'),
                   'image': ('.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif')}
         try:
             data = self.body_large(90_000_000)   # base64 is ~33% bigger than the decoded file, plus JSON overhead
@@ -2073,6 +2127,10 @@ class H(SimpleHTTPRequestHandler):
         os.makedirs(MEDIA, exist_ok=True)
         with open(os.path.join(MEDIA, fname), 'wb') as f:
             f.write(raw)
+        if kind == 'song':
+            # jukebox catalog track: just land in media/ — the Settings → Jukebox row points at
+            # it, so unlike audio/video/image there's no single settings slot to replace
+            return self.send_json({'ok': True, 'file': fname})
         key = {'audio': 'bgMusicFile', 'video': 'tvVideoFile', 'image': 'brandLogo'}[kind]
         with LOCK:
             s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
@@ -2106,6 +2164,40 @@ class H(SimpleHTTPRequestHandler):
             with CHAT_LOCK:
                 chat = [m for m in CHAT if m['ts'] > since]
             return self.send_json({'others': others, 'chat': chat, 'now': now})
+        if p == '/api/jukebox':        # 🎵 public: what's playing for EVERYONE (+ catalog) — the client poll that syncs the lot
+            s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
+            with LOCK:
+                j = load('jukebox.json', {'now': None, 'queue': []})
+                if _jukebox_advance(j, _juke_play_secs(s)):
+                    save('jukebox.json', j)
+            nowj = j.get('now')
+            return self.send_json({'on': bool(s.get('jukeboxOn', True)),
+                                   'songs': [{'title': str(r.get('title') or r.get('file')),
+                                              'file': str(r.get('file') or ''), 'cost': int(r.get('cost') or 0)}
+                                             for r in (s.get('jukeboxSongs') or []) if r.get('file')],
+                                   'now': ({'file': nowj['file'], 'title': nowj.get('title'), 'by': nowj.get('by'),
+                                            'at': nowj['at'],
+                                            'left': max(0, int(_juke_play_secs(s) - (time.time() - nowj['at'])))}
+                                           if nowj else None),
+                                   'queue': len(j.get('queue') or [])})
+        if p == '/api/caches':         # 🗺️ public geocache pins (fuzzed ±2m; your own come back exact via ?phone=)
+            s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
+            qs = parse_qs(urlparse(self.path).query)
+            mine = ''.join(re.findall(r'\d', (qs.get('phone') or [''])[0]))[-10:]
+            rows = load('geocaches.json', [])
+            out = []
+            for c in rows:
+                own = bool(mine and c.get('phone') == mine)
+                fx, fz = (c['x'], c['z']) if own else _geo_fuzz(c['id'], c['x'], c['z'])
+                founds = c.get('founds') or []
+                out.append({'id': c['id'], 'x': fx, 'z': fz, 'by': c.get('by') or 'A visitor',
+                            'note': c.get('note') or '', 'at': c.get('at'),
+                            'prize': (c.get('prize') or {}).get('label') if not founds else None,
+                            'found': len(founds),
+                            'first': (founds[0] or {}).get('name') if founds else None,
+                            'mine': own,
+                            'iFound': bool(mine and any(f.get('phone') == mine for f in founds))})
+            return self.send_json({'on': bool(s.get('geocacheOn', True)), 'caches': out})
         if p.startswith('/api/account/who'):        # public profile lookup: phone IS the account
             qs = parse_qs(urlparse(self.path).query)
             phone = ''.join(re.findall(r'\d', (qs.get('phone') or [''])[0]))[-10:]
@@ -2390,6 +2482,139 @@ class H(SimpleHTTPRequestHandler):
             _score_record(data.get('game'), _score_name(data), data.get('value'), data.get('label'))
             return self.send_json({'ok': True})
 
+        if p == '/api/jukebox/play':               # 🎵 pay arcade points to start a song for the whole lot
+            s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
+            if not s.get('jukeboxOn', True):
+                return self.send_json({'error': 'The jukebox is turned off right now.'}, 403)
+            row = next((r for r in (s.get('jukeboxSongs') or [])
+                        if r.get('file') == str(data.get('file') or '')), None)
+            if not row: return self.send_json({'error': 'bad request'}, 400)
+            phone = ''.join(re.findall(r'\d', str(data.get('phone', ''))))[-10:]
+            who = _clean(NAME_RE.sub('', str(data.get('name', '')).strip()))[:24] or 'A visitor'
+            play_secs = _juke_play_secs(s)
+            with LOCK:                               # stage/queue check BEFORE charging points
+                j = load('jukebox.json', {'now': None, 'queue': []})
+                _jukebox_advance(j, play_secs)
+                if j.get('now') and len(j.setdefault('queue', [])) >= 3:
+                    return self.send_json({'error': 'The jukebox queue is full — try again in a bit.'}, 409)
+            with ACCOUNTS_LOCK:                      # points deduct server-side, same authority as the 🏬 shop
+                a = load('accounts.json', {})
+                rec = a.get(phone)
+                if not rec:
+                    return self.send_json({'error': 'Sign in at the 🎪 Midway first — songs cost points '
+                                                   '(bank them answering trivia in chat!).'}, 401)
+                cost = max(0, int(row.get('cost') or 0))
+                if rec.get('points', 0) < cost:
+                    return self.send_json({'error': 'Not enough points — this song costs ' + str(cost) +
+                                                   '. Answer trivia in chat!'}, 402)
+                rec['points'] = rec.get('points', 0) - cost
+                save('accounts.json', a)
+            with LOCK:                               # take the stage, or join the short queue
+                if j.get('now'):
+                    j.setdefault('queue', []).append({'file': row['file'], 'title': row.get('title'), 'by': who})
+                    queued = True
+                else:
+                    j['now'] = {'file': row['file'], 'title': row.get('title'), 'by': who, 'at': time.time()}
+                    queued = False
+                save('jukebox.json', j)
+            return self.send_json({'ok': True, 'queued': queued, 'points': rec['points']})
+
+        if p == '/api/caches/place':   # 🗺️ hide a cache where you stand (optionally stash one of your collectibles)
+            s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
+            if not s.get('geocacheOn', True):
+                return self.send_json({'error': 'Geocaching is turned off right now.'}, 403)
+            phone = ''.join(re.findall(r'\d', str(data.get('phone', ''))))[-10:]
+            who = _clean(NAME_RE.sub('', str(data.get('name', '')).strip()))[:24] or 'A visitor'
+            if len(phone) != 10:
+                return self.send_json({'error': 'Sign in at the 🎪 Midway first — hides and finds ride your account.'}, 401)
+            try: x = round(float(data.get('x')), 2); z = round(float(data.get('z')), 2)
+            except (TypeError, ValueError): return self.send_json({'error': 'bad request'}, 400)
+            if not (-62 <= x <= 62 and -60 <= z <= 34):
+                return self.send_json({'error': "That's outside the lot — hide it somewhere visitors can walk!"}, 400)
+            note = _clean(re.sub(r'[\x00-\x1f\x7f]', '', str(data.get('note', ''))))[:80]
+            pItem = re.sub(r'[^\w\-]', '', str((data.get('prize') or {}).get('item', '')))[:40]
+            prize = None
+            if pItem:
+                with ACCOUNTS_LOCK:                   # the stash leaves YOUR collection for good
+                    a = load('accounts.json', {})
+                    rec = a.get(phone)
+                    if not rec: return self.send_json({'error': 'bad request'}, 400)
+                    prow = next((e for e in (rec.get('prizes') or [])
+                                 if e.get('item') == pItem and e.get('count', 1) > 0), None)
+                    if not prow:
+                        return self.send_json({'error': "You don't have one of those to stash!"}, 400)
+                    prow['count'] = prow.get('count', 1) - 1
+                    if prow['count'] <= 0: rec['prizes'].remove(prow)
+                    save('accounts.json', a)
+                prize = {'item': pItem, 'label': str((data.get('prize') or {}).get('label') or pItem)[:48]}
+            with GEO_LOCK:
+                rows = load('geocaches.json', [])
+                if any(abs(c['x'] - x) < 1.2 and abs(c['z'] - z) < 1.2 for c in rows):
+                    return self.send_json({'error': 'Too close to another cache — wander a bit further first.'}, 409)
+                if time.time() - GEO_LAST.get(phone, 0) < GEO_RATE_S:
+                    return self.send_json({'error': 'One hide every 10 minutes — give hunters a chance!'}, 429)
+                if len(rows) >= GEO_MAX:              # recycle the oldest cache someone already found
+                    old = next((c for c in rows if len(c.get('founds') or [])), None)
+                    if not old:
+                        return self.send_json({'error': 'The lot is full of caches (' + str(GEO_MAX) +
+                                                       ') — some need finding first!'}, 409)
+                    rows.remove(old)
+                rows.append({'id': 'g' + secrets.token_hex(4), 'x': x, 'z': z, 'by': who, 'note': note,
+                             'phone': phone, 'at': int(time.time()), 'prize': prize, 'founds': []})
+                GEO_LAST[phone] = time.time()
+                save('geocaches.json', rows)
+            return self.send_json({'ok': True, 'prize': bool(prize)})
+
+        if p == '/api/caches/found':   # 🗺️ dig one up: walk to the pin area, search — points + any stashed prize
+            s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
+            if not s.get('geocacheOn', True):
+                return self.send_json({'error': 'Geocaching is turned off right now.'}, 403)
+            phone = ''.join(re.findall(r'\d', str(data.get('phone', ''))))[-10:]
+            who = _clean(NAME_RE.sub('', str(data.get('name', '')).strip()))[:24] or 'A visitor'
+            if len(phone) != 10:
+                return self.send_json({'error': 'Sign in at the 🎪 Midway first — finds bank on your account.'}, 401)
+            try: x = round(float(data.get('x')), 2); z = round(float(data.get('z')), 2)
+            except (TypeError, ValueError): return self.send_json({'error': 'bad request'}, 400)
+            cid = str(data.get('id', ''))
+            with GEO_LOCK:
+                rows = load('geocaches.json', [])
+                c = next((r for r in rows if r['id'] == cid), None)
+                if not c:
+                    return self.send_json({'error': 'That cache is gone — someone beat you to it!'}, 404)
+                if any(f.get('phone') == phone for f in (c.get('founds') or [])):
+                    return self.send_json({'error': 'You already logged this one!'}, 409)
+                if ((x - c['x']) ** 2 + (z - c['z']) ** 2) ** .5 > GEO_FIND_M:
+                    return self.send_json({'error': 'Not close enough — the pin is fuzzy (±2m). Walk around and dig again!'}, 400)
+                first = not (c.get('founds') or [])
+                prize = c.get('prize') if first else None
+            with ACCOUNTS_LOCK:                      # points + the stashed collectible transfer server-side
+                a = load('accounts.json', {})
+                rec = a.setdefault(phone, {'created': int(time.time()), 'name': who,
+                                           'prizes': [], 'wins': {}, 'points': 0})
+                pts = (12 if first else 6) + (4 if prize else 0)
+                rec['points'] = rec.get('points', 0) + pts
+                rec.setdefault('wins', {})['cache'] = rec['wins'].get('cache', 0) + 1
+                won = None
+                if prize:
+                    prow = next((e for e in rec.setdefault('prizes', []) if e.get('item') == prize['item']), None)
+                    if prow: prow['count'] = prow.get('count', 1) + 1
+                    else: rec['prizes'].append({'item': prize['item'], 'name': prize['label'], 'src': 'geocache',
+                                                 'count': 1, 'got': int(time.time())})
+                    won = prize['label']
+                save('accounts.json', a)
+            with GEO_LOCK:
+                rows = load('geocaches.json', [])     # re-read: a rival may have retired it meanwhile
+                c = next((r for r in rows if r['id'] == cid), None)
+                if not c:
+                    return self.send_json({'error': 'Someone beat you to the prize — it retired with them!'}, 409)
+                if any(f.get('phone') == phone for f in (c.get('founds') or [])):
+                    return self.send_json({'error': 'You already logged this one!'}, 409)
+                c.setdefault('founds', []).append({'phone': phone, 'name': who, 'at': int(time.time())})
+                if c.get('prize'): rows.remove(c)    # a prize cache retires with its first finder — traded, like real geocaching
+                save('geocaches.json', rows)
+            return self.send_json({'ok': True, 'points': pts, 'prize': won,
+                                   'balance': rec['points'], 'first': first})
+
         if p == '/api/assistant':
             s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
             myid = re.sub(r'[^a-zA-Z0-9_-]', '', str(data.get('id', '')))[:64]
@@ -2557,6 +2782,29 @@ class H(SimpleHTTPRequestHandler):
             for k in DEFAULT_SETTINGS:
                 if k in data: s[k] = data[k]
             s['taxRate'] = float(s['taxRate']); s['orderingOpen'] = bool(s['orderingOpen']); s['imageGenEnabled'] = bool(s['imageGenEnabled'])
+            # 🎵 jukebox catalog rows + #layout's saved prop layout get the same care as the rest:
+            # known-shape fields only, bounded, nothing executable ever lands in settings.json
+            if not isinstance(s.get('jukeboxSongs'), list): s['jukeboxSongs'] = []
+            _jrows = []
+            for r in s['jukeboxSongs']:
+                if not isinstance(r, dict): continue
+                f = re.sub(r'[^\w\-.]', '', str(r.get('file') or ''))[:80]
+                if not f: continue
+                try: c = max(1, min(500, int(r.get('cost') or 5)))
+                except (TypeError, ValueError): c = 5
+                _jrows.append({'file': f, 'title': _clean(str(r.get('title') or f))[:48], 'cost': c})
+            s['jukeboxSongs'] = _jrows[:24]
+            try: s['jukeboxPlaySecs'] = max(30, min(900, int(s.get('jukeboxPlaySecs') or 150)))
+            except (TypeError, ValueError): s['jukeboxPlaySecs'] = 150
+            if not isinstance(s.get('layoutProps'), dict): s['layoutProps'] = {}
+            _lp = {}
+            for k, v in s['layoutProps'].items():
+                if not isinstance(v, dict) or not re.match(r'^[a-z]+\d*$', str(k)): continue
+                try: _lp[str(k)[:24]] = {'x': round(float(v.get('x', 0)), 2), 'z': round(float(v.get('z', 0)), 2),
+                                         'r': round(float(v.get('r', 0)), 1),
+                                         **({'y': round(float(v['y']), 2)} if v.get('y') is not None else {})}
+                except (TypeError, ValueError): continue
+            s['layoutProps'] = dict(list(_lp.items())[:64])
             if s.get('imageEngine') not in ('comfyui', 'flux-local'): s['imageEngine'] = 'comfyui'
             if s.get('comfyWorkflow', '').strip():
                 try: json.loads(s['comfyWorkflow'].replace('%PROMPT%', 'x').replace('%SEED%', '1'))
