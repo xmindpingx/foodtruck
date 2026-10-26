@@ -22,7 +22,7 @@ const GAMES = [
   {id: 'tag', icon: '🚩', name: 'Tag Arena', blurb: 'Chase the runner with the arrow keys. Three tags in 40 seconds wins!'},
   {id: 'c4', icon: '🔴', name: 'Connect Four', blurb: 'Classic four-in-a-row — solo vs AI or challenge a rival.'},
   {id: 'ttt', icon: '⭕', name: 'Tic-Tac-Toe', blurb: 'Noughts and crosses on the boardwalk.'},
-  {id: 'pin', icon: '🪅', name: 'Piñata Smash', blurb: 'Swing at the swing point — five clean hits breaks it open!'},
+  {id: 'pin', icon: '🪅', name: 'Piñata Smash', blurb: 'Time the swing marker into the pink zone — five clean hits breaks it open!'},
 ];
 const BL = {   // per-game name/blurb in the language picked at sign-up
   claw: {en: GAMES[0], es: {name: 'Máquina de Garra', blurb: 'Mide el momento. Tres intentos por partida — ¡gana un artículo del menú en miniatura!'}},
@@ -30,7 +30,7 @@ const BL = {   // per-game name/blurb in the language picked at sign-up
   tag:  {en: GAMES[2], es: {name: 'Arena de Toques', blurb: 'Persigue al corredor con las flechas. ¡Tres toques en 40 segundos gana!'}},
   c4:   {en: GAMES[3], es: {name: 'Conecta Cuatro', blurb: 'El clásico de cuatro en línea — solo vs IA o reta a alguien.'}},
   ttt:  {en: GAMES[4], es: {name: 'Gato / Tic-Tac-Toe', blurb: 'Triqui en el muelle del camión.'}},
-  pin:  {en: GAMES[5], es: {name: 'Rompimiento de Piñata', blurb: 'Golpea cuando la sombra cruce el punto — ¡cinco tazos la rompen!'}},
+  pin:  {en: GAMES[5], es: {name: 'Rompimiento de Piñata', blurb: 'Cronometra el marcador en la zona rosa — ¡cinco tazos la rompen!'}},
 };
 const gameN = id => (BL[id] || {})[ES() ? 'es' : 'en'] || (GAMES.find(g => g.id === id) || {});
 const DUELABLE = {c4: 1, ttt: 1};
@@ -601,8 +601,9 @@ function tagStart() {
 // ================= 🪅 PIÑATA SMASH =================
 function pinStart() {
   const u = mount();
-  u.hint.textContent = ES() ? "toca cuando la sombra cruce el punto dulce — 5 golpes"
-                            : "tap when the bat's shadow crosses the sweet spot — 5 hits!";
+  const HIT_A = .9, TOL = .32;   // sweet-spot swing angle + tolerance — the meter's pink zones draw from these same numbers
+  u.hint.textContent = ES() ? "toca cuando el marcador entre en la zona rosa — 5 golpes"
+                            : "tap when the marker rides the pink zone — 5 hits!";
   const HUE = ['#e5534a', '#f2c14e', '#53a86e', '#4f76e5', '#d77bd0', '#74dbe6'];
   const confetti = Array.from({length: 80}, () => ({x: 0, y: 0, vx: 0, vy: 0, on: false, c: '#fff'}));
   const st = {phase: 'swing', ang: 0, adir: 1, hits: 0, miss: 0, done: false};
@@ -637,10 +638,22 @@ function pinStart() {
         if (st.hits) cx.fillStyle = '#0006', cx.fillRect(px - 8 - st.hits * 4, py - 6, 16 + st.hits * 8, 4);
         cx.fillStyle = '#fff'; cx.font = '13px sans-serif'; cx.textAlign = 'left';
         cx.fillText((ES() ? 'Golpes: ' : 'Hits: ') + st.hits + '/5 · ' + (ES() ? 'Fallados: ' : 'Misses: ') + st.miss, 8, 20);
-        const sx = 96 + st.ang * 14, sy = 196;
-        cx.fillStyle = '#e4b06a'; cx.fillRect(sx - 8, sy - 24, 16, 26);
-        cx.strokeStyle = '#c78d5e'; cx.lineWidth = 4;
-        cx.beginPath(); cx.moveTo(sx, sy - 8); cx.lineTo(sx + 40 + st.ang * 6, sy - 40 + st.ang * 22); cx.stroke();
+        // 🪅 swing meter: a GUI marker rides the bar with the piñata's swing, and the pink
+        // zones at both extremes are the LIVE sweet spots — drawn from the same HIT_A/TOL
+        // numbers that grade the tap (hot-dog-dial timing, readable at a glance)
+        const ax = a => 170 + a * 80;                 // swing angle → bar x
+        const barY = 214;
+        cx.strokeStyle = 'rgba(255,255,255,.16)'; cx.lineWidth = 6; cx.lineCap = 'butt';
+        cx.beginPath(); cx.moveTo(ax(-(HIT_A + TOL)), barY); cx.lineTo(ax(HIT_A + TOL), barY); cx.stroke();
+        cx.strokeStyle = Math.sin(performance.now() / 260) > .4 ? '#e83a73' : '#f0699a';
+        for (const s of [-1, 1]) {                    // one sweet-spot zone per swing extreme
+          cx.beginPath(); cx.moveTo(ax(s * (HIT_A - TOL)), barY); cx.lineTo(ax(s * (HIT_A + TOL)), barY); cx.stroke();
+        }
+        const mx = ax(st.ang);                       // the marker sweeps with the piñata
+        cx.fillStyle = '#39d0ff';
+        cx.beginPath(); cx.arc(mx, barY, 8, 0, Math.PI * 2); cx.fill();
+        cx.fillStyle = '#0b141c';
+        cx.beginPath(); cx.arc(mx, barY, 3.5, 0, Math.PI * 2); cx.fill();
       }
       for (const c of confetti) if (c.on) { cx.fillStyle = c.c; cx.fillRect(c.x, c.y, 4, 7); }
     },
@@ -648,7 +661,7 @@ function pinStart() {
   });
   u.canvas.addEventListener('pointerdown', () => {
     if (st.done) return;
-    if (Math.abs(Math.abs(st.ang) - .9) < .32) {          // sweet-spot ring at the swing extremes
+    if (Math.abs(Math.abs(st.ang) - HIT_A) < TOL) {   // graded on the same numbers the bar draws
       st.hits++;
       const n = st.hits >= 5 ? confetti.length : 14;
       for (let i = 0; i < n; i++) {
