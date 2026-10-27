@@ -217,9 +217,18 @@ function startCrazy8() {
 
   function playCard(c) {
     if (turn !== 'player' || !canPlay(c)) return;
-    hand.splice(hand.indexOf(c), 1);
-    discard.push(c);
-    msg = 'You played ' + c;
+    if (c.startsWith('8')) {
+      // choose suit
+      const suit = prompt('Choose suit: ♠ ♥ ♦ ♣', '♠');
+      const s = suit && suits.includes(suit) ? suit : suits[0];
+      hand.splice(hand.indexOf(c), 1);
+      discard.push('8' + s);
+      msg = 'You played 8 (wild) as ' + s;
+    } else {
+      hand.splice(hand.indexOf(c), 1);
+      discard.push(c);
+      msg = 'You played ' + c;
+    }
     if (hand.length === 0) { msg = '🎉 You win!'; turn = 'done'; render(); return; }
     turn = 'ai'; render(); setTimeout(aiTurn, 700);
   }
