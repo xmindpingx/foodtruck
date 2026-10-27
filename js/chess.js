@@ -124,164 +124,110 @@ function drawBoard() {
 function drawCrystalPiece(code, gx, cx, cy) {
   const side = code[0], type = code[1];
   const isW = side === 'w';
-  // South Park medieval: flat colors, bold outlines, big heads, simple bodies
+  // South Park medieval: compact, flat colors, bold outlines
   const skin = isW ? '#f5d6a8' : '#c8a070';
-  const hair = isW ? '#d4a040' : '#2a1a0a';
   const cloth = isW ? '#e8e0d0' : '#4a3060';
-  const clothD = isW ? '#c8c0b0' : '#3a2050';
   const accent = isW ? '#ffd700' : '#cc2222';
   const outline = '#1a1a1a';
-  const r = SQ * 0.42;
-  const headR = r * 0.48;
-  const bodyW = r * 0.4, bodyH = r * 0.5;
-  ctx.save();
-  // body
+  const s = SQ * 0.35;   // compact scale
+  const bw = s * 0.8;    // body half-width
+  const bh = s * 0.8;    // body height
+  const hr = s * 0.42;   // head radius
+
+  // body (simple rect)
   ctx.fillStyle = cloth;
   ctx.strokeStyle = outline; ctx.lineWidth = 1.5;
-  roundRect2(ctx, cx - bodyW, cy, bodyW * 2, bodyH, 4);
-  ctx.fill(); ctx.stroke();
+  ctx.fillRect(cx - bw, cy, bw * 2, bh);
+  ctx.strokeRect(cx - bw, cy, bw * 2, bh);
   // belt
   ctx.fillStyle = isW ? '#8a6b3f' : '#2b1b3a';
-  ctx.fillRect(cx - bodyW, cy + bodyH * 0.3, bodyW * 2, bodyH * 0.15);
+  ctx.fillRect(cx - bw, cy + bh * 0.35, bw * 2, bh * 0.15);
   // legs
-  ctx.fillStyle = clothD;
-  ctx.fillRect(cx - bodyW * 0.8, cy + bodyH, bodyW * 0.7, r * 0.3);
-  ctx.fillRect(cx + bodyW * 0.1, cy + bodyH, bodyW * 0.7, r * 0.3);
+  ctx.fillStyle = cloth;
+  ctx.fillRect(cx - bw * 0.7, cy + bh, bw * 0.6, s * 0.35);
+  ctx.fillRect(cx + bw * 0.1, cy + bh, bw * 0.6, s * 0.35);
   ctx.strokeStyle = outline; ctx.lineWidth = 1;
-  ctx.strokeRect(cx - bodyW * 0.8, cy + bodyH, bodyW * 0.7, r * 0.3);
-  ctx.strokeRect(cx + bodyW * 0.1, cy + bodyH, bodyW * 0.7, r * 0.3);
-  // shoes
-  ctx.fillStyle = isW ? '#5a3a1f' : '#1a1a1a';
-  ctx.fillRect(cx - bodyW * 0.9, cy + bodyH + r * 0.28, bodyW * 0.9, r * 0.1);
-  ctx.fillRect(cx + bodyW * 0.0, cy + bodyH + r * 0.28, bodyW * 0.9, r * 0.1);
-  // arms
-  ctx.strokeStyle = cloth; ctx.lineWidth = 3; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(cx - bodyW, cy + bodyH * 0.15); ctx.lineTo(cx - bodyW - r * 0.2, cy + bodyH * 0.5); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(cx + bodyW, cy + bodyH * 0.15); ctx.lineTo(cx + bodyW + r * 0.2, cy + bodyH * 0.5); ctx.stroke();
-  ctx.strokeStyle = outline; ctx.lineWidth = 1;
+  ctx.strokeRect(cx - bw * 0.7, cy + bh, bw * 0.6, s * 0.35);
+  ctx.strokeRect(cx + bw * 0.1, cy + bh, bw * 0.6, s * 0.35);
+
+  // head (sits directly on body)
+  const hy = cy - hr - 1;
   ctx.fillStyle = skin;
-  ctx.beginPath(); ctx.arc(cx - bodyW - r * 0.2, cy + bodyH * 0.52, r * 0.08, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(cx + bodyW + r * 0.2, cy + bodyH * 0.52, r * 0.08, 0, Math.PI * 2); ctx.fill();
-  // head
-  const hx = cx, hy = cy - r * 0.55 - headR * 0.3;
-  ctx.fillStyle = hair;
-  ctx.beginPath(); ctx.arc(hx, hy - headR * 0.15, headR * 1.05, Math.PI, 0); ctx.fill();
-  ctx.fillRect(hx - headR * 0.9, hy - headR * 0.15, headR * 1.8, headR * 0.3);
-  ctx.fillStyle = skin;
-  ctx.beginPath(); ctx.arc(hx, hy, headR, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = outline; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.arc(hx, hy, headR, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, hy, hr, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   // eyes
   ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.ellipse(hx - headR * 0.3, hy - headR * 0.05, headR * 0.2, headR * 0.22, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(hx + headR * 0.3, hy - headR * 0.05, headR * 0.2, headR * 0.22, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = outline; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.ellipse(hx - headR * 0.3, hy - headR * 0.05, headR * 0.2, headR * 0.22, 0, 0, Math.PI * 2); ctx.stroke();
-  ctx.beginPath(); ctx.ellipse(hx + headR * 0.3, hy - headR * 0.05, headR * 0.2, headR * 0.22, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx - hr * 0.3, hy - hr * 0.05, hr * 0.18, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + hr * 0.3, hy - hr * 0.05, hr * 0.18, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#1a1a1a';
-  ctx.beginPath(); ctx.arc(hx - headR * 0.3, hy - headR * 0.05, headR * 0.1, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(hx + headR * 0.3, hy - headR * 0.05, headR * 0.1, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx - hr * 0.3, hy - hr * 0.05, hr * 0.09, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + hr * 0.3, hy - hr * 0.05, hr * 0.09, 0, Math.PI * 2); ctx.fill();
   // mouth
-  ctx.strokeStyle = '#b05050'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(hx - headR * 0.2, hy + headR * 0.25); ctx.lineTo(hx + headR * 0.2, hy + headR * 0.25); ctx.stroke();
-  // ears
-  ctx.fillStyle = skin;
-  ctx.beginPath(); ctx.ellipse(hx - headR * 0.95, hy, headR * 0.12, headR * 0.18, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(hx + headR * 0.95, hy, headR * 0.12, headR * 0.18, 0, 0, Math.PI * 2); ctx.fill();
-  // ---- role-specific medieval accessories ----
+  ctx.strokeStyle = '#b05050'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(cx - hr * 0.15, hy + hr * 0.25); ctx.lineTo(cx + hr * 0.15, hy + hr * 0.25); ctx.stroke();
+
+  // ---- role-specific hats/accessories ----
   if (type === 'K') {
+    // crown
     ctx.fillStyle = accent;
-    ctx.fillRect(hx - headR * 0.7, hy - headR * 1.15, headR * 1.4, headR * 0.25);
-    ctx.strokeStyle = outline; ctx.lineWidth = 1; ctx.strokeRect(hx - headR * 0.7, hy - headR * 1.15, headR * 1.4, headR * 0.25);
+    ctx.fillRect(cx - hr * 0.7, hy - hr * 1.1, hr * 1.4, hr * 0.22);
+    ctx.strokeStyle = outline; ctx.lineWidth = 1;
+    ctx.strokeRect(cx - hr * 0.7, hy - hr * 1.1, hr * 1.4, hr * 0.22);
     for (let i = 0; i < 5; i++) {
-      const px = hx - headR * 0.6 + i * headR * 0.3;
+      const px = cx - hr * 0.6 + i * hr * 0.3;
       ctx.fillStyle = accent;
-      ctx.beginPath(); ctx.moveTo(px, hy - headR * 1.15); ctx.lineTo(px + headR * 0.1, hy - headR * 1.4); ctx.lineTo(px + headR * 0.2, hy - headR * 1.15); ctx.fill();
-      ctx.strokeStyle = outline; ctx.lineWidth = 1; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(px, hy - hr * 1.1); ctx.lineTo(px + hr * 0.08, hy - hr * 1.35); ctx.lineTo(px + hr * 0.16, hy - hr * 1.1); ctx.fill();
     }
+    // scepter
     ctx.strokeStyle = accent; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(cx + bodyW + r * 0.1, cy + bodyH * 0.5); ctx.lineTo(cx + bodyW + r * 0.1, cy - r * 0.9); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx + bw + s * 0.1, cy + bh * 0.3); ctx.lineTo(cx + bw + s * 0.1, cy - s * 0.6); ctx.stroke();
     ctx.fillStyle = accent;
-    ctx.beginPath(); ctx.arc(cx + bodyW + r * 0.1, cy - r * 0.95, r * 0.1, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = outline; ctx.lineWidth = 1; ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx + bw + s * 0.1, cy - s * 0.65, s * 0.08, 0, Math.PI * 2); ctx.fill();
   } else if (type === 'Q') {
+    // crown
     ctx.fillStyle = accent;
-    ctx.fillRect(hx - headR * 0.7, hy - headR * 1.15, headR * 1.4, headR * 0.2);
+    ctx.fillRect(cx - hr * 0.7, hy - hr * 1.1, hr * 1.4, hr * 0.2);
     for (let i = 0; i < 3; i++) {
-      const px = hx - headR * 0.5 + i * headR * 0.5;
+      const px = cx - hr * 0.5 + i * hr * 0.5;
       ctx.fillStyle = accent;
-      ctx.beginPath(); ctx.arc(px, hy - headR * 1.25, headR * 0.1, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = outline; ctx.lineWidth = 1; ctx.stroke();
+      ctx.beginPath(); ctx.arc(px, hy - hr * 1.2, hr * 0.08, 0, Math.PI * 2); ctx.fill();
     }
     ctx.strokeStyle = outline; ctx.lineWidth = 1;
-    ctx.strokeRect(hx - headR * 0.7, hy - headR * 1.15, headR * 1.4, headR * 0.2);
+    ctx.strokeRect(cx - hr * 0.7, hy - hr * 1.1, hr * 1.4, hr * 0.2);
+    // scepter
     ctx.strokeStyle = accent; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(cx + bodyW + r * 0.1, cy + bodyH * 0.5); ctx.lineTo(cx + bodyW + r * 0.1, cy - r * 0.9); ctx.stroke();
-    ctx.fillStyle = accent;
-    ctx.beginPath(); ctx.arc(cx + bodyW + r * 0.1, cy - r * 0.95, r * 0.1, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = outline; ctx.lineWidth = 1; ctx.stroke();
-    ctx.fillStyle = isW ? '#d0a0d0' : '#5a3070'; ctx.globalAlpha = .6;
-    ctx.beginPath(); ctx.moveTo(cx - bodyW, cy + r * 0.3); ctx.lineTo(cx - bodyW * 1.3, cy + r * 0.8); ctx.lineTo(cx + bodyW * 1.3, cy + r * 0.8); ctx.lineTo(cx + bodyW, cy + r * 0.3); ctx.fill();
-    ctx.globalAlpha = 1;
+    ctx.beginPath(); ctx.moveTo(cx + bw + s * 0.1, cy + bh * 0.3); ctx.lineTo(cx + bw + s * 0.1, cy - s * 0.6); ctx.stroke();
   } else if (type === 'R') {
+    // castle helmet
     ctx.fillStyle = accent;
-    ctx.fillRect(hx - headR * 0.8, hy - headR * 1.0, headR * 1.6, headR * 0.3);
+    ctx.fillRect(cx - hr * 0.75, hy - hr * 0.95, hr * 1.5, hr * 0.25);
     for (let i = 0; i < 4; i++) {
-      ctx.fillRect(hx - headR * 0.7 + i * headR * 0.35, hy - headR * 1.25, headR * 0.25, headR * 0.25);
-      ctx.strokeStyle = outline; ctx.lineWidth = 1; ctx.strokeRect(hx - headR * 0.7 + i * headR * 0.35, hy - headR * 1.25, headR * 0.25, headR * 0.25);
+      ctx.fillRect(cx - hr * 0.65 + i * hr * 0.33, hy - hr * 1.2, hr * 0.22, hr * 0.22);
     }
     ctx.strokeStyle = outline; ctx.lineWidth = 1;
-    ctx.strokeRect(hx - headR * 0.8, hy - headR * 1.0, headR * 1.6, headR * 0.3);
-    ctx.fillStyle = accent; ctx.globalAlpha = .6;
-    ctx.beginPath(); ctx.ellipse(cx - bodyW - r * 0.15, cy + r * 0.1, r * 0.15, r * 0.2, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.strokeStyle = outline; ctx.lineWidth = 1; ctx.stroke();
-    ctx.strokeStyle = accent; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(cx + bodyW + r * 0.1, cy + bodyH * 0.5); ctx.lineTo(cx + bodyW + r * 0.1, cy - r * 0.9); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(cx + bodyW + r * 0.1 - r * 0.08, cy - r * 0.85); ctx.lineTo(cx + bodyW + r * 0.1, cy - r * 0.95); ctx.lineTo(cx + bodyW + r * 0.1 + r * 0.08, cy - r * 0.85); ctx.stroke();
+    ctx.strokeRect(cx - hr * 0.75, hy - hr * 0.95, hr * 1.5, hr * 0.25);
   } else if (type === 'B') {
+    // mitre
     ctx.fillStyle = accent;
-    ctx.beginPath(); ctx.moveTo(hx, hy - headR * 1.5); ctx.lineTo(hx - headR * 0.5, hy - headR * 0.6); ctx.lineTo(hx + headR * 0.5, hy - headR * 0.6); ctx.fill();
-    ctx.strokeStyle = outline; ctx.lineWidth = 1; ctx.stroke();
-    ctx.strokeStyle = accent; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(cx + bodyW + r * 0.1, cy + bodyH * 0.5); ctx.lineTo(cx + bodyW + r * 0.1, cy - r * 0.9); ctx.stroke();
-    ctx.fillStyle = accent;
-    ctx.beginPath(); ctx.arc(cx + bodyW + r * 0.1, cy - r * 0.95, r * 0.08, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(cx, hy - hr * 1.4); ctx.lineTo(cx - hr * 0.45, hy - hr * 0.55); ctx.lineTo(cx + hr * 0.45, hy - hr * 0.55); ctx.fill();
     ctx.strokeStyle = outline; ctx.lineWidth = 1; ctx.stroke();
   } else if (type === 'N') {
+    // horse helmet
     ctx.fillStyle = accent;
-    ctx.beginPath(); ctx.arc(hx, hy - headR * 0.1, headR * 1.1, Math.PI * 0.7, Math.PI * 2.3); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx, hy - hr * 0.1, hr * 1.05, Math.PI * 0.7, Math.PI * 2.3); ctx.fill();
     ctx.strokeStyle = outline; ctx.lineWidth = 1; ctx.stroke();
+    // plume
     ctx.fillStyle = isW ? '#cc2222' : '#ffd700';
-    ctx.beginPath(); ctx.moveTo(hx, hy - headR * 1.1); ctx.quadraticCurveTo(hx + headR * 0.3, hy - headR * 1.5, hx + headR * 0.1, hy - headR * 1.3); ctx.fill();
-    ctx.strokeStyle = outline; ctx.lineWidth = 1; ctx.stroke();
-    ctx.strokeStyle = accent; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(cx + bodyW + r * 0.1, cy + bodyH * 0.5); ctx.lineTo(cx + bodyW + r * 0.1, cy - r * 0.9); ctx.stroke();
-    ctx.fillStyle = accent;
-    ctx.beginPath(); ctx.moveTo(cx + bodyW + r * 0.1 - r * 0.06, cy - r * 0.85); ctx.lineTo(cx + bodyW + r * 0.1, cy - r * 0.95); ctx.lineTo(cx + bodyW + r * 0.1 + r * 0.06, cy - r * 0.85); ctx.fill();
-    ctx.strokeStyle = outline; ctx.lineWidth = 1; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, hy - hr * 1.05); ctx.quadraticCurveTo(cx + hr * 0.25, hy - hr * 1.4, cx + hr * 0.1, hy - hr * 1.25); ctx.fill();
   } else {
+    // pawn: helmet
     ctx.fillStyle = accent;
-    ctx.beginPath(); ctx.arc(hx, hy - headR * 0.1, headR * 0.9, Math.PI, 0); ctx.fill();
-    ctx.fillRect(hx - headR * 0.9, hy - headR * 0.1, headR * 1.8, headR * 0.2);
+    ctx.beginPath(); ctx.arc(cx, hy - hr * 0.1, hr * 0.85, Math.PI, 0); ctx.fill();
+    ctx.fillRect(cx - hr * 0.85, hy - hr * 0.1, hr * 1.7, hr * 0.18);
     ctx.strokeStyle = outline; ctx.lineWidth = 1;
-    ctx.strokeRect(hx - headR * 0.9, hy - headR * 0.1, headR * 1.8, headR * 0.2);
-    ctx.strokeStyle = accent; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(cx + bodyW + r * 0.1, cy + bodyH * 0.5); ctx.lineTo(cx + bodyW + r * 0.1, cy - r * 0.9); ctx.stroke();
+    ctx.strokeRect(cx - hr * 0.85, hy - hr * 0.1, hr * 1.7, hr * 0.18);
   }
-  ctx.restore();
-}
-
-function roundRect2(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-function startBattleAnim(mv) {
+}function startBattleAnim(mv) {
   if (!mv) return;
   const from = mv.from, to = mv.to;
   const fx = from.charCodeAt(0) - 97, fy = parseInt(from[1]) - 1;
