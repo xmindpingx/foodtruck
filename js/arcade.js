@@ -327,7 +327,7 @@ function buildProps() {
       chess.add(piece);
     }
     chess.traverse(o => { o.userData.midway = 'chess'; });
-    chess.position.set(-2.5, 0, -4); chess.rotation.y = .2; rig.add(chess); props.chess = chess;
+    chess.position.set(-1.5, 0, -4); chess.rotation.y = .2; rig.add(chess); props.chess = chess;
   }
   // 🎯 two bean-bag boards angled toward the toss line, west lawn (skipped when the game is off)
   if (gameOn('bbt')) for (let i = 0; i < 2; i++) {
