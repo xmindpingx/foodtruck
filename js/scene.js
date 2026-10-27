@@ -1136,7 +1136,7 @@ function walkTick(dt,t){
   walk.yaw-=turn*2.7*dt;   // screen-right turns the avatar's RIGHT: yaw must decrease here
   const spd=fwd>0?2.2:fwd<0?1.5:0;
   walk.x+=Math.sin(walk.yaw)*spd*dt;walk.z+=Math.cos(walk.yaw)*spd*dt;
-  if(k.has(' ')&&walk.py<=0&&walk.vy<=0.05){walk.vy=4.8;walk.py=.001;}   // space = hop
+  if(!LITE_MODE && k.has(' ')&&walk.py<=0&&walk.vy<=0.05){walk.vy=4.8;walk.py=.001;}   // space = hop (disabled in lite mode)
   walk.vy-=dt*13.5;walk.py+=walk.vy*dt;
   if(walk.py<0){walk.py=0;walk.vy=0;}
   walkCollide();
@@ -1272,8 +1272,8 @@ R.setAnimationLoop(()=>{const dt=Math.min(clock.getDelta(),0.1),t=clock.elapsedT
   if(fly){const k=Math.min(1,(performance.now()-fly.s)/fly.ms),e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;cam.position.lerpVectors(fly.p0,fly.p,e);ctl.target.lerpVectors(fly.t0,fly.t,e);if(k>=1)fly=null;}
   {const w=T.worker;w.children[1].rotation.y=Math.sin(t*.7)*.25;w.position.y=WY0-.12+Math.sin(t*1.6)*.006;}
   for(const e of eaters){e.userData.head.rotation.x=Math.sin(t*1.2+e.userData.ph)*.07;e.position.y=e.userData.by+Math.sin(t*.9+e.userData.ph)*.004;}
-  for(const l of ALL_LASERS){const sweep=Math.sin(t*l.speed+l.phase)*l.amp;if(l.axis==='x')l.mesh.rotation.x=sweep;else l.mesh.rotation.z=sweep;}
-  for(const perf of ALL_PERFORMERS){
+  if(!LITE_MODE) for(const l of ALL_LASERS){const sweep=Math.sin(t*l.speed+l.phase)*l.amp;if(l.axis==='x')l.mesh.rotation.x=sweep;else l.mesh.rotation.z=sweep;}
+  if(!LITE_MODE) for(const perf of ALL_PERFORMERS){
     perf.position.y=perf.userData.baseY+Math.abs(Math.sin(t*2.4))*.18;
     perf.rotation.y=Math.sin(t*.6)*.5;
     // hyper-realistic performers carry their own rig (buildPerformer): arms sway per role,
@@ -1294,8 +1294,7 @@ R.setAnimationLoop(()=>{const dt=Math.min(clock.getDelta(),0.1),t=clock.elapsedT
       if(perf.userData.head) perf.userData.head.rotation.y = Math.sin(t*.45)*.15;
     }
   }
-  for(const parts of ALL_SMOKE) tickSmoke(parts,dt);
-  for(const p of ALL_PUFFS) tickPuff(p,dt);
+  if(!LITE_MODE){ for(const parts of ALL_SMOKE) tickSmoke(parts,dt); for(const p of ALL_PUFFS) tickPuff(p,dt); }
   if(walk.on)walkTick(dt,t);
   for(const car of ALL_HYDRAULICS){   // lowrider hydraulics: armed banks pulse each on their own
     const u=car.userData,seed=u.hopSeed||0,base=u.baseY||0;   // clock; tapping the car/switches
