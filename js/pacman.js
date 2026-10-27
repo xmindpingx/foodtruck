@@ -874,6 +874,7 @@ function close() {
 let inited = false;
 function init() {
   if (inited) return; inited = true;
+  if (window.__EOL_LITE) return;   // lite mode: skip heavy game
   if (!CONFIG || CONFIG.gamePacmanOn === false) return;   // owner switched Pac-Man off
   buildUI();
   addEventListener('eol:pac-open', () => { if (menuOpen) return; panel.hidden = false; panel.style.display = 'flex'; if (!running && !gameOver) startGame(); });

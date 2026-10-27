@@ -6,7 +6,7 @@ import {CONFIG,MENU,money,open,hooks} from './shop.js?v=7';
 import {buildTruck,WX0,WX1,WY0,WY1,BW,BL,BH,bx0,FLOOR,CL} from './truck.js?v=6';
 import * as Avatars from './avatars.js?v=11';
 import * as Account from './account.js?v=7';   // phone-number arcade profiles (language-first sign-up)
-import * as Arcade from './arcade.js?v=22';    // 🎪 The Midway props + six minigames + HIGH SCORES board + Pac-Man cabinet
+import * as Arcade from './arcade.js?v=23';    // 🎪 The Midway props + six minigames + HIGH SCORES board + Pac-Man cabinet
 
 const canvas=document.getElementById('c');
 const R=new THREE.WebGLRenderer({canvas,antialias:true});
@@ -14,6 +14,21 @@ R.setPixelRatio(Math.min(devicePixelRatio,2));R.setSize(innerWidth,innerHeight);
 R.shadowMap.enabled=true;R.shadowMap.type=THREE.PCFSoftShadowMap;
 R.toneMapping=THREE.ACESFilmicToneMapping;R.toneMappingExposure=1.05;R.outputColorSpace=THREE.SRGBColorSpace;
 const S=new THREE.Scene();   // S.environment gets a panorama-buffered env map once it's painted (below)
+// ---------- lite mode for limited/older devices ----------
+function detectLite(){
+  try { if (localStorage.getItem('eol-lite') === '1') return true; if (localStorage.getItem('eol-lite') === '0') return false; } catch(e){}
+  const ua = navigator.userAgent || '';
+  const mobile = /Mobi|Android|iPhone|iPad/i.test(ua);
+  const lowMem = (navigator.deviceMemory || 4) <= 4;
+  const lowCpu = (navigator.hardwareConcurrency || 4) <= 4;
+  const slowConn = !!(navigator.connection && /2g|3g/.test(navigator.connection.effectiveType||''));
+  let noWebGL2 = false;
+  try { const c = document.createElement('canvas'); noWebGL2 = !c.getContext('webgl2'); } catch(e){ noWebGL2 = true; }
+  return mobile || lowMem || lowCpu || slowConn || noWebGL2;
+}
+const LITE_MODE = detectLite();
+window.__EOL_LITE = LITE_MODE;
+try { localStorage.setItem('eol-lite', LITE_MODE ? '1' : '0'); } catch(e){}
 const ALL_HYDRAULICS=[];   // lowriders "on switches" - cars that get a random hydraulic hop in the main render loop below
 export const cam=new THREE.PerspectiveCamera(50,innerWidth/innerHeight,0.1,400);
 // distance needed so a span of 2*halfW meters fits across the screen (phones in portrait need to stand back)
@@ -158,11 +173,13 @@ S.environment=new THREE.PMREMGenerator(R).fromEquirectangular(panoT).texture;   
 const SCENE_THEME = (() => { try { return localStorage.getItem('eol-scene-theme') || 'default'; } catch (e) { return 'default'; } })();
 const THEME_FOG = {default: 0xe7dcc4, steampunk: 0x8a7a5a, retro: 0xd8c8a0, hyper: 0xd0e0f0};
 S.fog=new THREE.FogExp2(THEME_FOG[SCENE_THEME] || 0xe7dcc4,0.0042);   // themed haze
+if (!LITE_MODE) {
 const panoFile = (SCENE_THEME === 'steampunk') ? 'tex/panorama-steampunk.jpg' : 'tex/panorama.jpg';
 TL.load(panoFile,t=>{   // themed equirect; owner can drop a real one later
   t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;
   panoDome.material.map=t;panoDome.material.needsUpdate=true;
   S.environment=new THREE.PMREMGenerator(R).fromEquirectangular(t).texture;},undefined,()=>{});}
+}
 
 // lights (Arizona midday sun — harsh overhead with warm bounce)
 S.add(new THREE.HemisphereLight(0xb8d4f0,0x8b9c55,1.1));   // green ground-bounce for the grassy field
@@ -308,7 +325,7 @@ if(CONFIG.bgMusicEnabled && CONFIG.bgMusicFile){
   };
 }
 let sharedVideoTexture=null;   // reused on the stage backdrops too (see buildStage below) so the same video decodes once, not three times
-if(CONFIG.tvEnabled && CONFIG.tvVideoFile){
+if(!LITE_MODE && CONFIG.tvEnabled && CONFIG.tvVideoFile){
   const videoEl=document.createElement('video');
   window.__EOL_TV_VIDEO = videoEl;
   videoEl.src='/media/'+CONFIG.tvVideoFile;videoEl.loop=true;videoEl.muted=true;videoEl.playsInline=true;videoEl.autoplay=true;videoEl.preload='auto';

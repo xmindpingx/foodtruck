@@ -13,6 +13,16 @@
 <div id="load">el Otro Lado…</div>
 <noscript><style>#load,#c,#hint{display:none!important}#menu.panel{display:block}body{overflow:auto}</style></noscript>
 <script>
+// Lite-mode toggle (top-right). Persists and reloads to apply.
+addEventListener('DOMContentLoaded', () => {
+  const cb = document.getElementById('liteToggle');
+  if (!cb) return;
+  try { cb.checked = localStorage.getItem('eol-lite') === '1'; } catch (e) {}
+  cb.onchange = () => {
+    try { localStorage.setItem('eol-lite', cb.checked ? '1' : '0'); } catch (e) {}
+    location.reload();
+  };
+});
 // Loader safety net. The 3D scene needs WebGL; reviewers, locked-down browsers and some
 // automated tools don't have it. Never leave the splash screen covering the page: reveal the
 // UI and open the ordering panel so the menu, checkout form and SMS opt-in are always visible.
@@ -36,6 +46,9 @@
 <header>
  <div class="brand">el Otro Lado<small>“The Other Side”</small></div>
  <footer id="foot"><span id="copyLine">© 2026 Summer and Jesse, Sole Proprietor, DBA El Otro Lado &middot; Mesa, AZ</span> &middot; <a href="https://privacy.signaturediversified.com">Privacy Policy</a> &middot; <a href="https://terms.signaturediversified.com">Terms &amp; Conditions</a> &middot; <a href="https://poc.signaturediversified.com">SMS program &amp; opt-in</a></footer>
+ <label style="position:fixed;top:10px;right:10px;z-index:9999;font:600 12px Inter,sans-serif;color:#fff;background:rgba(0,0,0,.5);padding:6px 10px;border-radius:8px;cursor:pointer">
+  <input type="checkbox" id="liteToggle" style="margin-right:6px">Lite mode
+ </label>
  <nav>
   <button data-p="menu">Menu</button>
   <button data-p="find">Find Us</button>
@@ -104,11 +117,11 @@
  <form id="cform"><input name="name" placeholder="Your name" required><input name="from" placeholder="Phone or email" required><textarea name="msg" rows="3" placeholder="Event date, headcount, question…" required></textarea><button class="cta" style="width:100%">Send</button></form>
 </section>
 
-<script type="module" src="js/scene.js?v=26"></script>
+<script type="module" src="js/scene.js?v=28"></script>
 <script type="module" src="js/hotdog.js?v=8"></script>
 <script type="module" src="js/jukebox.js?v=9"></script>
 <script type="module" src="js/gps.js?v=11"></script>
-<script type="module" src="js/pacman.js?v=15"></script>
+<script type="module" src="js/pacman.js?v=16"></script>
 <script type="module" src="js/uno.js?v=10"></script>
 <script type="module" src="js/chess.js?v=67"></script>
 <script type="module">

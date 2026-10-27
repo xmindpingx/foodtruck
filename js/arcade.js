@@ -162,6 +162,7 @@ function onPa({id, name, text}) {
 // ---------- 3D props (all in truck-rig space; serving side is -z) ----------
 function box(w, h, d, color) { return new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({color, roughness: .6})); }
 function buildProps() {
+  if (window.__EOL_LITE) { pills = []; return; }   // lite mode: skip heavy props
   // 🦞 claw machine — realistic arcade build: plinth + painted cabinet, coin door, joystick
   // control deck, four-pane glass case with chrome posts, a prize pile (exactly six — the 🤖
   // World trivia grades "6 mini prizes in the claw window"), a lit marquee and a chrome gantry
