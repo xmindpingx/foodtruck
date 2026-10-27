@@ -39,6 +39,10 @@ function buildUI() {
     <canvas id="chessC" width="${BOARD}" height="${BOARD}" style="display:none;border:2px solid #2a2a40;border-radius:6px;touch-action:none;max-width:90vw;max-height:70vh;background:#0a0618"></canvas>
     <div style="display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap;justify-content:center">
       <button id="chessNew" style="padding:8px 14px;border-radius:10px;border:1px solid #43a047;background:rgba(67,160,71,.2);color:#f6e7c8;cursor:pointer;font:600 12px Inter">New game</button>
+      <select id="chessTheme" style="padding:6px 10px;border-radius:10px;border:1px solid #444;background:#1a1a2e;color:#f6e7c8;font:600 11px Inter;cursor:pointer">
+        <option value="southpark">🎨 South Park</option>
+        <option value="medieval">⚔️ Medieval Classic</option>
+      </select>
       <button id="chessLeave" style="padding:8px 14px;border-radius:10px;border:1px solid #e5534a;background:rgba(229,83,83,.15);color:#f6e7c8;cursor:pointer;font:600 12px Inter">Leave</button>
       <span id="chessInfo" style="opacity:.7;font-size:11px;margin-left:8px"></span></div>`;
   document.body.appendChild(panel);
@@ -48,6 +52,11 @@ function buildUI() {
   panel.querySelector('#chessX').onclick = () => { panel.style.display = 'none'; panel.hidden = true; if (pollT) { clearInterval(pollT); pollT = 0; } };
   panel.querySelector('#chessNew').onclick = newGame;
   panel.querySelector('#chessLeave').onclick = leaveRoom;
+  const themeSel = panel.querySelector('#chessTheme');
+  if (themeSel) {
+    themeSel.value = pieceTheme;
+    themeSel.onchange = () => { setPieceTheme(themeSel.value); };
+  }
   boardC.addEventListener('click', onBoardClick);
   boardC.addEventListener('touchstart', e => { e.preventDefault(); const t = e.touches[0]; const r = boardC.getBoundingClientRect(); const sx = boardC.width/r.width, sy = boardC.height/r.height; onBoardClick({clientX: t.clientX, clientY: t.clientY, _sx: sx, _sy: sy}); }, {passive: false});
 }
@@ -121,54 +130,58 @@ function drawBoard() {
   if (anim) drawBattleAnim();
 }
 
+// ---------- chess piece themes ----------
+// South Park: flat colors, bold outlines, big heads, simple bodies (cartoon cutout look)
+// Medieval Classic: human-like 3D pieces with metallic shading, armor, realistic proportions
+let pieceTheme = (() => {
+  try { return localStorage.getItem('chess-theme') || 'southpark'; } catch (e) { return 'southpark'; }
+})();
+function setPieceTheme(t) {
+  pieceTheme = t;
+  try { localStorage.setItem('chess-theme', t); } catch (e) {}
+  render();
+}
+
 function drawCrystalPiece(code, gx, cx, cy) {
+  if (pieceTheme === 'medieval') drawMedievalPiece(code, cx, cy);
+  else drawSouthParkPiece(code, cx, cy);
+}
+
+// ---------- South Park theme ----------
+function drawSouthParkPiece(code, cx, cy) {
   const side = code[0], type = code[1];
   const isW = side === 'w';
-  // South Park medieval: compact, flat colors, bold outlines
   const skin = isW ? '#f5d6a8' : '#c8a070';
   const cloth = isW ? '#e8e0d0' : '#4a3060';
   const accent = isW ? '#ffd700' : '#cc2222';
   const outline = '#1a1a1a';
-  const s = SQ * 0.35;   // compact scale
-  const bw = s * 0.8;    // body half-width
-  const bh = s * 0.8;    // body height
-  const hr = s * 0.42;   // head radius
-
-  // body (simple rect)
+  const s = SQ * 0.35;
+  const bw = s * 0.8, bh = s * 0.8, hr = s * 0.42;
   ctx.fillStyle = cloth;
   ctx.strokeStyle = outline; ctx.lineWidth = 1.5;
   ctx.fillRect(cx - bw, cy, bw * 2, bh);
   ctx.strokeRect(cx - bw, cy, bw * 2, bh);
-  // belt
   ctx.fillStyle = isW ? '#8a6b3f' : '#2b1b3a';
   ctx.fillRect(cx - bw, cy + bh * 0.35, bw * 2, bh * 0.15);
-  // legs
   ctx.fillStyle = cloth;
   ctx.fillRect(cx - bw * 0.7, cy + bh, bw * 0.6, s * 0.35);
   ctx.fillRect(cx + bw * 0.1, cy + bh, bw * 0.6, s * 0.35);
   ctx.strokeStyle = outline; ctx.lineWidth = 1;
   ctx.strokeRect(cx - bw * 0.7, cy + bh, bw * 0.6, s * 0.35);
   ctx.strokeRect(cx + bw * 0.1, cy + bh, bw * 0.6, s * 0.35);
-
-  // head (sits directly on body)
   const hy = cy - hr - 1;
   ctx.fillStyle = skin;
   ctx.strokeStyle = outline; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.arc(cx, hy, hr, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  // eyes
   ctx.fillStyle = '#fff';
   ctx.beginPath(); ctx.arc(cx - hr * 0.3, hy - hr * 0.05, hr * 0.18, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.arc(cx + hr * 0.3, hy - hr * 0.05, hr * 0.18, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#1a1a1a';
   ctx.beginPath(); ctx.arc(cx - hr * 0.3, hy - hr * 0.05, hr * 0.09, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.arc(cx + hr * 0.3, hy - hr * 0.05, hr * 0.09, 0, Math.PI * 2); ctx.fill();
-  // mouth
   ctx.strokeStyle = '#b05050'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(cx - hr * 0.15, hy + hr * 0.25); ctx.lineTo(cx + hr * 0.15, hy + hr * 0.25); ctx.stroke();
-
-  // ---- role-specific hats/accessories ----
   if (type === 'K') {
-    // crown
     ctx.fillStyle = accent;
     ctx.fillRect(cx - hr * 0.7, hy - hr * 1.1, hr * 1.4, hr * 0.22);
     ctx.strokeStyle = outline; ctx.lineWidth = 1;
@@ -178,13 +191,11 @@ function drawCrystalPiece(code, gx, cx, cy) {
       ctx.fillStyle = accent;
       ctx.beginPath(); ctx.moveTo(px, hy - hr * 1.1); ctx.lineTo(px + hr * 0.08, hy - hr * 1.35); ctx.lineTo(px + hr * 0.16, hy - hr * 1.1); ctx.fill();
     }
-    // scepter
     ctx.strokeStyle = accent; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(cx + bw + s * 0.1, cy + bh * 0.3); ctx.lineTo(cx + bw + s * 0.1, cy - s * 0.6); ctx.stroke();
     ctx.fillStyle = accent;
     ctx.beginPath(); ctx.arc(cx + bw + s * 0.1, cy - s * 0.65, s * 0.08, 0, Math.PI * 2); ctx.fill();
   } else if (type === 'Q') {
-    // crown
     ctx.fillStyle = accent;
     ctx.fillRect(cx - hr * 0.7, hy - hr * 1.1, hr * 1.4, hr * 0.2);
     for (let i = 0; i < 3; i++) {
@@ -194,11 +205,9 @@ function drawCrystalPiece(code, gx, cx, cy) {
     }
     ctx.strokeStyle = outline; ctx.lineWidth = 1;
     ctx.strokeRect(cx - hr * 0.7, hy - hr * 1.1, hr * 1.4, hr * 0.2);
-    // scepter
     ctx.strokeStyle = accent; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(cx + bw + s * 0.1, cy + bh * 0.3); ctx.lineTo(cx + bw + s * 0.1, cy - s * 0.6); ctx.stroke();
   } else if (type === 'R') {
-    // castle helmet
     ctx.fillStyle = accent;
     ctx.fillRect(cx - hr * 0.75, hy - hr * 0.95, hr * 1.5, hr * 0.25);
     for (let i = 0; i < 4; i++) {
@@ -207,27 +216,193 @@ function drawCrystalPiece(code, gx, cx, cy) {
     ctx.strokeStyle = outline; ctx.lineWidth = 1;
     ctx.strokeRect(cx - hr * 0.75, hy - hr * 0.95, hr * 1.5, hr * 0.25);
   } else if (type === 'B') {
-    // mitre
     ctx.fillStyle = accent;
     ctx.beginPath(); ctx.moveTo(cx, hy - hr * 1.4); ctx.lineTo(cx - hr * 0.45, hy - hr * 0.55); ctx.lineTo(cx + hr * 0.45, hy - hr * 0.55); ctx.fill();
     ctx.strokeStyle = outline; ctx.lineWidth = 1; ctx.stroke();
   } else if (type === 'N') {
-    // horse helmet
     ctx.fillStyle = accent;
     ctx.beginPath(); ctx.arc(cx, hy - hr * 0.1, hr * 1.05, Math.PI * 0.7, Math.PI * 2.3); ctx.fill();
     ctx.strokeStyle = outline; ctx.lineWidth = 1; ctx.stroke();
-    // plume
     ctx.fillStyle = isW ? '#cc2222' : '#ffd700';
     ctx.beginPath(); ctx.moveTo(cx, hy - hr * 1.05); ctx.quadraticCurveTo(cx + hr * 0.25, hy - hr * 1.4, cx + hr * 0.1, hy - hr * 1.25); ctx.fill();
   } else {
-    // pawn: helmet
     ctx.fillStyle = accent;
     ctx.beginPath(); ctx.arc(cx, hy - hr * 0.1, hr * 0.85, Math.PI, 0); ctx.fill();
     ctx.fillRect(cx - hr * 0.85, hy - hr * 0.1, hr * 1.7, hr * 0.18);
     ctx.strokeStyle = outline; ctx.lineWidth = 1;
     ctx.strokeRect(cx - hr * 0.85, hy - hr * 0.1, hr * 1.7, hr * 0.18);
   }
-}function startBattleAnim(mv) {
+}
+
+// ---------- Medieval Classic theme (human-like 3D) ----------
+function drawMedievalPiece(code, cx, cy) {
+  const side = code[0], type = code[1];
+  const isW = side === 'w';
+  // metallic/medieval palette
+  const metal = isW ? '#c8c8d8' : '#484858';
+  const metalD = isW ? '#8888a0' : '#282838';
+  const metalL = isW ? '#e8e8f8' : '#686888';
+  const cloth = isW ? '#8a2a2a' : '#2a2a4a';
+  const accent = isW ? '#ffd700' : '#c0c0d0';
+  const skin = isW ? '#e8c8a0' : '#b89878';
+  const r = SQ * 0.38;
+
+  // drop shadow
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 5; ctx.shadowOffsetY = 3;
+
+  // ---- base pedestal ----
+  ctx.fillStyle = metalD;
+  ctx.beginPath(); ctx.ellipse(cx, cy + r * 0.75, r * 0.5, r * 0.12, 0, 0, Math.PI * 2); ctx.fill();
+
+  // ---- body per piece type (traditional chess silhouettes with medieval detail) ----
+  if (type === 'P') {
+    // Pawn: small sphere on a tapered base
+    const grad = ctx.createRadialGradient(cx - r*0.1, cy - r*0.2, r*0.05, cx, cy - r*0.1, r*0.3);
+    grad.addColorStop(0, metalL); grad.addColorStop(0.5, metal); grad.addColorStop(1, metalD);
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(cx, cy - r*0.15, r*0.28, 0, Math.PI * 2); ctx.fill();
+    // collar
+    ctx.fillStyle = metalD;
+    ctx.beginPath(); ctx.ellipse(cx, cy + r*0.1, r*0.25, r*0.08, 0, 0, Math.PI * 2); ctx.fill();
+    // base
+    ctx.fillStyle = metal;
+    ctx.beginPath(); ctx.ellipse(cx, cy + r*0.5, r*0.32, r*0.15, 0, 0, Math.PI * 2); ctx.fill();
+    // highlight
+    ctx.fillStyle = 'rgba(255,255,255,.4)';
+    ctx.beginPath(); ctx.arc(cx - r*0.08, cy - r*0.22, r*0.08, 0, Math.PI * 2); ctx.fill();
+  } else if (type === 'R') {
+    // Rook: castle tower with battlements
+    const grad = ctx.createLinearGradient(cx - r*0.35, cy, cx + r*0.35, cy);
+    grad.addColorStop(0, metalD); grad.addColorStop(0.4, metal); grad.addColorStop(1, metalD);
+    ctx.fillStyle = grad;
+    // tower body
+    ctx.fillRect(cx - r*0.28, cy - r*0.3, r*0.56, r*0.75);
+    // battlements
+    for (let i = 0; i < 4; i++) {
+      ctx.fillRect(cx - r*0.28 + i * (r*0.56/4), cy - r*0.45, r*0.12, r*0.15);
+    }
+    // base
+    ctx.fillStyle = metalD;
+    ctx.beginPath(); ctx.ellipse(cx, cy + r*0.5, r*0.35, r*0.12, 0, 0, Math.PI * 2); ctx.fill();
+    // stone texture lines
+    ctx.strokeStyle = 'rgba(0,0,0,.2)'; ctx.lineWidth = 0.5;
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath(); ctx.moveTo(cx - r*0.25, cy - r*0.15 + i * r*0.15); ctx.lineTo(cx + r*0.25, cy - r*0.15 + i * r*0.15); ctx.stroke();
+    }
+    // highlight
+    ctx.fillStyle = 'rgba(255,255,255,.35)';
+    ctx.fillRect(cx - r*0.22, cy - r*0.28, r*0.08, r*0.7);
+  } else if (type === 'N') {
+    // Knight: horse head with mane
+    const grad = ctx.createRadialGradient(cx - r*0.1, cy - r*0.3, r*0.05, cx, cy, r*0.4);
+    grad.addColorStop(0, metalL); grad.addColorStop(0.5, metal); grad.addColorStop(1, metalD);
+    ctx.fillStyle = grad;
+    // horse head silhouette
+    ctx.beginPath();
+    ctx.moveTo(cx - r*0.3, cy + r*0.4);
+    ctx.lineTo(cx - r*0.2, cy - r*0.1);
+    ctx.lineTo(cx - r*0.05, cy - r*0.35);
+    ctx.lineTo(cx + r*0.15, cy - r*0.45);
+    ctx.lineTo(cx + r*0.3, cy - r*0.3);
+    ctx.lineTo(cx + r*0.35, cy + r*0.1);
+    ctx.lineTo(cx + r*0.2, cy + r*0.4);
+    ctx.closePath(); ctx.fill();
+    // eye
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath(); ctx.arc(cx + r*0.1, cy - r*0.25, r*0.05, 0, Math.PI * 2); ctx.fill();
+    // mane
+    ctx.strokeStyle = isW ? '#8a6b3f' : '#2a1a0a'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx - r*0.05, cy - r*0.35); ctx.quadraticCurveTo(cx - r*0.15, cy - r*0.15, cx - r*0.2, cy + r*0.05); ctx.stroke();
+    // base
+    ctx.fillStyle = metalD;
+    ctx.beginPath(); ctx.ellipse(cx, cy + r*0.5, r*0.3, r*0.12, 0, 0, Math.PI * 2); ctx.fill();
+    // highlight
+    ctx.fillStyle = 'rgba(255,255,255,.4)';
+    ctx.beginPath(); ctx.arc(cx + r*0.05, cy - r*0.3, r*0.07, 0, Math.PI * 2); ctx.fill();
+  } else if (type === 'B') {
+    // Bishop: mitre with slit and collar
+    const grad = ctx.createLinearGradient(cx - r*0.25, cy - r*0.5, cx + r*0.25, cy + r*0.3);
+    grad.addColorStop(0, metalL); grad.addColorStop(0.5, metal); grad.addColorStop(1, metalD);
+    ctx.fillStyle = grad;
+    // mitre (tall pointed hat)
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - r*0.55);
+    ctx.quadraticCurveTo(cx - r*0.3, cy - r*0.2, cx - r*0.22, cy + r*0.1);
+    ctx.lineTo(cx + r*0.22, cy + r*0.1);
+    ctx.quadraticCurveTo(cx + r*0.3, cy - r*0.2, cx, cy - r*0.55);
+    ctx.fill();
+    // slit
+    ctx.strokeStyle = metalD; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(cx, cy - r*0.4); ctx.lineTo(cx, cy); ctx.stroke();
+    // collar
+    ctx.fillStyle = accent;
+    ctx.beginPath(); ctx.ellipse(cx, cy + r*0.15, r*0.22, r*0.06, 0, 0, Math.PI * 2); ctx.fill();
+    // base
+    ctx.fillStyle = metalD;
+    ctx.beginPath(); ctx.ellipse(cx, cy + r*0.5, r*0.3, r*0.12, 0, 0, Math.PI * 2); ctx.fill();
+    // highlight
+    ctx.fillStyle = 'rgba(255,255,255,.4)';
+    ctx.beginPath(); ctx.arc(cx - r*0.1, cy - r*0.3, r*0.06, 0, Math.PI * 2); ctx.fill();
+  } else if (type === 'Q') {
+    // Queen: coronet with points and jewels
+    const grad = ctx.createRadialGradient(cx - r*0.1, cy - r*0.3, r*0.05, cx, cy, r*0.4);
+    grad.addColorStop(0, metalL); grad.addColorStop(0.5, metal); grad.addColorStop(1, metalD);
+    ctx.fillStyle = grad;
+    // body (tapered)
+    ctx.beginPath();
+    ctx.moveTo(cx - r*0.25, cy + r*0.4);
+    ctx.quadraticCurveTo(cx - r*0.15, cy, cx - r*0.1, cy - r*0.3);
+    ctx.lineTo(cx + r*0.1, cy - r*0.3);
+    ctx.quadraticCurveTo(cx + r*0.15, cy, cx + r*0.25, cy + r*0.4);
+    ctx.closePath(); ctx.fill();
+    // coronet band
+    ctx.fillStyle = accent;
+    ctx.beginPath(); ctx.ellipse(cx, cy - r*0.3, r*0.18, r*0.05, 0, 0, Math.PI * 2); ctx.fill();
+    // crown points
+    ctx.fillStyle = accent;
+    for (let i = 0; i < 5; i++) {
+      const px = cx - r*0.2 + i * (r*0.4/4);
+      ctx.beginPath(); ctx.moveTo(px, cy - r*0.35); ctx.lineTo(px + r*0.04, cy - r*0.5); ctx.lineTo(px + r*0.08, cy - r*0.35); ctx.fill();
+    }
+    // jewel
+    ctx.fillStyle = isW ? '#e53935' : '#4fc3f7';
+    ctx.beginPath(); ctx.arc(cx, cy - r*0.3, r*0.05, 0, Math.PI * 2); ctx.fill();
+    // base
+    ctx.fillStyle = metalD;
+    ctx.beginPath(); ctx.ellipse(cx, cy + r*0.5, r*0.3, r*0.12, 0, 0, Math.PI * 2); ctx.fill();
+    // highlight
+    ctx.fillStyle = 'rgba(255,255,255,.4)';
+    ctx.beginPath(); ctx.arc(cx - r*0.08, cy, r*0.07, 0, Math.PI * 2); ctx.fill();
+  } else if (type === 'K') {
+    // King: crown with cross
+    const grad = ctx.createRadialGradient(cx - r*0.1, cy - r*0.3, r*0.05, cx, cy, r*0.4);
+    grad.addColorStop(0, metalL); grad.addColorStop(0.5, metal); grad.addColorStop(1, metalD);
+    ctx.fillStyle = grad;
+    // body (tapered)
+    ctx.beginPath();
+    ctx.moveTo(cx - r*0.28, cy + r*0.4);
+    ctx.quadraticCurveTo(cx - r*0.18, cy, cx - r*0.12, cy - r*0.25);
+    ctx.lineTo(cx + r*0.12, cy - r*0.25);
+    ctx.quadraticCurveTo(cx + r*0.18, cy, cx + r*0.28, cy + r*0.4);
+    ctx.closePath(); ctx.fill();
+    // crown band
+    ctx.fillStyle = accent;
+    ctx.beginPath(); ctx.ellipse(cx, cy - r*0.25, r*0.2, r*0.05, 0, 0, Math.PI * 2); ctx.fill();
+    // cross on top
+    ctx.strokeStyle = accent; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx, cy - r*0.3); ctx.lineTo(cx, cy - r*0.55); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx - r*0.1, cy - r*0.42); ctx.lineTo(cx + r*0.1, cy - r*0.42); ctx.stroke();
+    // base
+    ctx.fillStyle = metalD;
+    ctx.beginPath(); ctx.ellipse(cx, cy + r*0.5, r*0.32, r*0.12, 0, 0, Math.PI * 2); ctx.fill();
+    // highlight
+    ctx.fillStyle = 'rgba(255,255,255,.4)';
+    ctx.beginPath(); ctx.arc(cx - r*0.1, cy, r*0.07, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+function startBattleAnim(mv) {
   if (!mv) return;
   const from = mv.from, to = mv.to;
   const fx = from.charCodeAt(0) - 97, fy = parseInt(from[1]) - 1;
