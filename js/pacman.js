@@ -87,7 +87,7 @@ let frightenedCount = 0;  // for doubling ghost scores
 let fruit = null;        // {type, tile, timer, score}
 let fruitTimer = 0;      // countdown to fruit appearance
 let fruitActive = false;
-let levelClearing = false, readyT = 0;
+let levelClearing = false, readyT = 0, streak = 0;
 let extraLifeGiven = false;
 let raf = 0, lastT = 0;
 let audioCtx = null;
@@ -382,12 +382,12 @@ function updatePac(dt) {
     const ch = tileAt(pac.tx, pac.ty);
     if (ch === '.') {
       MAZE[pac.ty] = MAZE[pac.ty].substring(0, pac.tx) + 'E' + MAZE[pac.ty].substring(pac.tx + 1);
-      score += 10; dotsLeft--;
+      score += 10; dotsLeft--; streak++;
       sfxWaka();
       if (dotsLeft === 0) { levelClear(); }
     } else if (ch === 'o') {
       MAZE[pac.ty] = MAZE[pac.ty].substring(0, pac.tx) + 'E' + MAZE[pac.ty].substring(pac.tx + 1);
-      score += 50; dotsLeft--;
+      score += 50; dotsLeft--; streak++;
       sfxPower();
       const fd = frightenedDuration(level);
       if (fd > 0) {
@@ -543,6 +543,7 @@ function checkCollisions() {
 function pacDie() {
   pac.dead = true;
   pac.deadT = 0;
+  streak = 0;
   sfxDeath();
   lives--;
   if (lives <= 0) {
@@ -594,6 +595,7 @@ function draw() {
   ctx.fillText('HIGH ' + highScore, CANVAS_W - 4, 12);
   ctx.textAlign = 'center';
   ctx.fillText('LEVEL ' + level, CANVAS_W / 2, 12);
+  if (streak > 5) { ctx.textAlign = 'left'; ctx.fillStyle = '#f2c14e'; ctx.fillText('x' + streak, 4, 24); ctx.fillStyle = '#fff'; }
 
   // maze
   ctx.save();
