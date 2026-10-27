@@ -11,3 +11,5 @@ img/menu/
 .aider.llm.history
 _to_delete/
 .env
+.aider*
+.cptr

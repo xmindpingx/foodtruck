@@ -11,7 +11,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '
 const SQ = 56, BOARD = SQ * 8;     // 448 px
 const FILES = 'abcdefgh';
 
-let panel, boardC, ctx, lobbyEl, roomId = null, mySide = null, pollT = 0;
+let panel, boardC, ctx, lobbyEl, roomId = null, mySide = null, pollT = 0, soloMode = false;
 let board = null, turn = 'white', winner = null, players = [], spectators = 0;
 let selected = null, legalTargets = [], anim = null, menuOpen = false, panelWasOpen = false;
 let lastMoveKey = null;
@@ -42,6 +42,9 @@ function buildUI() {
       <select id="chessTheme" style="padding:6px 10px;border-radius:10px;border:1px solid #444;background:#1a1a2e;color:#f6e7c8;font:600 11px Inter;cursor:pointer">
         <option value="southpark">🎨 South Park</option>
         <option value="medieval">⚔️ Medieval Classic</option>
+        <option value="ice">🧊 Ice Crystal</option>
+        <option value="classic">♟️ Classic</option>
+        <option value="battle">⚔️ BattleChess</option>
       </select>
       <button id="chessLeave" style="padding:8px 14px;border-radius:10px;border:1px solid #e5534a;background:rgba(229,83,83,.15);color:#f6e7c8;cursor:pointer;font:600 12px Inter">Leave</button>
       <span id="chessInfo" style="opacity:.7;font-size:11px;margin-left:8px"></span></div>`;
@@ -70,9 +73,13 @@ async function tick() {
     const newMoveKey = r.moves && r.moves.length ? (r.moves[0].from + r.moves[0].to) : null;
     if (newMoveKey && newMoveKey !== lastMoveKey) {
       lastMoveKey = newMoveKey;
-      startBattleAnim(r.moves[0]);
+      if (r.moves[0].captured) startBattleAnim(r.moves[0]);
     }
     board = r.board; turn = r.turn; winner = r.winner; players = r.players; spectators = r.spectators;
+    if (!mySide && Array.isArray(r.players)) {
+      const me = r.players.find(p => p.id === vid());
+      if (me) mySide = me.side;
+    }
     mySide = r.side || mySide;
     selected = null; legalTargets = [];
     render();
@@ -98,7 +105,7 @@ function drawBoard() {
   for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
     const light = (x + y) % 2 === 0;
     ctx.fillStyle = light ? '#d8cfe8' : '#6b5a8a';
-    ctx.fillRect(x * SQ, (7 - y) * SQ, SQ, SQ);
+    ctx.fillRect(x * SQ, y * SQ, SQ, SQ);
   }
   // last move highlight
   if (lastMoveKey && board) {
@@ -106,16 +113,16 @@ function drawBoard() {
     const fx = m.charCodeAt(0) - 97, fy = parseInt(m[1]) - 1;
     const tx = m.charCodeAt(2) - 97, ty = parseInt(m[3]) - 1;
     ctx.fillStyle = 'rgba(242,193,78,.35)';
-    ctx.fillRect(fx * SQ, (7 - fy) * SQ, SQ, SQ);
-    ctx.fillRect(tx * SQ, (7 - ty) * SQ, SQ, SQ);
+    ctx.fillRect(fx * SQ, fy * SQ, SQ, SQ);
+    ctx.fillRect(tx * SQ, ty * SQ, SQ, SQ);
   }
   // selected square
   if (selected) {
     ctx.fillStyle = 'rgba(0,122,255,.4)';
-    ctx.fillRect(selected.x * SQ, (7 - selected.y) * SQ, SQ, SQ);
+    ctx.fillRect(selected.x * SQ, selected.y * SQ, SQ, SQ);
     for (const t of legalTargets) {
-      ctx.fillStyle = board && board[7 - t.y][t.x] ? 'rgba(255,60,80,.55)' : 'rgba(0,122,255,.35)';
-      ctx.beginPath(); ctx.arc(t.x * SQ + SQ / 2, (7 - t.y) * SQ + SQ / 2, 8, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = board && board[t.y][t.x] ? 'rgba(255,60,80,.55)' : 'rgba(0,122,255,.35)';
+      ctx.beginPath(); ctx.arc(t.x * SQ + SQ / 2, t.y * SQ + SQ / 2, 8, 0, Math.PI * 2); ctx.fill();
     }
   }
   // pieces
@@ -123,8 +130,8 @@ function drawBoard() {
     const p = board[y][x];
     if (!p) continue;
     // skip the captured piece if it's mid-battle (handled by anim)
-    if (anim && anim.captured && anim.captured.x === x && anim.captured.y === 7 - y && anim.phase < 1) continue;
-    drawCrystalPiece(p, x, (7 - y) * SQ + SQ / 2, (7 - y) * SQ + SQ / 2);
+    if (anim && anim.captured && anim.captured.x === x && anim.captured.y === y && anim.phase < 1) continue;
+    drawCrystalPiece(p, x, x * SQ + SQ / 2, y * SQ + SQ / 2);
   }
   // battle animation overlay
   if (anim) drawBattleAnim();
@@ -142,14 +149,144 @@ function setPieceTheme(t) {
   render();
 }
 
+const battleImgs = {};
+function battleImg(code) {
+  if (battleImgs[code]) return battleImgs[code];
+  const im = new Image();
+  im.src = 'img/chess/battle/' + code + '.png';
+  battleImgs[code] = im;
+  im.onload = () => { try { render(); } catch (e) {} };
+  return im;
+}
+function drawBattlePiece(code, cx, cy) {
+  const side = code[0], type = code[1];
+  const im = battleImg(code);
+  if (im.complete && im.naturalWidth > 0) {
+    const sz = SQ * 0.9;
+    ctx.drawImage(im, cx - sz/2, cy - sz/2, sz, sz);
+    return;
+  }
+  const isW = side === 'w';
+  const s = SQ * 0.42;
+  // metallic gradient
+  const grad = ctx.createLinearGradient(cx, cy - s * 1.4, cx, cy + s * 1.2);
+  if (isW) { grad.addColorStop(0, '#f7f3e8'); grad.addColorStop(0.5, '#d8c8a0'); grad.addColorStop(1, '#a89060'); }
+  else { grad.addColorStop(0, '#4a4a5a'); grad.addColorStop(0.5, '#2a2a3a'); grad.addColorStop(1, '#0a0a14'); }
+  const outline = isW ? '#3a2a10' : '#000';
+  const accent = isW ? '#c9a227' : '#8b1a1a';
+  ctx.save();
+  ctx.translate(cx, cy);
+  // base
+  ctx.fillStyle = grad;
+  ctx.strokeStyle = outline; ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(0, s * 1.05, s * 0.75, s * 0.22, 0, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+  // body varies by type
+  if (type === 'P') {
+    // stem
+    ctx.beginPath();
+    ctx.moveTo(-s*0.25, s*0.85); ctx.lineTo(-s*0.18, -s*0.1); ctx.lineTo(s*0.18, -s*0.1); ctx.lineTo(s*0.25, s*0.85);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // head
+    ctx.beginPath(); ctx.arc(0, -s*0.45, s*0.32, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  } else if (type === 'R') {
+    ctx.fillRect(-s*0.45, -s*0.9, s*0.9, s*1.75);
+    ctx.strokeRect(-s*0.45, -s*0.9, s*0.9, s*1.75);
+    // battlements
+    for (let i = -2; i <= 2; i++) {
+      ctx.fillRect(i*s*0.18 - s*0.07, -s*1.15, s*0.14, s*0.28);
+      ctx.strokeRect(i*s*0.18 - s*0.07, -s*1.15, s*0.14, s*0.28);
+    }
+    ctx.fillRect(-s*0.5, -s*0.95, s*1.0, s*0.12);
+  } else if (type === 'N') {
+    // base body
+    ctx.beginPath();
+    ctx.moveTo(-s*0.4, s*0.85); ctx.lineTo(-s*0.3, -s*0.2); ctx.lineTo(s*0.1, -s*0.9);
+    ctx.lineTo(s*0.45, -s*0.5); ctx.lineTo(s*0.35, s*0.85);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // ear
+    ctx.beginPath(); ctx.moveTo(s*0.1, -s*0.9); ctx.lineTo(s*0.25, -s*1.15); ctx.lineTo(s*0.4, -s*0.85); ctx.closePath(); ctx.fill(); ctx.stroke();
+    // eye
+    ctx.fillStyle = isW ? '#1a1208' : '#f6e7c8';
+    ctx.beginPath(); ctx.arc(s*0.15, -s*0.55, s*0.06, 0, Math.PI*2); ctx.fill();
+  } else if (type === 'B') {
+    ctx.beginPath();
+    ctx.moveTo(0, -s*1.1); ctx.lineTo(-s*0.35, s*0.85); ctx.lineTo(s*0.35, s*0.85);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // slit
+    ctx.strokeStyle = isW ? '#3a2a10' : '#555'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(0, -s*0.9); ctx.lineTo(0, s*0.6); ctx.stroke();
+    ctx.fillStyle = accent;
+    ctx.beginPath(); ctx.arc(0, -s*1.15, s*0.1, 0, Math.PI*2); ctx.fill();
+  } else if (type === 'Q') {
+    // body
+    ctx.beginPath();
+    ctx.moveTo(-s*0.4, s*0.85); ctx.lineTo(-s*0.35, -s*0.6); ctx.lineTo(s*0.35, -s*0.6); ctx.lineTo(s*0.4, s*0.85);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // crown
+    ctx.beginPath();
+    ctx.moveTo(-s*0.45, -s*0.6); ctx.lineTo(-s*0.5, -s*1.0); ctx.lineTo(-s*0.2, -s*0.75);
+    ctx.lineTo(0, -s*1.15); ctx.lineTo(s*0.2, -s*0.75); ctx.lineTo(s*0.5, -s*1.0); ctx.lineTo(s*0.45, -s*0.6);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // jewels
+    ctx.fillStyle = accent;
+    for (const jx of [-s*0.45, 0, s*0.45]) {
+      ctx.beginPath(); ctx.arc(jx, -s*0.95, s*0.08, 0, Math.PI*2); ctx.fill();
+    }
+  } else if (type === 'K') {
+    ctx.beginPath();
+    ctx.moveTo(-s*0.4, s*0.85); ctx.lineTo(-s*0.35, -s*0.6); ctx.lineTo(s*0.35, -s*0.6); ctx.lineTo(s*0.4, s*0.85);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // crown base
+    ctx.fillRect(-s*0.45, -s*0.75, s*0.9, s*0.18);
+    ctx.strokeRect(-s*0.45, -s*0.75, s*0.9, s*0.18);
+    // cross
+    ctx.fillStyle = accent;
+    ctx.fillRect(-s*0.06, -s*1.25, s*0.12, s*0.55);
+    ctx.fillRect(-s*0.22, -s*1.12, s*0.44, s*0.12);
+    ctx.strokeStyle = outline; ctx.lineWidth = 1;
+    ctx.strokeRect(-s*0.06, -s*1.25, s*0.12, s*0.55);
+    ctx.strokeRect(-s*0.22, -s*1.12, s*0.44, s*0.12);
+  }
+  ctx.restore();
+}
+
 function drawCrystalPiece(code, gx, cx, cy) {
   const side = code[0], type = code[1];
   const isW = side === 'w';
-  // High-contrast South Park medieval: bold outlines, clear colors, big head on body
-  const skin = isW ? '#f5d6a8' : '#c8a070';
-  const cloth = isW ? '#f0e8d8' : '#3a2050';
-  const accent = isW ? '#ffd700' : '#cc2222';
-  const outline = '#000000';
+  if (pieceTheme === 'battle') {
+    drawBattlePiece(code, cx, cy);
+    return;
+  }
+  if (pieceTheme === 'classic') {
+    const W = {K:'♔',Q:'♕',R:'♖',B:'♗',N:'♘',P:'♙'};
+    const B = {K:'♚',Q:'♛',R:'♜',B:'♝',N:'♞',P:'♟'};
+    const g = (isW ? W : B)[type] || '';
+    ctx.save();
+    ctx.font = 'bold ' + Math.round(SQ * 0.85) + 'px "Times New Roman", serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = isW ? '#f6e7c8' : '#1a1208';
+    ctx.strokeStyle = isW ? '#1a1208' : '#f6e7c8';
+    ctx.lineWidth = 2;
+    ctx.strokeText(g, cx, cy);
+    ctx.fillText(g, cx, cy);
+    ctx.restore();
+    return;
+  }
+  // theme palette
+  let skin, cloth, accent, outline, hair;
+  if (pieceTheme === 'ice') {
+    skin = isW ? '#e8f4ff' : '#a0c8e8'; cloth = isW ? '#d0e8ff' : '#1a3a5a';
+    accent = isW ? '#74dbe6' : '#4f76e5'; outline = '#1a2a4a'; hair = isW ? '#b8d8f0' : '#0a1a3a';
+  } else if (pieceTheme === 'medieval') {
+    skin = isW ? '#f0d8a0' : '#8a6a40'; cloth = isW ? '#e8dcc8' : '#2a1a3a';
+    accent = isW ? '#c9a227' : '#8b1a1a'; outline = '#1a1208'; hair = isW ? '#8a6a30' : '#1a0a0a';
+  } else {
+    skin = isW ? '#f5d6a8' : '#c8a070'; cloth = isW ? '#f0e8d8' : '#3a2050';
+    accent = isW ? '#ffd700' : '#cc2222'; outline = '#000000'; hair = isW ? '#d4a040' : '#2a1a0a';
+  }
   const s = SQ * 0.4;
   const bw = s * 0.75, bh = s * 0.7;
   const hr = s * 0.38;
@@ -192,7 +329,7 @@ function drawCrystalPiece(code, gx, cx, cy) {
   ctx.strokeStyle = outline; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.arc(cx, hy, hr, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   // hair
-  ctx.fillStyle = isW ? '#d4a040' : '#2a1a0a';
+  ctx.fillStyle = hair;
   ctx.beginPath(); ctx.arc(cx, hy - hr * 0.15, hr * 1.0, Math.PI, 0); ctx.fill();
   ctx.fillRect(cx - hr * 0.9, hy - hr * 0.15, hr * 1.8, hr * 0.25);
   // eyes
@@ -308,7 +445,7 @@ function startBattleAnim(mv) {
   const captured = mv.captured;
   anim = {from: {x: fx, y: fy}, to: {x: tx, y: ty},
           captured: captured ? {x: tx, y: ty, piece: captured} : null,
-          phase: 0, t0: performance.now(), dur: captured ? 2100 : 320};
+          phase: 0, t0: performance.now(), dur: captured ? 3600 : 500};
   requestAnimationFrame(animLoop);
 }
 
@@ -321,19 +458,425 @@ function animLoop() {
   else { anim = null; drawBoard(); }
 }
 
+const bishopRookFrames = [];
+for (let i = 0; i < 8; i++) {
+  const im = new Image();
+  im.src = 'img/chess/battle/anim_bishop_rook_' + String(i).padStart(2, '0') + '.png';
+  bishopRookFrames.push(im);
+}
+const kingBishopFrames = [];
+for (let i = 0; i < 8; i++) {
+  const im = new Image();
+  im.src = 'img/chess/battle/anim_king_bishop_' + String(i).padStart(2, '0') + '.png';
+  kingBishopFrames.push(im);
+}
+const kingPawnFrames = [];
+for (let i = 0; i < 8; i++) {
+  const im = new Image();
+  im.src = 'img/chess/battle/anim_king_pawn_' + String(i).padStart(2, '0') + '.png';
+  kingPawnFrames.push(im);
+}
+const kingRookFrames = [];
+for (let i = 0; i < 8; i++) {
+  const im = new Image();
+  im.src = 'img/chess/battle/anim_king_rook_' + String(i).padStart(2, '0') + '.png';
+  kingRookFrames.push(im);
+}
+const knightBishopFrames = [];
+for (let i = 0; i < 8; i++) {
+  const im = new Image();
+  im.src = 'img/chess/battle/anim_knight_bishop_' + String(i).padStart(2, '0') + '.png';
+  knightBishopFrames.push(im);
+}
+const knightKnightFrames = [];
+for (let i = 0; i < 8; i++) {
+  const im = new Image();
+  im.src = 'img/chess/battle/anim_knight_knight_' + String(i).padStart(2, '0') + '.png';
+  knightKnightFrames.push(im);
+}
+const knightPawnFrames = [];
+for (let i = 0; i < 8; i++) {
+  const im = new Image();
+  im.src = 'img/chess/battle/anim_knight_pawn_' + String(i).padStart(2, '0') + '.png';
+  knightPawnFrames.push(im);
+}
+const knightQueenFrames = [];
+for (let i = 0; i < 8; i++) {
+  const im = new Image();
+  im.src = 'img/chess/battle/anim_knight_queen_' + String(i).padStart(2, '0') + '.png';
+  knightQueenFrames.push(im);
+}
+const knightRookFrames = [];
+for (let i = 0; i < 8; i++) {
+  const im = new Image();
+  im.src = 'img/chess/battle/anim_knight_rook_' + String(i).padStart(2, '0') + '.png';
+  knightRookFrames.push(im);
+}
+const pawnBishopFrames = [];
+for (let i = 0; i < 8; i++) {
+  const im = new Image();
+  im.src = 'img/chess/battle/anim_pawn_bishop_' + String(i).padStart(2, '0') + '.png';
+  pawnBishopFrames.push(im);
+}
+const pawnKingFrames = [];
+for (let i = 0; i < 8; i++) {
+  const im = new Image();
+  im.src = 'img/chess/battle/anim_pawn_king_' + String(i).padStart(2, '0') + '.png';
+  pawnKingFrames.push(im);
+}
+const pawnKnightFrames = [];
+for (let i = 0; i < 8; i++) {
+  const im = new Image();
+  im.src = 'img/chess/battle/anim_pawn_knight_' + String(i).padStart(2, '0') + '.png';
+  pawnKnightFrames.push(im);
+}
+const pawnPawnFrames = [];
+for (let i = 0; i < 8; i++) {
+  const im = new Image();
+  im.src = 'img/chess/battle/anim_pawn_pawn_' + String(i).padStart(2, '0') + '.png';
+  pawnPawnFrames.push(im);
+}
+const pawnQueenFrames = [];
+for (let i = 0; i < 8; i++) {
+  const im = new Image();
+  im.src = 'img/chess/battle/anim_pawn_queen_' + String(i).padStart(2, '0') + '.png';
+  pawnQueenFrames.push(im);
+}
+const pawnRookFrames = [];
+for (let i = 0; i < 8; i++) {
+  const im = new Image();
+  im.src = 'img/chess/battle/anim_pawn_rook_' + String(i).padStart(2, '0') + '.png';
+  pawnRookFrames.push(im);
+}
+const queenBishopFrames = [];
+for (let i = 0; i < 8; i++) {
+  const im = new Image();
+  im.src = 'img/chess/battle/anim_queen_bishop_' + String(i).padStart(2, '0') + '.png';
+  queenBishopFrames.push(im);
+}
+const queenKnightFrames = [];
+for (let i = 0; i < 8; i++) {
+  const im = new Image();
+  im.src = 'img/chess/battle/anim_queen_knight_' + String(i).padStart(2, '0') + '.png';
+  queenKnightFrames.push(im);
+}
+const queenPawnFrames = [];
+for (let i = 0; i < 8; i++) {
+  const im = new Image();
+  im.src = 'img/chess/battle/anim_queen_pawn_' + String(i).padStart(2, '0') + '.png';
+  queenPawnFrames.push(im);
+}
+const queenQueenFrames = [];
+for (let i = 0; i < 8; i++) {
+  const im = new Image();
+  im.src = 'img/chess/battle/anim_queen_queen_' + String(i).padStart(2, '0') + '.png';
+  queenQueenFrames.push(im);
+}
+const rookBishopFrames = [];
+for (let i = 0; i < 8; i++) {
+  const im = new Image();
+  im.src = 'img/chess/battle/anim_rook_bishop_' + String(i).padStart(2, '0') + '.png';
+  rookBishopFrames.push(im);
+}
+const rookPawnFrames = [];
+for (let i = 0; i < 8; i++) {
+  const im = new Image();
+  im.src = 'img/chess/battle/anim_rook_pawn_' + String(i).padStart(2, '0') + '.png';
+  rookPawnFrames.push(im);
+}
+const rookQueenFrames = [];
+for (let i = 0; i < 8; i++) {
+  const im = new Image();
+  im.src = 'img/chess/battle/anim_rook_queen_' + String(i).padStart(2, '0') + '.png';
+  rookQueenFrames.push(im);
+}
+const rookRookFrames = [];
+for (let i = 0; i < 8; i++) {
+  const im = new Image();
+  im.src = 'img/chess/battle/anim_rook_rook_' + String(i).padStart(2, '0') + '.png';
+  rookRookFrames.push(im);
+}
+const bishopBishopFrames = [];
+for (let i = 0; i < 8; i++) {
+  const im = new Image();
+  im.src = 'img/chess/battle/anim_bishop_bishop_' + String(i).padStart(2, '0') + '.png';
+  bishopBishopFrames.push(im);
+}
+const bishopKingFrames = [];
+for (let i = 0; i < 8; i++) {
+  const im = new Image();
+  im.src = 'img/chess/battle/anim_bishop_king_' + String(i).padStart(2, '0') + '.png';
+  bishopKingFrames.push(im);
+}
+const bishopKnightFrames = [];
+for (let i = 0; i < 8; i++) {
+  const im = new Image();
+  im.src = 'img/chess/battle/anim_bishop_knight_' + String(i).padStart(2, '0') + '.png';
+  bishopKnightFrames.push(im);
+}
+const bishopPawnFrames = [];
+for (let i = 0; i < 8; i++) {
+  const im = new Image();
+  im.src = 'img/chess/battle/anim_bishop_pawn_' + String(i).padStart(2, '0') + '.png';
+  bishopPawnFrames.push(im);
+}
 function drawBattleAnim() {
   if (!anim) return;
+  // special bishop vs rook animation using provided frames
+  const capturedPiece = (anim.captured && anim.captured.piece) ? anim.captured.piece : '';
+  const pType = capturedPiece.length >= 2 ? capturedPiece[1] : 'P';
+  const tx = anim.to.x, ty = anim.to.y;
+  const attackerCode = (board && board[ty]) ? board[ty][tx] : '';
+  const aType = attackerCode.length >= 2 ? attackerCode[1] : '';
+  if ((pType === 'R' && aType === 'B') || (pType === 'B' && aType === 'R')) {
+    const p = anim.phase;
+    const frames = (aType === 'R') ? rookBishopFrames : bishopRookFrames;
+    const idx = Math.min(frames.length - 1, Math.floor(p * frames.length));
+    const im = frames[idx];
+    const cx = tx * SQ + SQ / 2, cy = ty * SQ + SQ / 2;
+    if (im && im.complete && im.naturalWidth > 0) {
+      const sz = SQ * 1.6;
+      ctx.drawImage(im, cx - sz / 2, cy - sz / 2, sz, sz);
+    }
+    return;
+  }
+  if (pType === 'B' && aType === 'B') {
+    const p = anim.phase;
+    const idx = Math.min(bishopBishopFrames.length - 1, Math.floor(p * bishopBishopFrames.length));
+    const im = bishopBishopFrames[idx];
+    const cx = tx * SQ + SQ / 2, cy = ty * SQ + SQ / 2;
+    if (im && im.complete && im.naturalWidth > 0) {
+      const sz = SQ * 1.6;
+      ctx.drawImage(im, cx - sz / 2, cy - sz / 2, sz, sz);
+    }
+    return;
+  }
+  if ((pType === 'B' && aType === 'K') || (pType === 'K' && aType === 'B')) {
+    const p = anim.phase;
+    const frames = (aType === 'B') ? bishopKingFrames : kingBishopFrames;
+    const idx = Math.min(frames.length - 1, Math.floor(p * frames.length));
+    const im = frames[idx];
+    const cx = tx * SQ + SQ / 2, cy = ty * SQ + SQ / 2;
+    if (im && im.complete && im.naturalWidth > 0) {
+      const sz = SQ * 1.6;
+      ctx.drawImage(im, cx - sz / 2, cy - sz / 2, sz, sz);
+    }
+    return;
+  }
+  if ((pType === 'P' && aType === 'K') || (pType === 'K' && aType === 'P')) {
+    const p = anim.phase;
+    const idx = Math.min(kingPawnFrames.length - 1, Math.floor(p * kingPawnFrames.length));
+    const im = kingPawnFrames[idx];
+    const cx = tx * SQ + SQ / 2, cy = ty * SQ + SQ / 2;
+    if (im && im.complete && im.naturalWidth > 0) {
+      const sz = SQ * 1.6;
+      ctx.drawImage(im, cx - sz / 2, cy - sz / 2, sz, sz);
+    }
+    return;
+  }
+  if ((pType === 'R' && aType === 'K') || (pType === 'K' && aType === 'R')) {
+    const p = anim.phase;
+    const idx = Math.min(kingRookFrames.length - 1, Math.floor(p * kingRookFrames.length));
+    const im = kingRookFrames[idx];
+    const cx = tx * SQ + SQ / 2, cy = ty * SQ + SQ / 2;
+    if (im && im.complete && im.naturalWidth > 0) {
+      const sz = SQ * 1.6;
+      ctx.drawImage(im, cx - sz / 2, cy - sz / 2, sz, sz);
+    }
+    return;
+  }
+  if ((pType === 'B' && aType === 'N') || (pType === 'N' && aType === 'B')) {
+    const p = anim.phase;
+    const frames = (aType === 'B') ? bishopKnightFrames : knightBishopFrames;
+    const idx = Math.min(frames.length - 1, Math.floor(p * frames.length));
+    const im = frames[idx];
+    const cx = tx * SQ + SQ / 2, cy = ty * SQ + SQ / 2;
+    if (im && im.complete && im.naturalWidth > 0) {
+      const sz = SQ * 1.6;
+      ctx.drawImage(im, cx - sz / 2, cy - sz / 2, sz, sz);
+    }
+    return;
+  }
+  if (pType === 'N' && aType === 'N') {
+    const p = anim.phase;
+    const idx = Math.min(knightKnightFrames.length - 1, Math.floor(p * knightKnightFrames.length));
+    const im = knightKnightFrames[idx];
+    const cx = tx * SQ + SQ / 2, cy = ty * SQ + SQ / 2;
+    if (im && im.complete && im.naturalWidth > 0) {
+      const sz = SQ * 1.6;
+      ctx.drawImage(im, cx - sz / 2, cy - sz / 2, sz, sz);
+    }
+    return;
+  }
+  if ((pType === 'P' && aType === 'N') || (pType === 'N' && aType === 'P')) {
+    const p = anim.phase;
+    const idx = Math.min(knightPawnFrames.length - 1, Math.floor(p * knightPawnFrames.length));
+    const im = knightPawnFrames[idx];
+    const cx = tx * SQ + SQ / 2, cy = ty * SQ + SQ / 2;
+    if (im && im.complete && im.naturalWidth > 0) {
+      const sz = SQ * 1.6;
+      ctx.drawImage(im, cx - sz / 2, cy - sz / 2, sz, sz);
+    }
+    return;
+  }
+  if ((pType === 'Q' && aType === 'N') || (pType === 'N' && aType === 'Q')) {
+    const p = anim.phase;
+    const idx = Math.min(knightQueenFrames.length - 1, Math.floor(p * knightQueenFrames.length));
+    const im = knightQueenFrames[idx];
+    const cx = tx * SQ + SQ / 2, cy = ty * SQ + SQ / 2;
+    if (im && im.complete && im.naturalWidth > 0) {
+      const sz = SQ * 1.6;
+      ctx.drawImage(im, cx - sz / 2, cy - sz / 2, sz, sz);
+    }
+    return;
+  }
+  if ((pType === 'R' && aType === 'N') || (pType === 'N' && aType === 'R')) {
+    const p = anim.phase;
+    const idx = Math.min(knightRookFrames.length - 1, Math.floor(p * knightRookFrames.length));
+    const im = knightRookFrames[idx];
+    const cx = tx * SQ + SQ / 2, cy = ty * SQ + SQ / 2;
+    if (im && im.complete && im.naturalWidth > 0) {
+      const sz = SQ * 1.6;
+      ctx.drawImage(im, cx - sz / 2, cy - sz / 2, sz, sz);
+    }
+    return;
+  }
+  if ((pType === 'B' && aType === 'P') || (pType === 'P' && aType === 'B')) {
+    const p = anim.phase;
+    const frames = (aType === 'B') ? bishopPawnFrames : pawnBishopFrames;
+    const idx = Math.min(frames.length - 1, Math.floor(p * frames.length));
+    const im = frames[idx];
+    const cx = tx * SQ + SQ / 2, cy = ty * SQ + SQ / 2;
+    if (im && im.complete && im.naturalWidth > 0) {
+      const sz = SQ * 1.6;
+      ctx.drawImage(im, cx - sz / 2, cy - sz / 2, sz, sz);
+    }
+    return;
+  }
+  if ((pType === 'K' && aType === 'P') || (pType === 'P' && aType === 'K')) {
+    const p = anim.phase;
+    const idx = Math.min(pawnKingFrames.length - 1, Math.floor(p * pawnKingFrames.length));
+    const im = pawnKingFrames[idx];
+    const cx = tx * SQ + SQ / 2, cy = ty * SQ + SQ / 2;
+    if (im && im.complete && im.naturalWidth > 0) {
+      const sz = SQ * 1.6;
+      ctx.drawImage(im, cx - sz / 2, cy - sz / 2, sz, sz);
+    }
+    return;
+  }
+  if ((pType === 'N' && aType === 'P') || (pType === 'P' && aType === 'N')) {
+    const p = anim.phase;
+    const idx = Math.min(pawnKnightFrames.length - 1, Math.floor(p * pawnKnightFrames.length));
+    const im = pawnKnightFrames[idx];
+    const cx = tx * SQ + SQ / 2, cy = ty * SQ + SQ / 2;
+    if (im && im.complete && im.naturalWidth > 0) {
+      const sz = SQ * 1.6;
+      ctx.drawImage(im, cx - sz / 2, cy - sz / 2, sz, sz);
+    }
+    return;
+  }
+  if (pType === 'P' && aType === 'P') {
+    const p = anim.phase;
+    const idx = Math.min(pawnPawnFrames.length - 1, Math.floor(p * pawnPawnFrames.length));
+    const im = pawnPawnFrames[idx];
+    const cx = tx * SQ + SQ / 2, cy = ty * SQ + SQ / 2;
+    if (im && im.complete && im.naturalWidth > 0) {
+      const sz = SQ * 1.6;
+      ctx.drawImage(im, cx - sz / 2, cy - sz / 2, sz, sz);
+    }
+    return;
+  }
+  if ((pType === 'P' && aType === 'Q') || (pType === 'Q' && aType === 'P')) {
+    const p = anim.phase;
+    const idx = Math.min(pawnQueenFrames.length - 1, Math.floor(p * pawnQueenFrames.length));
+    const im = pawnQueenFrames[idx];
+    const cx = tx * SQ + SQ / 2, cy = ty * SQ + SQ / 2;
+    if (im && im.complete && im.naturalWidth > 0) {
+      const sz = SQ * 1.6;
+      ctx.drawImage(im, cx - sz / 2, cy - sz / 2, sz, sz);
+    }
+    return;
+  }
+  if ((pType === 'P' && aType === 'R') || (pType === 'R' && aType === 'P')) {
+    const p = anim.phase;
+    const frames = (aType === 'R') ? rookPawnFrames : pawnRookFrames;
+    const idx = Math.min(frames.length - 1, Math.floor(p * frames.length));
+    const im = frames[idx];
+    const cx = tx * SQ + SQ / 2, cy = ty * SQ + SQ / 2;
+    if (im && im.complete && im.naturalWidth > 0) {
+      const sz = SQ * 1.6;
+      ctx.drawImage(im, cx - sz / 2, cy - sz / 2, sz, sz);
+    }
+    return;
+  }
+  if ((pType === 'R' && aType === 'Q') || (pType === 'Q' && aType === 'R')) {
+    const p = anim.phase;
+    const frames = (aType === 'R') ? rookQueenFrames : null;
+    // if rook is attacker use rook frames; else (queen attacking rook) no dedicated frames yet -> fallback to null (default)
+    if (frames) {
+      const idx = Math.min(frames.length - 1, Math.floor(p * frames.length));
+      const im = frames[idx];
+      const cx = tx * SQ + SQ / 2, cy = ty * SQ + SQ / 2;
+      if (im && im.complete && im.naturalWidth > 0) {
+        const sz = SQ * 1.6;
+        ctx.drawImage(im, cx - sz / 2, cy - sz / 2, sz, sz);
+        return;
+      }
+    }
+  }
+  if (pType === 'R' && aType === 'R') {
+    const p = anim.phase;
+    const idx = Math.min(rookRookFrames.length - 1, Math.floor(p * rookRookFrames.length));
+    const im = rookRookFrames[idx];
+    const cx = tx * SQ + SQ / 2, cy = ty * SQ + SQ / 2;
+    if (im && im.complete && im.naturalWidth > 0) {
+      const sz = SQ * 1.6;
+      ctx.drawImage(im, cx - sz / 2, cy - sz / 2, sz, sz);
+    }
+    return;
+  }
+  if ((pType === 'B' && aType === 'Q') || (pType === 'Q' && aType === 'B')) {
+    const p = anim.phase;
+    const idx = Math.min(queenBishopFrames.length - 1, Math.floor(p * queenBishopFrames.length));
+    const im = queenBishopFrames[idx];
+    const cx = tx * SQ + SQ / 2, cy = ty * SQ + SQ / 2;
+    if (im && im.complete && im.naturalWidth > 0) {
+      const sz = SQ * 1.6;
+      ctx.drawImage(im, cx - sz / 2, cy - sz / 2, sz, sz);
+    }
+    return;
+  }
+  if ((pType === 'P' && aType === 'Q') || (pType === 'Q' && aType === 'P')) {
+    const p = anim.phase;
+    const idx = Math.min(queenPawnFrames.length - 1, Math.floor(p * queenPawnFrames.length));
+    const im = queenPawnFrames[idx];
+    const cx = tx * SQ + SQ / 2, cy = ty * SQ + SQ / 2;
+    if (im && im.complete && im.naturalWidth > 0) {
+      const sz = SQ * 1.6;
+      ctx.drawImage(im, cx - sz / 2, cy - sz / 2, sz, sz);
+    }
+    return;
+  }
+  if (pType === 'Q' && aType === 'Q') {
+    const p = anim.phase;
+    const idx = Math.min(queenQueenFrames.length - 1, Math.floor(p * queenQueenFrames.length));
+    const im = queenQueenFrames[idx];
+    const cx = tx * SQ + SQ / 2, cy = ty * SQ + SQ / 2;
+    if (im && im.complete && im.naturalWidth > 0) {
+      const sz = SQ * 1.6;
+      ctx.drawImage(im, cx - sz / 2, cy - sz / 2, sz, sz);
+    }
+    return;
+  }
   const p = anim.phase;
-  const sx = anim.from.x * SQ + SQ / 2, sy = (7 - anim.from.y) * SQ + SQ / 2;
-  const ex = anim.to.x * SQ + SQ / 2, ey = (7 - anim.to.y) * SQ + SQ / 2;
+  const sx = anim.from.x * SQ + SQ / 2, sy = anim.from.y * SQ + SQ / 2;
+  const ex = anim.to.x * SQ + SQ / 2, ey = anim.to.y * SQ + SQ / 2;
   const e = p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
   const ax = sx + (ex - sx) * (p < .4 ? e * .6 : .6 + (p - .4) * .67);
   const ay = sy + (ey - sy) * (p < .4 ? e * .6 : .6 + (p - .4) * .67);
   const cx = ex, cy = ey;
 
   // determine captured piece type
-  const capturedPiece = (anim.captured && anim.captured.piece) ? anim.captured.piece : '';
-  const pType = capturedPiece.length >= 2 ? capturedPiece[1] : 'P';
   const pSide = capturedPiece.length >= 2 ? capturedPiece[0] : 'b';
 
   // per-type config: accessories that fall off, quotes, colors
@@ -643,11 +1186,12 @@ function drawBattleAnim() {
   ctx.beginPath(); ctx.ellipse(ax - 4, ay - 6, 5, 3, -.4, 0, Math.PI * 2); ctx.fill();
 }
 function onBoardClick(e) {
-  if (!board || winner || turn !== mySide) return;
+  if (!board || winner) return;
+  if (!soloMode && turn !== mySide) return;
   const r = boardC.getBoundingClientRect();
   const sx = e._sx || (boardC.width / r.width), sy = e._sy || (boardC.height / r.height);
   const x = Math.floor((e.clientX - r.left) * sx / SQ);
-  const y = 7 - Math.floor((e.clientY - r.top) * sy / SQ);
+  const y = Math.floor((e.clientY - r.top) * sy / SQ);
   if (x < 0 || x > 7 || y < 0 || y > 7) return;
   // if a promotion is pending, ignore (handled by promo picker — auto-queen for simplicity)
   if (selected) {
@@ -660,8 +1204,9 @@ function onBoardClick(e) {
     }
   }
   // select own piece
-  const p = board[7 - y][x];
-  if (p && p[0] === (mySide === 'white' ? 'w' : 'b')) {
+  const p = board[y][x];
+  const myColor = soloMode ? (turn === 'white' ? 'w' : 'b') : (mySide === 'white' ? 'w' : 'b');
+  if (p && p[0] === myColor) {
     selected = {x, y};
     // compute legal targets client-side: ask server? We'll just send and let server validate; but show dots:
     // simple: highlight all squares (server validates). For better UX, compute basic moves locally.
@@ -674,11 +1219,11 @@ function onBoardClick(e) {
 
 function basicMoves(x, y) {
   // lightweight client-side move hints (server is authoritative)
-  const p = board[7 - y][x];
+  const p = board[y][x];
   if (!p) return [];
   const side = p[0], type = p[1];
   const out = [];
-  const add = (nx, ny) => { if (nx < 0 || nx > 7 || ny < 0 || ny > 7) return; const t = board[7 - ny][nx]; if (t && t[0] === side) return; out.push({x: nx, y: ny, promo: null}); };
+  const add = (nx, ny) => { if (nx < 0 || nx > 7 || ny < 0 || ny > 7) return; const t = board[ny][nx]; if (t && t[0] === side) return; out.push({x: nx, y: ny, promo: null}); };
   if (type === 'N') { for (const [dx,dy] of [[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]]) add(x+dx, y+dy); }
   else if (type === 'K') { for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++) if (dx||dy) add(x+dx,y+dy); }
   else if (type === 'P') {
@@ -706,7 +1251,7 @@ function basicMoves(x, y) {
 async function makeMove(fx, fy, tx, ty, promo) {
   try {
     const r = await fetch('/api/chess/move', {method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({room: roomId, vid: vid(), from: FILES[fx] + (fy+1), to: FILES[tx] + (ty+1), promo})}).then(x => x.json());
+      body: JSON.stringify({room: roomId, vid: vid(), from: FILES[fx] + (8 - fy), to: FILES[tx] + (8 - ty), promo})}).then(x => x.json());
     if (!r.ok) { alert(r.error || 'Illegal move'); selected = null; legalTargets = []; render(); return; }
     tick();
   } catch (e) { alert('Network hiccup'); }
@@ -721,7 +1266,7 @@ async function newGame() {
 async function leaveRoom() {
   if (roomId) try { await fetch('/api/chess/leave', {method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({room: roomId, vid: vid()})}); } catch (e) {}
-  roomId = null; mySide = null; board = null; selected = null; legalTargets = []; anim = null;
+  roomId = null; mySide = null; board = null; selected = null; legalTargets = []; anim = null; soloMode = false;
   if (pollT) { clearInterval(pollT); pollT = 0; }
   showLobby();
 }
@@ -733,17 +1278,19 @@ function render() {
   if (st) {
     if (winner === 'draw') st.textContent = 'Draw!';
     else if (winner) st.textContent = (winner === 'white' ? 'White' : 'Black') + ' wins!';
-    else st.textContent = (turn === 'white' ? 'White' : 'Black') + ' to move' + (mySide ? ' · you are ' + mySide : ' · spectating');
+    else st.textContent = (turn === 'white' ? 'White' : 'Black') + ' to move' + (soloMode ? ' · solo' : (mySide ? ' · you are ' + mySide : ' · spectating'));
   }
 }
 
 function showLobby() {
   lobbyEl.style.display = 'block'; boardC.style.display = 'none';
-  lobbyEl.innerHTML = `<div style="display:flex;gap:8px;margin-bottom:10px">
+  lobbyEl.innerHTML = `<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
       <button id="chCreate" style="padding:8px 14px;border-radius:10px;border:1px solid rgba(242,193,78,.5);background:rgba(242,193,78,.15);color:#f6e7c8;cursor:pointer;font:600 13px Inter">Create a table</button>
+      <button id="chSolo" style="padding:8px 14px;border-radius:10px;border:1px solid #4fc0d0;background:rgba(79,192,208,.15);color:#f6e7c8;cursor:pointer;font:600 13px Inter">Solo game</button>
       <button id="chRefresh" style="padding:8px 14px;border-radius:10px;border:1px solid #444;background:#1a1a2e;color:#f6e7c8;cursor:pointer;font:600 13px Inter">Refresh</button></div>
     <div id="chRooms"></div>`;
   lobbyEl.querySelector('#chCreate').onclick = createRoom;
+  lobbyEl.querySelector('#chSolo').onclick = createSoloRoom;
   lobbyEl.querySelector('#chRefresh').onclick = listRooms;
   listRooms();
 }
@@ -753,7 +1300,15 @@ async function createRoom() {
     const r = await fetch('/api/chess/create', {method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({name: 'Chess table', vid: vid(), pname: name()})}).then(x => x.json());
     if (!r.ok) throw new Error(r.error);
-    roomId = r.id; mySide = r.side; enterRoom();
+    roomId = r.id; mySide = r.side; soloMode = false; enterRoom();
+  } catch (e) { alert(e.message || 'Could not create.'); }
+}
+async function createSoloRoom() {
+  try {
+    const r = await fetch('/api/chess/create', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name: 'Solo game', vid: vid(), pname: name(), solo: true})}).then(x => x.json());
+    if (!r.ok) throw new Error(r.error);
+    roomId = r.id; mySide = 'white'; soloMode = true; enterRoom();
   } catch (e) { alert(e.message || 'Could not create.'); }
 }
 
@@ -762,7 +1317,7 @@ async function joinRoom(id) {
     const r = await fetch('/api/chess/join', {method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({room: id, vid: vid(), pname: name()})}).then(x => x.json());
     if (!r.ok) throw new Error(r.error);
-    roomId = id; mySide = r.side; enterRoom();
+    roomId = id; mySide = r.side || mySide; enterRoom();
   } catch (e) { alert(e.message || 'Could not join.'); }
 }
 

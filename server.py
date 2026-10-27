@@ -881,7 +881,7 @@ def _chess_attacks(board, side, ep):
             if not p or _chess_color(p) != side: continue
             t = _chess_type(p)
             if t == 'P':
-                d = 1 if side == 'w' else -1
+                d = -1 if side == 'w' else 1
                 for dx in (-1, 1):
                     nx, ny = x + dx, y + d
                     if 0 <= nx < 8 and 0 <= ny < 8:
@@ -925,8 +925,8 @@ def _chess_pseudo_moves(board, x, y, castle, ep):
     side = _chess_color(p); typ = _chess_type(p)
     moves = []
     if typ == 'P':
-        d = 1 if side == 'w' else -1
-        start = 1 if side == 'w' else 6
+        d = -1 if side == 'w' else 1   # white moves up the board (toward row 0)
+        start = 6 if side == 'w' else 1
         # forward
         if 0 <= y + d < 8 and board[y+d][x] is None:
             moves.append((x, y+d, None))
@@ -1039,15 +1039,16 @@ def _chess_legal_moves(board, side, castle, ep):
     return moves
 
 def _chess_try_move(room, fx, fy, tx, ty, promo):
-    board = room['board']; side = room['turn']; castle = room['castle']; ep = room['ep']
+    board = room['board']; side = 'w' if room['turn'] == 'white' else 'b'
+    castle = room['castle']; ep = room['ep']
     legal = _chess_legal_moves(board, side, castle, ep)
-    match = None
+    match = _MISSING = object()
     for (f, t, sp) in legal:
         if f == (fx, fy) and t == (tx, ty):
             if sp in ('q','r','b','n'):
                 if sp != promo: continue
             match = sp; break
-    if match is None: return 'illegal move'
+    if match is _MISSING: return 'illegal move'
     # apply
     p = board[fy][fx]
     captured = board[ty][tx]
@@ -1090,15 +1091,16 @@ def _chess_try_move(room, fx, fy, tx, ty, promo):
         room['half'] += 1
     if side == 'b':
         room['full'] += 1
-    room['turn'] = 'b' if side == 'w' else 'w'
-    room['moves'].append({'from': chr(fx+97)+str(fy+1), 'to': chr(tx+97)+str(ty+1),
+    room['turn'] = 'black' if side == 'w' else 'white'
+    room['moves'].append({'from': chr(fx + 97) + str(8 - fy), 'to': chr(tx + 97) + str(8 - ty),
                           'promo': match if match in ('q','r','b','n') else None,
                           'captured': captured, 'piece': p})
     # checkmate / stalemate
-    opp_moves = _chess_legal_moves(board, room['turn'], castle, room['ep'])
+    opp_side = 'w' if room['turn'] == 'white' else 'b'
+    opp_moves = _chess_legal_moves(board, opp_side, castle, room['ep'])
     if not opp_moves:
-        if _chess_in_check(board, room['turn'], room['ep']):
-            room['winner'] = side
+        if _chess_in_check(board, room['turn'] if room['turn'] in ('w','b') else ('w' if room['turn'] == 'white' else 'b'), room['ep']):
+            room['winner'] = 'white' if side == 'w' else 'black'
         else:
             room['winner'] = 'draw'
         room['status'] = 'finished'
@@ -3204,15 +3206,16 @@ class H(SimpleHTTPRequestHandler):
             vid = re.sub(r'[^a-zA-Z0-9_-]', '', str(data.get('vid', '')))[:64]
             if not vid: return self.send_json({'error': 'bad request'}, 400)
             pname = _clean(str(data.get('pname') or 'Player'))[:24] or 'Player'
+            solo = bool(data.get('solo'))
             rooms = load('chess_rooms.json', {})
             rid = 'c' + secrets.token_hex(3)
             rooms[rid] = {'id': rid, 'name': name, 'players': [{'id': vid, 'name': pname, 'side': 'white'}],
-                          'spectators': [], 'status': 'lobby', 'board': _chess_start(), 'turn': 'white',
+                          'spectators': [], 'status': ('playing' if solo else 'lobby'), 'board': _chess_start(), 'turn': 'white',
                           'castle': {'wK': True, 'wQ': True, 'bK': True, 'bQ': True}, 'ep': None,
                           'half': 0, 'full': 1, 'moves': [], 'winner': None, 'created': int(time.time()),
-                          'last': time.time()}
+                          'last': time.time(), 'solo': solo}
             with LOCK: save('chess_rooms.json', rooms)
-            return self.send_json({'ok': True, 'id': rid, 'side': 'white'})
+            return self.send_json({'ok': True, 'id': rid, 'side': 'white', 'solo': solo})
         if p == '/api/chess/join':
             rid = str(data.get('room', '')); vid = re.sub(r'[^a-zA-Z0-9_-]', '', str(data.get('vid', '')))[:64]
             if not rid or not vid: return self.send_json({'error': 'bad request'}, 400)
@@ -3222,8 +3225,9 @@ class H(SimpleHTTPRequestHandler):
             if not r: return self.send_json({'error': 'room not found'}, 404)
             if any(p['id'] == vid for p in r['players']):
                 r['last'] = time.time()
+                side = next((p['side'] for p in r['players'] if p['id'] == vid), None)
                 with LOCK: save('chess_rooms.json', rooms)
-                return self.send_json({'ok': True, 'id': rid, 'rejoined': True})
+                return self.send_json({'ok': True, 'id': rid, 'rejoined': True, 'side': side})
             sides = {p['side'] for p in r['players']}
             side = 'black' if 'black' not in sides else None
             if side:
@@ -3267,15 +3271,18 @@ class H(SimpleHTTPRequestHandler):
             rooms = load('chess_rooms.json', {})
             r = rooms.get(rid)
             if not r or r['status'] != 'playing': return self.send_json({'error': 'not playing'}, 400)
-            side = next((p['side'] for p in r['players'] if p['id'] == vid), None)
-            if side is None: return self.send_json({'error': 'not a player'}, 403)
-            if side != r['turn']: return self.send_json({'error': 'not your turn'}, 403)
+            if r.get('solo'):
+                if not any(p['id'] == vid for p in r['players']): return self.send_json({'error': 'not a player'}, 403)
+            else:
+                side = next((p['side'] for p in r['players'] if p['id'] == vid), None)
+                if side is None: return self.send_json({'error': 'not a player'}, 403)
+                if side != r['turn']: return self.send_json({'error': 'not your turn'}, 403)
             fr = str(data.get('from', '')); to = str(data.get('to', ''))
             promo = str(data.get('promo') or 'q')
             if len(fr) != 2 or len(to) != 2: return self.send_json({'error': 'bad squares'}, 400)
             try:
-                fx, fy = ord(fr[0]) - 97, int(fr[1]) - 1
-                tx, ty = ord(to[0]) - 97, int(to[1]) - 1
+                fx, fy = ord(fr[0]) - 97, 8 - int(fr[1])
+                tx, ty = ord(to[0]) - 97, 8 - int(to[1])
             except Exception: return self.send_json({'error': 'bad squares'}, 400)
             if not (0 <= fx < 8 and 0 <= fy < 8 and 0 <= tx < 8 and 0 <= ty < 8):
                 return self.send_json({'error': 'off board'}, 400)

@@ -1,35 +1,41 @@
-# aider project config for /home/dad/www/foodtruck. Overrides ~/.aider.conf.yml
-# (which sets: architect mode, ollama_chat/gemma4:12b planning, qwen2.5-coder:7b editing).
-# Launch with ./start_aider.sh — it pre-warms both models on the RX 6800 and runs the tests.
+# ── Models ──────────────────────────────────────────────────────────────────────────────
+# ── Models ──────────────────────────────────────────────────────────────────────────────
+architect: false
+model: ollama_chat/huihui_ai/huihui-4:8b  
+edit-format: whole   
+# Repo Map & Context Limits
+map-tokens: 1024                             # Reduce repo map token budget to conserve context
+map-refresh: manual                          # Stop automatic background map refreshing to prevent token churn
+max-chat-history-tokens: 8192                # Cap chat history to avoid context overflow and repetition loops
 
-# Always in the chat, read-only. Keep both files short: they cost context on every turn.
-read:
-  - CONVENTIONS.md
-  - ARCHITECTURE.md
 
-# Context budget: the architect has 24k tokens. truck.js alone is ~8k, so keep the repo map
-# small and add only the file(s) the task needs with /add.
-map-tokens: 1536
-map-refresh: files
 
-# Built-in lint (python compile check) after each edit, plus a JS parse check.
-auto-lint: true
-lint-cmd:
-  - "js: node --check"
 
-# /test = offline smoke test (routes, security 404s, cart math): spins up server.py on a
-# spare port with throwaway data, never touches live data/ -- verified safe to automate.
-# auto-test: true so a claimed fix is actually checked, not just narrated.
-test-cmd: "bash tests/smoke.sh"
-auto-test: true
+auto-accept-architect: true
 
-# Local models: don't add a git commit message round-trip for every edit, keep diffs quiet.
-auto-commits: true
-attribute-author: false
-attribute-committer: false
-# show-diffs: true -- show the real diff that was applied, not just the chat's
-# description of it (was false; flipped so a claimed change is always checked).
-show-diffs: true
-stream: true
+# ── Git ─────────────────────────────────────────────────────────────────────────────────
+auto-commits: false          
+dirty-commits: false         
+attribute-author: false      
+attribute-committer: false  
+commit-prompt: "feat: {message}\n\n[aider]"
 
-# Files aider should never touch are in .aiderignore (data/, lib/, tex/, img/).
+# ── Repo map ─────────────────────────────────────────────────────────────────────────────   
+map-multiplier-no-files: 2  
+
+
+# ── Terminal / UX ────────────────────────────────────────────────────────────────────────
+stream: true                   
+dark-mode: true                
+pretty: true                   
+no-show-model-warnings: true   
+suggest-shell-commands: true  
+watch-files: true   
+notifications: true 
+
+# ── Session continuity & Misc ─────────────────────────────────────────────────────────────
+restore-chat-history: true     
+max-chat-history-tokens: 13288  
+show-diffs: false               
+analytics-disable: true    
+check-update: false

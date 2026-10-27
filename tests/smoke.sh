@@ -6,6 +6,9 @@ set -u
 cd "$(dirname "$0")/.."
 PORT=${SMOKE_PORT:-8199}
 TMP=$(mktemp -d); trap 'kill $SRV 2>/dev/null; rm -rf "$TMP"' EXIT
+# the throwaway dir would otherwise boot with the whole-site password gate ON (its default)
+# and 401 the suite's own probes - the gate itself isn't what this smoke tests
+echo '{"siteGateEnabled": false}' > "$TMP/settings.json"
 fail=0; ok(){ printf '  ok   %s\n' "$1"; }; bad(){ printf '  FAIL %s\n' "$1"; fail=1; }
 
 echo "== syntax"
@@ -49,12 +52,20 @@ it = items[0]; qty = 3
 sub_c = round(float(it['price']) * 100) * qty
 rate_micro = int(round(float(settings.get('taxRate', 0)) * 1_000_000))
 tax_c = (sub_c * rate_micro + 500_000) // 1_000_000
-body = json.dumps({'name': 'Smoke', 'phone': '4805550100', 'notes': '', 'items': [{'id': it['id'], 'qty': qty, 'protein': ''}]}).encode()
+body = json.dumps({'name': 'Smoke', 'phone': '4805550100', 'notes': '', 'items': [{'id': it['id'], 'qty': qty, 'protein': ''}], 'smsConsent': True}).encode()
 req = urllib.request.Request(f'http://127.0.0.1:{port}/api/order', body, {'Content-Type': 'application/json'})
 o = json.load(urllib.request.urlopen(req))
 assert round(float(o['total']) * 100) == sub_c + tax_c, (o, sub_c, tax_c)
 assert get(f"/api/order/{o['id']}")['status'] == 'new'
 PY
+
+echo "== order without sms consent is rejected"
+c=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{"name":"Smoke","phone":"4805550100","notes":"","items":[{"id":"x","qty":1}]}' "http://127.0.0.1:$PORT/api/order")
+[ "$c" = "400" ] && ok "order missing smsConsent -> 400" || bad "order missing smsConsent -> $c (wanted 400)"
+
+echo "== sms inbound webhook"
+c=$(curl -s -o /dev/null -w '%{http_code}' -X POST -d 'Body=JOIN&From=%2B14805550100' "http://127.0.0.1:$PORT/api/sms/inbound")
+[ "$c" = "403" ] && ok "/api/sms/inbound rejects unsigned requests -> 403" || bad "/api/sms/inbound unsigned -> $c (wanted 403, no valid Twilio signature)"
 
 echo "== bad bodies are rejected"
 c=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '[1,2]' "http://127.0.0.1:$PORT/api/order")

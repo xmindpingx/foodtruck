@@ -253,7 +253,42 @@ function ghostTarget(g) {
   return dist > 8 ? {x: px, y: py} : SCATTER_TARGETS.clyde;
 }
 
+function ghostDecide(g) {
+  // apply queued turn
+  if (g.nextDir && (g.nextDir.x !== g.dir.x || g.nextDir.y !== g.dir.y)) {
+    if (isWalkable(g.tx + g.nextDir.x, g.ty + g.nextDir.y, true)) g.dir = g.nextDir;
+  }
+  // if blocked, pick any available direction (not reverse)
+  if (!isWalkable(g.tx + g.dir.x, g.ty + g.dir.y, true)) {
+    const opts = [{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}].filter(d =>
+      !(d.x === -g.dir.x && d.y === -g.dir.y) && isWalkable(g.tx + d.x, g.ty + d.y, true));
+    if (opts.length) g.dir = opts[Math.floor(Math.random() * opts.length)];
+    else g.dir = {x: 0, y: 0};
+  }
+  // at a junction, choose direction toward target (or random if frightened)
+  const avail = [{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}].filter(d =>
+    !(d.x === -g.dir.x && d.y === -g.dir.y) && isWalkable(g.tx + d.x, g.ty + d.y, true));
+  if (avail.length >= 2 || (g.dir.x === 0 && g.dir.y === 0)) {
+    if (g.mode === 'frightened' || g.frightenedT > 0) {
+      const pick = avail[Math.floor(Math.random() * avail.length)];
+      if (pick) g.dir = pick;
+    } else {
+      const t = ghostTarget(g);
+      if (t) {
+        let best = null, bestD = Infinity;
+        for (const d of avail) {
+          const nx = g.tx + d.x, ny = g.ty + d.y;
+          const dd = Math.abs(nx - t.x) + Math.abs(ny - t.y);
+          if (dd < bestD) { bestD = dd; best = d; }
+        }
+        if (best) g.dir = best;
+      }
+    }
+  }
+}
+
 function ghostStep(g, dt) {
+  if (g.progress < 1e-9) g.progress = 0;
   if (g.mode === 'house') {
     g.modeTimer -= dt;
     if (g.modeTimer <= 0) { g.mode = 'exiting'; }
@@ -271,42 +306,7 @@ function ghostStep(g, dt) {
     return;
   }
   // pick direction at tile centers
-  if (g.progress === 0) {
-    // apply queued turn
-    if (g.nextDir && (g.nextDir.x !== g.dir.x || g.nextDir.y !== g.dir.y)) {
-      if (isWalkable(g.tx + g.nextDir.x, g.ty + g.nextDir.y, true)) g.dir = g.nextDir;
-    }
-    // if blocked, stop (shouldn't happen in open maze)
-    if (!isWalkable(g.tx + g.dir.x, g.ty + g.dir.y, true)) {
-      // pick any available direction (not reverse)
-      const opts = [{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}].filter(d =>
-        !(d.x === -g.dir.x && d.y === -g.dir.y) && isWalkable(g.tx + d.x, g.ty + d.y, true));
-      if (opts.length) g.dir = opts[Math.floor(Math.random() * opts.length)];
-      else g.dir = {x: 0, y: 0};
-    }
-    // at a junction, choose direction toward target (or random if frightened)
-    // detect junction: count available non-reverse directions
-    const avail = [{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}].filter(d =>
-      !(d.x === -g.dir.x && d.y === -g.dir.y) && isWalkable(g.tx + d.x, g.ty + d.y, true));
-    if (avail.length >= 2 || (g.dir.x === 0 && g.dir.y === 0)) {
-      if (g.mode === 'frightened' || g.frightenedT > 0) {
-        // random
-        const pick = avail[Math.floor(Math.random() * avail.length)];
-        if (pick) g.dir = pick;
-      } else {
-        const t = ghostTarget(g);
-        if (t) {
-          let best = null, bestD = Infinity;
-          for (const d of avail) {
-            const nx = g.tx + d.x, ny = g.ty + d.y;
-            const dd = Math.abs(nx - t.x) + Math.abs(ny - t.y);
-            if (dd < bestD) { bestD = dd; best = d; }
-          }
-          if (best) g.dir = best;
-        }
-      }
-    }
-  }
+  if (g.progress === 0) ghostDecide(g);
   // frightened timer
   if (g.frightenedT > 0) {
     g.frightenedT -= dt;
@@ -316,6 +316,10 @@ function ghostStep(g, dt) {
   if (g.dir.x === 0 && g.dir.y === 0) return;
   g.progress += g.speed * dt;
   while (g.progress >= 1) {
+    // at a tile center: decide direction before stepping
+    ghostDecide(g);
+    if (g.dir.x === 0 && g.dir.y === 0) { g.progress = 0; break; }
+    if (!isWalkable(g.tx + g.dir.x, g.ty + g.dir.y, true)) { g.progress = 0; break; }
     g.tx += g.dir.x; g.ty += g.dir.y;
     if (g.ty === 14) { if (g.tx < 0) g.tx = COLS - 1; if (g.tx >= COLS) g.tx = 0; }
     // eyes reached house → respawn
@@ -324,12 +328,14 @@ function ghostStep(g, dt) {
       g.tx = 13; g.ty = 14;
     }
     g.progress -= 1;
+    if (g.progress < 1e-9) g.progress = 0;
   }
   g.speed = ghostSpeed(level, g.id, g.frightenedT > 0, g.eyes);
 }
 
 function updatePac(dt) {
   if (pac.dead) { pac.deadT += dt; return; }
+  if (pac.progress < 1e-9) pac.progress = 0;
   // turn attempt at tile centers
   if (pac.progress === 0) {
     if (pac.nextDir && (pac.nextDir.x !== pac.dir.x || pac.nextDir.y !== pac.dir.y)) {
@@ -351,18 +357,30 @@ function updatePac(dt) {
   }
   pac.progress += pac.speed * dt;
   while (pac.progress >= 1) {
+    // at a tile center: apply queued turn, then validate current direction
+    if (pac.nextDir && (pac.nextDir.x !== pac.dir.x || pac.nextDir.y !== pac.dir.y)) {
+      if (isWalkable(pac.tx + pac.nextDir.x, pac.ty + pac.nextDir.y, false)) pac.dir = pac.nextDir;
+    }
+    if (pac.dir.x !== 0 || pac.dir.y !== 0) {
+      if (!isWalkable(pac.tx + pac.dir.x, pac.ty + pac.dir.y, false)) {
+        pac.dir = {x: 0, y: 0}; pac.progress = 0; break;
+      }
+    } else {
+      pac.progress = 0; break;
+    }
     pac.tx += pac.dir.x; pac.ty += pac.dir.y;
     if (pac.ty === 14) { if (pac.tx < 0) pac.tx = COLS - 1; if (pac.tx >= COLS) pac.tx = 0; }
     pac.progress -= 1;
+    if (pac.progress < 1e-9) pac.progress = 0;
     // eat
     const ch = tileAt(pac.tx, pac.ty);
     if (ch === '.') {
-      MAZE[pac.ty] = MAZE[pac.ty].substring(0, pac.tx) + ' ' + MAZE[pac.ty].substring(pac.tx + 1);
+      MAZE[pac.ty] = MAZE[pac.ty].substring(0, pac.tx) + 'E' + MAZE[pac.ty].substring(pac.tx + 1);
       score += 10; dotsLeft--;
       sfxWaka();
       if (dotsLeft === 0) { levelClear(); }
     } else if (ch === 'o') {
-      MAZE[pac.ty] = MAZE[pac.ty].substring(0, pac.tx) + ' ' + MAZE[pac.ty].substring(pac.tx + 1);
+      MAZE[pac.ty] = MAZE[pac.ty].substring(0, pac.tx) + 'E' + MAZE[pac.ty].substring(pac.tx + 1);
       score += 50; dotsLeft--;
       sfxPower();
       const fd = frightenedDuration(level);
@@ -373,8 +391,9 @@ function updatePac(dt) {
             g.frightenedT = fd;
             g.mode = 'frightened';
             // reverse direction
-            g.dir = {x: -g.dir.x, y: -g.dir.y};
-            g.nextDir = {x: -g.dir.x, y: -g.dir.y};
+            const rx = -g.dir.x, ry = -g.dir.y;
+            g.dir = {x: rx, y: ry};
+            g.nextDir = {x: rx, y: ry};
             g.progress = 1 - g.progress;
           }
         }
@@ -461,8 +480,9 @@ function updateMode(dt) {
       if (g.mode !== 'house' && g.mode !== 'exiting' && g.frightenedT <= 0 && !g.eyes) {
         g.mode = mode;
         // reverse direction on mode switch
-        g.dir = {x: -g.dir.x, y: -g.dir.y};
-        g.nextDir = {x: -g.dir.x, y: -g.dir.y};
+        const rx = -g.dir.x, ry = -g.dir.y;
+        g.dir = {x: rx, y: ry};
+        g.nextDir = {x: rx, y: ry};
         g.progress = 1 - g.progress;
       }
     }
@@ -519,7 +539,23 @@ function pacDie() {
   sfxDeath();
   lives--;
   if (lives <= 0) {
-    setTimeout(() => { gameOver = true; reportScore(); }, 1500);
+    setTimeout(() => {
+      gameOver = true; reportScore();
+      // breaking the high score earns a collectible
+      fetch('/api/scores').then(r => r.json()).then(j => {
+        const hs = (j && j.pacman && j.pacman.best) ? (j.pacman.best.value || 0) : (highScore || 0);
+        if (score > hs) {
+          highScore = score;
+          const prizes = [
+            {item: 'mini-power-pellet', label: 'Mini Power Pellet'},
+            {item: 'mini-pacman', label: 'Mini Pac-Man'},
+            {item: 'mini-ghost', label: 'Mini Ghost'},
+          ];
+          const p = prizes[Math.floor(Math.random() * prizes.length)];
+          Account.award(p.item, p.label, 'pacman').catch(() => {});
+        }
+      }).catch(() => {});
+    }, 1500);
   } else {
     setTimeout(() => { resetAfterDeath(); }, 1500);
   }
