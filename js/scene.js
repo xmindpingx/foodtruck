@@ -4,8 +4,8 @@ import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {CONFIG,MENU,money,open,hooks} from './shop.js?v=6';
 import {buildTruck,WX0,WX1,WY0,WY1,BW,BL,BH,bx0,FLOOR,CL} from './truck.js?v=6';
-import * as Avatars from './avatars.js?v=7';
-import * as Account from './account.js?v=6';   // phone-number arcade profiles (language-first sign-up)
+import * as Avatars from './avatars.js?v=9';
+import * as Account from './account.js?v=7';   // phone-number arcade profiles (language-first sign-up)
 import * as Arcade from './arcade.js?v=12';    // 🎪 The Midway props + six minigames + HIGH SCORES board + Pac-Man cabinet
 
 const canvas=document.getElementById('c');
@@ -1014,6 +1014,10 @@ canvas.addEventListener('click',e=>{m2.set(e.clientX/innerWidth*2-1,-(e.clientY/
     Arcade.openFrom(ray.intersectObjects(Arcade.targets(),true)[0].object);
   }else if(jukebox.parent&&ray.intersectObject(jukebox,true).length){   // 💿 jukebox → pay points to play a song (js/jukebox.js)
     dispatchEvent(new Event('eol:juke-open'));
+  }else if(Avatars.liveAvatars().length && ray.intersectObjects(Avatars.liveAvatars().map(a=>a.group),true).length){   // 🌱 tap another visitor → gift a sprout
+    const hit = ray.intersectObjects(Avatars.liveAvatars().map(a=>a.group),true)[0];
+    const av = Avatars.liveAvatars().find(a => a.group === hit.object || hit.object.parent === a.group || a.group.children.includes(hit.object));
+    if (av && av.id !== (localStorage.getItem('eol-visitor-id')||'')) Avatars.openGiftPanel(av.id);
   }else if(ray.intersectObjects(TABLE_HIT,true).length){   // tap a lawn table → the contest
     dispatchEvent(new Event('eol:hd-open-table'));
   }else if(ray.intersectObjects(CLICK,true).length){open('menu');goWindow();}});
@@ -1023,7 +1027,8 @@ canvas.addEventListener('pointermove',e=>{m2.set(e.clientX/innerWidth*2-1,-(e.cl
   const hitTable=ray.intersectObjects(TABLE_HIT,true).length>0;
   const hitArc=Arcade.targets().length?ray.intersectObjects(Arcade.targets(),true).length>0:false;
   const hitJb=jukebox.parent?ray.intersectObject(jukebox,true).length>0:false;   // 💿 jukebox counts as a tappable prop
-  canvas.style.cursor=(hit||hitTruck||hitTable||hitArc||hitJb)?'pointer':'';T.board.material.emissiveIntensity=hit?.8:.55;});
+  const hitAv=Avatars.liveAvatars().length?ray.intersectObjects(Avatars.liveAvatars().map(a=>a.group),true).length>0:false;   // 🌱 tappable visitor
+  canvas.style.cursor=(hit||hitTruck||hitTable||hitArc||hitJb||hitAv)?'pointer':'';T.board.material.emissiveIntensity=hit?.8:.55;});
 
 // ---------- 3rd-person walk mode ----------
 // When nothing is open (no shop menu, contest panel, look picker, chat typing) the arrow keys

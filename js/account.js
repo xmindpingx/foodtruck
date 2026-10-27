@@ -206,10 +206,13 @@ function render() {
         <div class="eolAcctTrophies">${trophy || `<span class="eolAcctEmpty">—</span>`}</div>
         <div class="eolAcctCap">${esc(t().collCap)}</div><div class="eolAcctColl">${coll}</div>
         <div class="eolAcctCap">${esc(t().shopCap)}</div><div class="eolAcctShopGrid">${shopGrid}</div>
+        <button id="eolGiftBtn" class="eolAcctShop can" style="width:100%;margin-top:6px">🌱 Gift a Sprout to a visitor</button>
         <button id="eolAcctOut" class="eolAcctOut">${esc(t().out)}</button>
       </div>`;
     panel.querySelector('.eolAcctX').onclick = close;
     panel.querySelector('#eolAcctOut').onclick = () => { phone = ''; profile = null; try { localStorage.removeItem(KEY); localStorage.removeItem(QUEUE); } catch (e) {} paint(); announceUpdate(); };
+    const gfBtn = panel.querySelector('#eolGiftBtn');
+    if (gfBtn) gfBtn.onclick = () => { if (window.Avatars && window.Avatars.openGiftPanel) window.Avatars.openGiftPanel(); };
     panel.querySelectorAll('.eolAcctShop.can').forEach(b => b.onclick = async () => {
       b.disabled = true;
       try { await redeem(b.dataset.item); } catch (e) { toast(e.message || 'Redeem failed.'); paint(); }

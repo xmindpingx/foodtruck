@@ -10,7 +10,7 @@
 import * as THREE from 'three';
 import {WX0, WX1, BW, FLOOR} from './truck.js';
 import {CONFIG} from './shop.js?v=6';
-import * as Account from './account.js?v=6';   // language picked at sign-up drives chips + docks
+import * as Account from './account.js?v=7';   // language picked at sign-up drives chips + docks
 
 const ID_KEY = 'eol-visitor-id', NAME_KEY = 'eol-visitor-name', PROFILE_KEY = 'eol-visitor-profile';
 const CAP_STYLES = ['', 'ball', 'cowboy', 'beret', 'cone'];
@@ -49,6 +49,7 @@ function reskinLive() {
 }
 
 const live = new Map();   // visitor id -> avatar state
+export function liveAvatars() { return [...live.entries()].map(([id, a]) => ({id, group: a.group, name: a.name})); }
 let S = null;
 let since = Date.now() / 1000;   // only show chat sent after this page load, not a replay of old messages
 const MAX_SHOWN = 14;             // cap render count - the lot should feel alive, not crowded
@@ -59,6 +60,81 @@ const HD_TAG = '@hd ';
 const HD_EVENT = 'eol:hd';
 const PA_TAG = '@pa ';              // midway/arcade control traffic → js/arcade.js (same relay pattern)
 const PA_EVENT = 'eol:pa';
+
+// ---------- 🌱 gift a sprout to another visitor ----------
+let giftPanel = null, giftBody = null;
+export function openGiftPanel(targetId) {
+  if (!giftPanel) {
+    giftPanel = document.createElement('div');
+    giftPanel.id = 'eolGift'; giftPanel.hidden = true;
+    giftPanel.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:90;' +
+      'width:min(360px,90vw);max-height:70vh;overflow:auto;background:#180f24f5;border:1px solid rgba(83,168,110,.5);' +
+      'border-radius:18px;color:#f6e7c8;padding:12px 14px;font:13px/1.4 Inter,sans-serif;box-shadow:0 18px 50px #000c';
+    giftPanel.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
+      '<b>🌱 Gift a Sprout</b><button id="eolGiftX" style="background:none;border:0;color:#f6e7c8;font-size:16px;cursor:pointer">✕</button></div>' +
+      '<div id="eolGiftBody"></div>';
+    document.body.appendChild(giftPanel);
+    giftBody = giftPanel.querySelector('#eolGiftBody');
+    giftPanel.querySelector('#eolGiftX').onclick = () => { giftPanel.hidden = true; };
+  }
+  giftPanel.hidden = false;
+  renderGiftPanel(targetId);
+}
+
+function renderGiftPanel(targetId) {
+  if (!giftBody) return;
+  const signed = Account.signed();
+  const sprouts = (Account.profile && Account.profile.prizes || []).filter(p => p.item && p.item.startsWith('sprout-'));
+  const visitors = [...live.entries()].filter(([id]) => id !== myId).map(([id, a]) => ({id, name: a.name}));
+  if (!signed) {
+    giftBody.innerHTML = '<p style="opacity:.7">Sign in at the 🎪 Midway first — sprouts live in your collection.</p>';
+    return;
+  }
+  if (!sprouts.length) {
+    giftBody.innerHTML = '<p style="opacity:.7">No sprouts in your collection yet — redeem them at the 🏬 shop with trivia points!</p>';
+    return;
+  }
+  const targetOpts = visitors.length
+    ? visitors.map(v => '<option value="' + esc(v.id) + '">' + esc(v.name) + '</option>').join('')
+    : '<option value="">no other visitors nearby</option>';
+  const sproutOpts = sprouts.map(s =>
+    '<option value="' + esc(s.item) + '" data-label="' + esc(s.name || s.item) + '" data-slot="' + esc(s.slot || 'collar') + '">' + esc(s.name || s.item) + ' (×' + (s.count || 1) + ')</option>').join('');
+  const slots = ['collar','shoeL','shoeR','hat','chest','shoulderL','shoulderR'];
+  const slotOpts = slots.map(s => '<option value="' + s + '">' + s + '</option>').join('');
+  giftBody.innerHTML =
+    '<p style="margin:0 0 8px;opacity:.8;font-size:12px">Clip one of your sprouts onto a nearby visitor — it appears on their avatar and rides their account forever.</p>' +
+    '<label style="font-size:12px;opacity:.7">Sprout</label>' +
+    '<select id="gfSprout" style="width:100%;margin:2px 0 8px;padding:6px;border-radius:8px;background:#221833;color:#f6e7c8;border:1px solid rgba(255,255,255,.2)">' + sproutOpts + '</select>' +
+    '<label style="font-size:12px;opacity:.7">Recipient</label>' +
+    '<select id="gfTo" style="width:100%;margin:2px 0 8px;padding:6px;border-radius:8px;background:#221833;color:#f6e7c8;border:1px solid rgba(255,255,255,.2)">' + targetOpts + '</select>' +
+    '<label style="font-size:12px;opacity:.7">Clip to</label>' +
+    '<select id="gfSlot" style="width:100%;margin:2px 0 8px;padding:6px;border-radius:8px;background:#221833;color:#f6e7c8;border:1px solid rgba(255,255,255,.2)">' + slotOpts + '</select>' +
+    '<button id="gfSend" style="width:100%;margin-top:4px;padding:8px;border-radius:10px;border:1px solid rgba(83,168,110,.5);background:rgba(83,168,110,.2);color:#f6e7c8;font:600 13px Inter,sans-serif;cursor:pointer">🌱 Gift it!</button>' +
+    '<p id="gfMsg" style="margin:8px 0 0;font-size:12px;opacity:.8"></p>';
+  if (targetId) { const sel = giftBody.querySelector('#gfTo'); if (sel) sel.value = targetId; }
+  const send = giftBody.querySelector('#gfSend');
+  if (send) send.onclick = async () => {
+    const sproutSel = giftBody.querySelector('#gfSprout');
+    const toSel = giftBody.querySelector('#gfTo');
+    const slotSel = giftBody.querySelector('#gfSlot');
+    const msg = giftBody.querySelector('#gfMsg');
+    const opt = sproutSel && sproutSel.selectedOptions[0];
+    const item = sproutSel ? sproutSel.value : '';
+    const label = opt ? opt.dataset.label : item;
+    const slot = slotSel ? slotSel.value : 'collar';
+    const to = toSel ? toSel.value : '';
+    if (!item || !to) { msg.textContent = 'Pick a sprout and a recipient.'; return; }
+    msg.textContent = 'Gifting…';
+    try {
+      const r = await fetch('/api/gift', {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({fromPhone: Account.phone, toVisitor: to, item, slot})});
+      const j = await r.json();
+      if (!r.ok) { msg.textContent = j.error || 'Gift failed.'; return; }
+      msg.textContent = '🌱 ' + (j.gifted || item) + ' clipped onto them! (they will see it on their avatar shortly)';
+      Account.refresh().then(() => renderGiftPanel(targetId)).catch(() => {});
+    } catch (e) { msg.textContent = 'Network hiccup — try again.'; }
+  };
+}
 
 export function init(scene) {
   S = scene;
@@ -198,6 +274,13 @@ const aiHint = () => Account.lang() === 'es'
 addEventListener('eol:order-stage', e => { orderStage = chipStage((e.detail || {}).status || ''); paintChips(); });
 addEventListener('eol:lang', () => { if (mode === 'ai') logLine('system', aiHint()); paintChips(); });
 addEventListener('eol:acct-ready', () => paintChips());
+addEventListener('eol:account-updated', () => {
+  if (Account.profile && Array.isArray(Account.profile.sprouts)) {
+    myProfile = myProfile || {hue: null, sk: null, cap: '', sprouts: []};
+    myProfile.sprouts = Account.profile.sprouts;
+    try { localStorage.setItem(PROFILE_KEY, JSON.stringify(myProfile)); } catch (e) {}
+  }
+});
 addEventListener('eol:account-updated', () => paintChips());   // account lang lands server-side async — repaint then
 
 async function poll() {
@@ -209,6 +292,24 @@ async function poll() {
   if (j.now) since = j.now;
 
   const seen = new Set();
+  // claim any pending sprout gifts addressed to us
+  if (j.gifts && j.gifts.length && Account.signed()) {
+    try {
+      const r = await fetch('/api/gift/claim', {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({phone: Account.phone || '', visitor: myId})});
+      const cj = await r.json();
+      if (cj && cj.claimed > 0) {
+        myProfile = myProfile || {hue: null, sk: null, cap: '', sprouts: []};
+        myProfile.sprouts = cj.sprouts ? [...(myProfile.sprouts || []), ...cj.sprouts] : myProfile.sprouts;
+        const seen = new Set();
+        myProfile.sprouts = myProfile.sprouts.filter(s => { if (seen.has(s.slot)) return false; seen.add(s.slot); return true; });
+        try { localStorage.setItem(PROFILE_KEY, JSON.stringify(myProfile)); } catch (e) {}
+        Account.refresh().catch(() => {});
+        logLine('system', '🌱 Someone clipped a sprout onto you!');
+      }
+    } catch (e) {}
+  }
+
   for (const o of (j.others || []).slice(0, MAX_SHOWN)) {
     seen.add(o.id);
     let a = live.get(o.id);
@@ -284,8 +385,63 @@ function makeBody(hue, prof = {}) {
     const c = new THREE.Mesh(new THREE.ConeGeometry(.09, .26, 12), party);
     c.position.y = hatY + .08; c.castShadow = true; g.add(c);
   }
+  // 🌱 render any sprouts clipped to this avatar (gifted by other visitors)
+  const sprouts = (prof && Array.isArray(prof.sprouts)) ? prof.sprouts : [];
+  for (const sp of sprouts) {
+    const slot = sp.slot || 'collar';
+    const pos = SPROUT_SLOTS[slot];
+    if (!pos) continue;
+    const sproutMesh = buildSprout(slot);
+    sproutMesh.position.set(pos.x, pos.y, pos.z);
+    sproutMesh.userData.sprout = sp.item;
+    sproutMesh.userData.sproutFrom = sp.from;
+    g.add(sproutMesh);
+  }
   return g;
 }
+
+// 🌱 highly detailed festival sprout meshes, one per attachment slot on an avatar.
+// Each sprout is a small plant: stem + leaves + optional flower, in a slot-specific size.
+function buildSprout(slot) {
+  const g = new THREE.Group();
+  const stemM = new THREE.MeshStandardMaterial({color: 0x3a6b35, roughness: .7});
+  const leafM = new THREE.MeshStandardMaterial({color: 0x53a86e, roughness: .6});
+  const flowerM = new THREE.MeshStandardMaterial({color: 0xff6b8a, roughness: .5});
+  const potM = new THREE.MeshStandardMaterial({color: 0x8a6b3f, roughness: .8});
+  // stem
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(.012, .015, .12, 6), stemM);
+  stem.position.y = .06; g.add(stem);
+  // leaves (2-3, angled)
+  for (let i = 0; i < 3; i++) {
+    const leaf = new THREE.Mesh(new THREE.SphereGeometry(.035, 8, 6), leafM);
+    leaf.scale.set(1.2, .3, .8);
+    leaf.position.set(Math.cos(i * 2.1) * .04, .08 + i * .025, Math.sin(i * 2.1) * .04);
+    leaf.rotation.set(Math.random() * .5, i * 2.1, Math.random() * .3);
+    g.add(leaf);
+  }
+  // flower on top
+  const flower = new THREE.Mesh(new THREE.SphereGeometry(.025, 8, 6), flowerM);
+  flower.position.y = .13; g.add(flower);
+  // slot-specific scaling/rotation
+  if (slot === 'hat') { g.scale.set(1.2, 1.2, 1.2); g.position.y = .05; }
+  else if (slot === 'collar') { g.scale.set(.9, .9, .9); g.rotation.x = .3; }
+  else if (slot === 'shoeL' || slot === 'shoeR') { g.scale.set(.7, .7, .7); g.rotation.x = Math.PI / 2; }
+  else if (slot === 'chest') { g.scale.set(1, 1, 1); g.rotation.x = .2; }
+  else if (slot === 'shoulderL' || slot === 'shoulderR') { g.scale.set(.8, .8, .8); g.rotation.z = slot === 'shoulderL' ? .3 : -.3; }
+  g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  return g;
+}
+
+// attachment point offsets in avatar local space
+const SPROUT_SLOTS = {
+  hat:       {x: 0,    y: 1.05, z: 0},
+  collar:    {x: 0,    y: 0.75, z: 0.12},
+  chest:     {x: 0,    y: 0.5,  z: 0.18},
+  shoulderL: {x: -0.2, y: 0.6,  z: 0},
+  shoulderR: {x: 0.2,  y: 0.6,  z: 0},
+  shoeL:     {x: -0.1, y: 0.02, z: 0.05},
+  shoeR:     {x: 0.1,  y: 0.02, z: 0.05},
+};
 
 // one text->sprite helper, reused for both the nameplate (small, always on) and the chat/order
 // bubble (bigger, shown briefly) so there's only one canvas-drawing routine to keep correct.
@@ -554,3 +710,6 @@ function buildDock() {
   if (mode === 'ai') logLine('system', aiHint());
   else if (!myName) logLine('system', 'Tap the name button to pick a name others will see.');
 }
+
+// expose for cross-module use (account.js gift button, scene.js avatar clicks)
+window.Avatars = { openGiftPanel, liveAvatars };

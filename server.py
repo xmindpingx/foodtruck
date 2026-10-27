@@ -675,6 +675,14 @@ SHOP_ITEMS = [                                       # redeem catalog: item id, 
     {'item': 'midway-balloon', 'label': '🎪 Midway balloon', 'cost': 100},
     {'item': 'fossil-replica', 'label': '🦖 Fossil replica', 'cost': 120},
     {'item': 'trivia-champion-cup', 'label': '🏆 Trivia champion cup', 'cost': 200},
+    # --- 🌱 festival sprouts: highly detailed plant collectibles you can GIFT to other visitors
+    # by clipping them onto their avatar (collar, shoes, hat, chest, shoulder). Redeeming one
+    # puts it in your collection; gifting transfers it server-side to the recipient's avatar.
+    {'item': 'sprout-tiny', 'label': '🌱 Tiny Sprout (clip to collar)', 'cost': 40, 'sprout': True, 'slot': 'collar'},
+    {'item': 'sprout-clover', 'label': '🌿 Lucky Clover (clip to shoe)', 'cost': 60, 'sprout': True, 'slot': 'shoeL'},
+    {'item': 'sprout-blossom', 'label': '🌸 Blossom Clip (clip to hat)', 'cost': 80, 'sprout': True, 'slot': 'hat'},
+    {'item': 'sprout-charm', 'label': '🍀 Four-Leaf Charm (clip to chest)', 'cost': 100, 'sprout': True, 'slot': 'chest'},
+    {'item': 'sprout-sunflower', 'label': '🌻 Sunflower Pin (clip to shoulder)', 'cost': 120, 'sprout': True, 'slot': 'shoulderL'},
 ]
 SHOP_MAP = {e['item']: e for e in SHOP_ITEMS}
 TQ = {'i': 0, 'q': None}                             # next row index / open question {'a','cat','at','scored','nudged'}
@@ -720,6 +728,8 @@ GEO_RATE_S = 600        # one hide per visitor per 10 minutes
 GEO_FIND_M = 4.0        # "close enough to dig": the pin fuzz is ±2m, so the search circle is wider
 GEO_LOCK = threading.Lock()
 GEO_LAST = {}           # phone -> last-hide ts (in-memory rate limit, same pattern as CHAT_RATE)
+GIFT_LOCK = threading.Lock()            # gifts.json: pending sprout gifts keyed by recipient visitor id
+GIFT_LAST = {}          # phone -> last-gift ts (rate limit, same pattern as GEO_LAST)
 
 def _geo_fuzz(cid, x, z):
     """Stable ±2m pin fuzz per cache id — hunters navigate to an AREA, then search on foot."""
@@ -2163,9 +2173,13 @@ class H(SimpleHTTPRequestHandler):
                                       'menu' if v.get('menu_until', 0) > now else 'browsing'),
                            'profile': v.get('profile') or {}}
                           for k, v in PRESENCE.items() if k != myid]
+            with GIFT_LOCK:
+                pending = load('gifts.json', {}).get(myid, []) or []
+                # claim-on-read: move pending gifts into the response so the client can apply them
             with CHAT_LOCK:
                 chat = [m for m in CHAT if m['ts'] > since]
-            return self.send_json({'others': others, 'chat': chat, 'now': now})
+            return self.send_json({'others': others, 'chat': chat, 'now': now,
+                                   'gifts': pending})
         if p == '/api/jukebox':        # 🎵 public: what's playing for EVERYONE (+ catalog) — the client poll that syncs the lot
             s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
             with LOCK:
@@ -2209,7 +2223,8 @@ class H(SimpleHTTPRequestHandler):
             return self.send_json({'phone': phone, 'name': rec.get('name', 'Guest'),
                                    'prizes': rec.get('prizes', []), 'wins': rec.get('wins', {}),
                                    'points': rec.get('points', 0), 'created': rec.get('created'),
-                                   'lang': rec.get('lang', 'en')})
+                                   'lang': rec.get('lang', 'en'),
+                                   'sprouts': rec.get('sprouts', [])})
         if p == '/api/account/shop':                # redeem catalog for trivia points
             return self.send_json({'items': SHOP_ITEMS, 'race': {'window': TRIVIA_OPEN_S, 'pts': [5, 3, 2, 1]}})
         if p == '/api/scores':                      # ⛹ feeds the HIGH SCORES board by the truck
@@ -2371,6 +2386,10 @@ class H(SimpleHTTPRequestHandler):
                     try: prof['sk'] = max(0, min(5, int(prf.get('sk', e.get('profile', {}).get('sk', 0)))))
                     except (TypeError, ValueError): pass
                     if prf.get('cap') in CAPS: prof['cap'] = prf.get('cap')
+                    # 🌱 sprouts clipped to this avatar ride along in the profile so everyone sees them
+                    if isinstance(prf.get('sprouts'), list):
+                        prof['sprouts'] = [s for s in prf['sprouts'] if isinstance(s, dict)
+                                           and s.get('slot') and s.get('item')][:8]
                     if prof: e['profile'] = prof
                     elif 'profile' in e: e.pop('profile')   # emptied = back to the random character look
             name = _clean(NAME_RE.sub('', str(data.get('name', '')))).strip()[:24]   # 🧼 names are family-facing too
@@ -2420,6 +2439,7 @@ class H(SimpleHTTPRequestHandler):
             rec.setdefault('name', 'Guest')
             rec['lang'] = lang                        # language picked FIRST at sign-up — everything else follows
             rec.setdefault('prizes', []); rec.setdefault('wins', {}); rec.setdefault('points', 0)
+            rec.setdefault('sprouts', [])   # 🌱 festival sprouts currently clipped to this avatar
             with ACCOUNTS_LOCK: save('accounts.json', a)
             return self.send_json({'ok': True, 'phone': phone, 'name': rec['name'], 'lang': lang,
                                    'prizes': rec['prizes'], 'wins': rec['wins'], 'points': rec['points']})
@@ -2444,6 +2464,7 @@ class H(SimpleHTTPRequestHandler):
             rec = a.setdefault(phone, {'created': int(time.time()), 'name': 'Guest',
                                        'prizes': [], 'wins': {}, 'points': 0})
             rows = rec.setdefault('prizes', [])
+            rec.setdefault('sprouts', [])   # 🌱 gift attachments ride the account too
             row = next((e for e in rows if e.get('item') == item), None)
             if row: row['count'] = row.get('count', 1) + 1
             else: rows.append({'item': item, 'name': label or 'Mystery prize', 'src': src,
@@ -2616,6 +2637,64 @@ class H(SimpleHTTPRequestHandler):
                 save('geocaches.json', rows)
             return self.send_json({'ok': True, 'points': pts, 'prize': won,
                                    'balance': rec['points'], 'first': first})
+
+        if p == '/api/gift':               # 🌱 gift a sprout from your collection onto another visitor's avatar
+            s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
+            from_phone = ''.join(re.findall(r'\d', str(data.get('fromPhone', ''))))[-10:]
+            to_vid = re.sub(r'[^a-zA-Z0-9_-]', '', str(data.get('toVisitor', '')))[:64]
+            item = re.sub(r'[^\w\-]', '', str(data.get('item', '')))[:40]
+            slot = re.sub(r'[^a-z]', '', str(data.get('slot', '')))[:12] or 'collar'
+            if len(from_phone) != 10 or not to_vid or not item:
+                return self.send_json({'error': 'bad request'}, 400)
+            row = SHOP_MAP.get(item)
+            if not row or not row.get('sprout'):
+                return self.send_json({'error': 'That item is not a giftable sprout.'}, 400)
+            with ACCOUNTS_LOCK:              # remove the sprout from the giver's collection
+                a = load('accounts.json', {})
+                rec = a.get(from_phone)
+                if not rec: return self.send_json({'error': 'Sign in at the \U0001F3AA Midway first.'}, 401)
+                prow = next((e for e in (rec.get('prizes') or [])
+                             if e.get('item') == item and e.get('count', 1) > 0), None)
+                if not prow:
+                    return self.send_json({'error': "You don't have one of those to gift!"}, 400)
+                prow['count'] -= 1
+                if prow['count'] <= 0: rec['prizes'].remove(prow)
+                save('accounts.json', a)
+            # store as a pending gift keyed by the recipient's visitor id (claimed on their next poll)
+            gift = {'from': rec.get('name', 'A visitor'), 'item': item, 'label': row['label'],
+                    'slot': slot, 'ts': int(time.time())}
+            with GIFT_LOCK:
+                g = load('gifts.json', {})
+                g.setdefault(to_vid, []).append(gift)
+                save('gifts.json', g)
+            return self.send_json({'ok': True, 'gifted': row['label']})
+
+        if p == '/api/gift/claim':     # 🌱 claim pending sprout gifts into your account (called on every poll)
+            phone = ''.join(re.findall(r'\d', str(data.get('phone', ''))))[-10:]
+            vid = re.sub(r'[^a-zA-Z0-9_-]', '', str(data.get('visitor', '')))[:64]
+            if len(phone) != 10 or not vid:
+                return self.send_json({'error': 'bad request'}, 400)
+            with GIFT_LOCK:
+                g = load('gifts.json', {})
+                pending = g.pop(vid, []) or []
+                if pending: save('gifts.json', g)
+            if not pending:
+                return self.send_json({'ok': True, 'claimed': 0, 'sprouts': []})
+            with ACCOUNTS_LOCK:
+                a = load('accounts.json', {})
+                rec = a.setdefault(phone, {'created': int(time.time()), 'name': 'Guest',
+                                           'prizes': [], 'wins': {}, 'points': 0})
+                rec.setdefault('sprouts', [])
+                claimed = []
+                for gf in pending:
+                    spr = {'slot': gf['slot'], 'item': gf['item'], 'label': gf['label'],
+                           'from': gf['from'], 'got': int(time.time())}
+                    # replace any sprout already in that slot (one per slot)
+                    rec['sprouts'] = [s for s in rec['sprouts'] if s.get('slot') != gf['slot']]
+                    rec['sprouts'].append(spr)
+                    claimed.append(spr)
+                save('accounts.json', a)
+            return self.send_json({'ok': True, 'claimed': len(claimed), 'sprouts': claimed})
 
         if p == '/api/assistant':
             s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
