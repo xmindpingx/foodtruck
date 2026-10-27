@@ -147,7 +147,7 @@ function startBattleAnim(mv) {
   const tx = to.charCodeAt(0) - 97, ty = parseInt(to[1]) - 1;
   const captured = mv.captured;
   anim = {from: {x: fx, y: fy}, to: {x: tx, y: ty}, captured: captured ? {x: tx, y: ty} : null,
-          phase: 0, t0: performance.now(), dur: captured ? 900 : 320};
+          phase: 0, t0: performance.now(), dur: captured ? 2100 : 320};
   requestAnimationFrame(animLoop);
 }
 
@@ -165,32 +165,108 @@ function drawBattleAnim() {
   const p = anim.phase;
   const sx = anim.from.x * SQ + SQ / 2, sy = (7 - anim.from.y) * SQ + SQ / 2;
   const ex = anim.to.x * SQ + SQ / 2, ey = (7 - anim.to.y) * SQ + SQ / 2;
-  // attacker slides in (ease-in-out)
   const e = p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
-  const ax = sx + (ex - sx) * e, ay = sy + (ey - sy) * e;
-  // captured piece shatters (only if captured)
+  const ax = sx + (ex - sx) * (p < .4 ? e * .6 : .6 + (p - .4) * .67);
+  const ay = sy + (ey - sy) * (p < .4 ? e * .6 : .6 + (p - .4) * .67);
+  const cx = ex, cy = ey;
+
   if (anim.captured) {
-    const cx = ex, cy = ey;
-    const shatter = Math.max(0, (p - .3) / .7);
-    // flash on clash
-    if (p > .35 && p < .7) {
-      ctx.fillStyle = `rgba(255,220,120,${1 - Math.abs(p - .5) * 4})`;
-      ctx.beginPath(); ctx.arc(cx, cy, 18 + (p - .35) * 40, 0, Math.PI * 2); ctx.fill();
-    }
-    // shards
+    // ---- Monty Python "Black Knight" comedy: limbs fall off one by one ----
+    const arm1 = p >= 0.18, leg1 = p >= 0.34, arm2 = p >= 0.50, leg2 = p >= 0.66, shatter = p >= 0.82;
+    const bx = cx, by = cy;
     ctx.save();
-    for (let i = 0; i < 12; i++) {
-      const ang = (i / 12) * Math.PI * 2;
-      const dist = shatter * (14 + (i % 3) * 6);
-      const sx2 = cx + Math.cos(ang) * dist, sy2 = cy + Math.sin(ang) * dist;
-      const shardSize = (1 - shatter) * 4 + 1;
-      ctx.fillStyle = i % 2 ? 'rgba(200,180,255,.85)' : 'rgba(255,255,255,.9)';
-      ctx.beginPath(); ctx.arc(sx2, sy2, shardSize, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(200,180,255,.9)'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+    // head (always, until shatter)
+    if (!shatter || p < 0.95) {
+      ctx.fillStyle = 'rgba(220,200,255,.9)';
+      ctx.beginPath(); ctx.arc(bx, by - 14, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#1a0a2e';
+      ctx.beginPath(); ctx.arc(bx - 1.5, by - 15, 1, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(bx + 1.5, by - 15, 1, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(220,200,255,.9)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(bx, by - 12, 2.5, 0.2, Math.PI - 0.2); ctx.stroke();
+    }
+    // body (torso) — stays until shatter
+    if (!shatter) {
+      ctx.beginPath(); ctx.moveTo(bx, by - 9); ctx.lineTo(bx, by + 2); ctx.stroke();
+    }
+    // arms
+    if (!arm1) {
+      ctx.beginPath(); ctx.moveTo(bx, by - 6); ctx.lineTo(bx - 9, by - 2); ctx.stroke();
+    }
+    if (!arm2) {
+      ctx.beginPath(); ctx.moveTo(bx, by - 6); ctx.lineTo(bx + 9, by - 2); ctx.stroke();
+    }
+    // legs
+    if (!leg1) {
+      ctx.beginPath(); ctx.moveTo(bx, by + 2); ctx.lineTo(bx - 5, by + 12); ctx.stroke();
+    }
+    if (!leg2) {
+      ctx.beginPath(); ctx.moveTo(bx, by + 2); ctx.lineTo(bx + 5, by + 12); ctx.stroke();
     }
     ctx.restore();
+
+    // flying severed limbs
+    const limbFly = (startP, ang) => {
+      const k = Math.min(1, (p - startP) / 0.16);
+      if (k <= 0) return;
+      const dist = k * 26;
+      const lx = bx + Math.cos(ang) * dist, ly = by + Math.sin(ang) * dist;
+      ctx.save(); ctx.strokeStyle = 'rgba(200,180,255,.9)'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+      ctx.globalAlpha = 1 - k * 0.6;
+      ctx.beginPath(); ctx.moveTo(lx - 4, ly - 2); ctx.lineTo(lx + 4, ly + 2); ctx.stroke();
+      ctx.restore();
+    };
+    if (arm1) limbFly(0.18, -2.2);
+    if (leg1) limbFly(0.34, 2.6);
+    if (arm2) limbFly(0.50, -0.9);
+    if (leg2) limbFly(0.66, 2.0);
+
+    // Monty Python speech bubbles
+    const bubble = (txt, phase) => {
+      if (p < phase || p > phase + 0.22) return;
+      const k = (p - phase) / 0.22;
+      const alpha = k < .2 ? k * 5 : (k > .8 ? (1 - k) * 5 : 1);
+      ctx.save(); ctx.globalAlpha = alpha;
+      ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.strokeStyle = '#ff4d6d'; ctx.lineWidth = 1.5;
+      const bx2 = cx + 30, by2 = cy - 40;
+      ctx.beginPath(); ctx.roundRect(bx2 - 4, by2 - 12, 128, 24, 6); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#1a0a2e'; ctx.font = '600 9px Inter,sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(txt, bx2 + 60, by2 + 2);
+      ctx.restore();
+    };
+    bubble("Tis but a scratch!", 0.18);
+    bubble("I'm invincible!", 0.34);
+    bubble("Just a flesh wound!", 0.50);
+    bubble("Alright, we'll call it a draw.", 0.66);
+
+    // clash flash
+    if (p > 0.12 && p < 0.72) {
+      ctx.fillStyle = 'rgba(255,220,120,' + (1 - Math.abs(p - 0.42) * 2.5) + ')';
+      ctx.beginPath(); ctx.arc(cx, cy, 14 + (p - 0.12) * 30, 0, Math.PI * 2); ctx.fill();
+    }
+    // final shatter
+    if (shatter) {
+      const sh = (p - 0.82) / 0.18;
+      for (let i = 0; i < 18; i++) {
+        const ang = (i / 18) * Math.PI * 2 + i * 0.3;
+        const dist = sh * (16 + (i % 4) * 8);
+        const sx2 = cx + Math.cos(ang) * dist, sy2 = cy + Math.sin(ang) * dist;
+        const sz = (1 - sh) * 5 + 1;
+        ctx.fillStyle = i % 3 === 0 ? 'rgba(255,255,255,.9)' : (i % 3 === 1 ? 'rgba(200,180,255,.85)' : 'rgba(120,80,200,.7)');
+        ctx.beginPath(); ctx.arc(sx2, sy2, sz, 0, Math.PI * 2); ctx.fill();
+      }
+      if (p > 0.92) {
+        ctx.save(); ctx.globalAlpha = (p - 0.92) * 12.5;
+        ctx.fillStyle = 'rgba(255,255,255,.95)';
+        ctx.font = 'bold 11px Inter,sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText("I yield! ...okay, I'm dead.", cx, cy - 30);
+        ctx.restore();
+      }
+    }
   }
-  // attacker piece (drawn on top) — use the moving piece's glyph; infer from board? use last move piece
-  // We don't have piece here; draw a generic crystal disc as the attacker
+
+  // attacker slides in
   ctx.save();
   ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2;
   const g2 = ctx.createRadialGradient(ax - 4, ay - 6, 1, ax, ay, SQ * .38);
@@ -201,7 +277,6 @@ function drawBattleAnim() {
   ctx.fillStyle = 'rgba(255,255,255,.6)';
   ctx.beginPath(); ctx.ellipse(ax - 4, ay - 6, 5, 3, -.4, 0, Math.PI * 2); ctx.fill();
 }
-
 function onBoardClick(e) {
   if (!board || winner || turn !== mySide) return;
   const r = boardC.getBoundingClientRect();
