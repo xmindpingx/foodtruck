@@ -944,6 +944,7 @@ canvas.addEventListener('pointermove',e=>{m2.set(e.clientX/innerWidth*2-1,-(e.cl
 // straight back to the orbit camera at the walker's spot.
 const walk={on:false,keys:new Set(),yaw:0,py:0,vy:0,x:0,z:0,hold:0,grp:null};
 window.__EOL_WALK=()=>({x:+walk.x.toFixed(2),z:+walk.z.toFixed(2),on:walk.on,yaw:+walk.yaw.toFixed(2)});   // 📱 GPS app: your ground position + heading
+window.__EOL_LOOK=()=>({x:+ctl.target.x.toFixed(2),z:+ctl.target.z.toFixed(2)});   // 📱 GPS app: where you're looking when not walking (stable while orbiting)
 const walkTyping=()=>{const a=document.activeElement;
   return !!a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.isContentEditable);};
 const walkUI=()=>(!!document.querySelector('.panel.open'))||

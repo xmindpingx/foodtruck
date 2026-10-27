@@ -82,7 +82,7 @@ function init() {
   mapC.addEventListener('click', e => {              // tap a pin to select it
     const r = mapC.getBoundingClientRect();
     const p = mapPos({x: (e.clientX - r.left), y: (e.clientY - r.top)});
-    let best = null, bd = 16;
+    let best = null, bd = 22;
     for (const c of caches) {
       const q = mapXY(c.x, c.z);
       const d = Math.hypot(q[0] - p.x, q[1] - p.y);
@@ -124,95 +124,129 @@ async function poll() {
   } catch (e) { /* transient poll failure: next tick retries */ }
 }
 
+// "you": your walking position when you walk; where you're looking (the orbit pivot) when
+// you don't — so the blue dot is always somewhere sensible, never a stale (0,0)
 const me = () => {
-  try { return window.__EOL_WALK ? window.__EOL_WALK() : null; } catch (e) { return null; }
+  try {
+    const w = window.__EOL_WALK ? window.__EOL_WALK() : null;
+    if (w && w.on) return w;
+    const l = window.__EOL_LOOK ? window.__EOL_LOOK() : null;
+    return l ? {x: l.x, z: l.z, on: false, yaw: 0} : null;
+  } catch (e) { return null; }
 };
 const distTo = c => {
   const w = me();
   return w ? Math.hypot(c.x - w.x, c.z - w.z) : Infinity;
 };
 
-// ---------- map drawing ----------
-function mapXY(x, z) {                                  // lot/world → canvas px (north up)
-  const W = mapC.width, H = mapC.height, m = 12;
-  const sc = Math.min((W - 2 * m) / (LOT.x1 - LOT.x0), (H - 2 * m) / (LOT.z1 - LOT.z0));
-  return [m + (x - LOT.x0) * sc, m + (z - LOT.z0) * sc];
+// ---------- map drawing: a FOLLOW-CAM, like a real phone GPS ----------
+// The map centers on YOU at navigation zoom (ZOOM px/m) and the world slides past as you walk
+// — the old whole-lot overview made 4 m of walking worth ~6 invisible pixels. North stays up
+// (your heading shows as the blue cone); the selected pin gets a dashed bearing line and an
+// Apple-Maps-style edge chevron when it's off-screen.
+const ZOOM = 7;                     // px per meter — ~37×24 m of lot in the phone's map window
+function mapXY(x, z, ctr) {         // world → canvas px, centered on "you" (ctr = cached follow pos)
+  const c = ctr || me();
+  return [mapC.width / 2 + (x - c.x) * ZOOM, mapC.height / 2 + (z - c.z) * ZOOM];
 }
-function mapPos(px) {                                  // canvas px → lot/world
-  const W = mapC.width, H = mapC.height, m = 12;
-  const sc = Math.min((W - 2 * m) / (LOT.x1 - LOT.x0), (H - 2 * m) / (LOT.z1 - LOT.z0));
-  return {x: LOT.x0 + (px.x - m) / sc, y: LOT.z0 + (px.y - m) / sc};
+function mapPos(px) {               // canvas px → world (pin taps)
+  const c = me();
+  return {x: c.x + (px.x - mapC.width / 2) / ZOOM, y: c.z + (px.y - mapC.height / 2) / ZOOM};
 }
 function drawMap() {
   if (!mapX || phone.hidden) return;
-  const W = mapC.width, H = mapC.height, X = mapX;
-  const t = Date.now() / 1000;
+  const W = mapC.width, H = mapC.height, X = mapX, t = Date.now() / 1000;
+  const ctr = me();                 // ONE follow position per frame — the world slides under it
+  if (!ctr) return;
   X.clearRect(0, 0, W, H);
-  X.fillStyle = '#efe9dd'; X.fillRect(0, 0, W, H);     // paper beyond the lot
-  // the lot (grass) + stage deck
-  const lot = [mapXY(LOT.x0, LOT.z0), mapXY(LOT.x1, LOT.z1)];
-  X.fillStyle = '#d7ead1';
-  X.fillRect(lot[0][0], lot[0][1], lot[1][0] - lot[0][0], lot[1][1] - lot[0][1]);
-  X.strokeStyle = '#b3cfad'; X.lineWidth = 2;
+  X.fillStyle = '#efe9dd'; X.fillRect(0, 0, W, H);
+  // world bounds visible in this window (grid + culling far props)
+  const vx0 = ctr.x - W / 2 / ZOOM - 1, vx1 = ctr.x + W / 2 / ZOOM + 1;
+  const vz0 = ctr.z - H / 2 / ZOOM - 1, vz1 = ctr.z + H / 2 / ZOOM + 1;
+  const inView = (x, z, pad) => x > vx0 - pad && x < vx1 + pad && z > vz0 - pad && z < vz1 + pad;
+  // 5 m survey grid — the lines sliding past are what sells "you are moving"
+  X.strokeStyle = '#e3ddd0'; X.lineWidth = 1;
+  for (let gx = Math.floor(vx0 / 5) * 5; gx <= vx1; gx += 5) {
+    const p = mapXY(gx, 0, ctr); X.beginPath(); X.moveTo(p[0], 0); X.lineTo(p[0], H); X.stroke();
+  }
+  for (let gz = Math.floor(vz0 / 5) * 5; gz <= vz1; gz += 5) {
+    const p = mapXY(0, gz, ctr); X.beginPath(); X.moveTo(0, p[1]); X.lineTo(W, p[1]); X.stroke();
+  }
+  // lot edge + stage deck (mostly off-window — they slide in as you approach them)
+  const lot = [mapXY(LOT.x0, LOT.z0, ctr), mapXY(LOT.x1, LOT.z1, ctr)];
+  X.strokeStyle = '#b3cfad'; X.lineWidth = 2.5;
   X.strokeRect(lot[0][0], lot[0][1], lot[1][0] - lot[0][0], lot[1][1] - lot[0][1]);
-  const st = [mapXY(-9, -54.2), mapXY(25.2, -39.9)];
-  X.fillStyle = '#ddd6ec'; X.fillRect(st[0][0], st[0][1], st[1][0] - st[0][0], st[1][1] - st[0][1]);
+  const st = [mapXY(-9, -54.2, ctr), mapXY(25.2, -39.9, ctr)];
+  X.fillStyle = '#ddd6ec';
+  X.fillRect(st[0][0], st[0][1], st[1][0] - st[0][0], st[1][1] - st[0][1]);
   X.fillStyle = '#7d7796'; X.font = '700 8px Inter,sans-serif'; X.textAlign = 'center';
-  X.fillText('STAGE', (st[0][0] + st[1][0]) / 2, (st[0][1] + st[1][1]) / 2);
-  // the truck (wherever #layout left it) + label
+  if (inView(8, -47, 30)) X.fillText('STAGE', ...mapXY(8, -47, ctr));
+  // the truck (wherever #layout left it)
   const to = CONFIG || {};
+  const tx = to.truckOffsetX || 0, tz = to.truckOffsetZ || 0;
   X.save();
-  const tr = mapXY((to.truckOffsetX || 0), (to.truckOffsetZ || 0));
+  const tr = mapXY(tx, tz, ctr);
   X.translate(tr[0], tr[1]); X.rotate((to.truckRotation || 0) * Math.PI / 180);
-  const tsc = Math.min((W - 24) / (LOT.x1 - LOT.x0), (H - 24) / (LOT.z1 - LOT.z0));
   X.fillStyle = '#e8896f';
-  X.fillRect(-2.7 * tsc, -1.15 * tsc, 5.4 * tsc, 2.3 * tsc);
+  X.fillRect(-2.7 * ZOOM, -1.15 * ZOOM, 5.4 * ZOOM, 2.3 * ZOOM);
   X.restore();
-  X.fillStyle = '#8a4436'; X.fillText('TRUCK', tr[0], tr[1] + 3);
-  // picnic tables + the movable props (live positions from the 3D scene)
+  if (inView(tx, tz, 8)) X.fillText('TRUCK', ...mapXY(tx, tz - 2.8, ctr));
+  // picnic tables + movable props near you (live positions from the 3D scene)
   try {
     const seats = window.__EOL_SEATS ? window.__EOL_SEATS() : [];
     X.fillStyle = '#8f7fd8';
-    for (const s of seats) { const p = mapXY(s.x, s.z); X.beginPath(); X.arc(p[0], p[1], 3, 0, 7); X.fill(); }
+    for (const s of seats) {
+      if (!inView(s.x, s.z, 2)) continue;
+      const p = mapXY(s.x, s.z, ctr);
+      X.beginPath(); X.arc(p[0], p[1], 4.5, 0, 7); X.fill();
+    }
     const props = window.__EOL_PROPS ? window.__EOL_PROPS() : [];
-    X.font = '9px Inter,sans-serif'; X.textAlign = 'center';
+    X.font = '13px Inter,sans-serif'; X.textAlign = 'center';
     for (const pr of props) {
-      const p = mapXY(pr.x, pr.z);
-      X.fillText({claw: '🦞', bbt0: '🎯', bbt1: '🎯', tag: '🚩', scores: '🏆', jukebox: '💿',
-                  impala: '🚗'}[pr.id] || '•', p[0], p[1] + 3);
+      if (!inView(pr.x, pr.z, 3)) continue;
+      const p = mapXY(pr.x, pr.z, ctr);
+      X.fillText({claw: '🦞', bbt0: '🎯', bbt1: '🎯', tag: '🚩', scores: '🏆', jukebox: '💿', impala: '🚗'}[pr.id] || '•', p[0], p[1] + 4);
     }
   } catch (e) {}
-  // geocache pins (fuzzed ±2m — you navigate to an AREA, then search on foot)
+  // pins: nearby ones drawn; the selected one always gets its bearing line + edge chevron
+  const cc = [W / 2, H / 2];
   for (const c of caches) {
-    const p = mapXY(c.x, c.z), sel = c.id === selected;
-    X.fillStyle = c.mine ? '#f2a100' : (c.iFound ? '#9e9ea6' : '#ff3b30');
-    X.beginPath(); X.arc(p[0], p[1] - 4, sel ? 6 : 5, 0, 7); X.fill();
-    X.beginPath(); X.moveTo(p[0] - 3, p[1] - 2); X.lineTo(p[0] + 3, p[1] - 2); X.lineTo(p[0], p[1] + 5); X.fill();
-    if (c.prize) { X.fillStyle = '#fff'; X.font = '700 7px Inter'; X.fillText('🎁', p[0], p[1] - 2); }
-    if (sel) { X.strokeStyle = '#007aff'; X.lineWidth = 2; X.beginPath(); X.arc(p[0], p[1] - 3, 10 + Math.sin(t * 4) * 2, 0, 7); X.stroke(); }
-  }
-  // "you" — the iOS blue dot with a live pulse + heading, and the dashed bearing line
-  const w = me();
-  if (w) {
-    const sel = caches.find(c => c.id === selected);
-    if (sel) {
-      const p = mapXY(sel.x, sel.z), q = mapXY(w.x, w.z);
+    const p = mapXY(c.x, c.z, ctr), sel = c.id === selected;
+    const off = p[0] < -8 || p[0] > W + 8 || p[1] < -8 || p[1] > H + 8;
+    if (off && !sel) continue;
+    if (!off) {
+      X.fillStyle = c.mine ? '#f2a100' : (c.iFound ? '#9e9ea6' : '#ff3b30');
+      X.beginPath(); X.arc(p[0], p[1] - 6, sel ? 7 : 6, 0, 7); X.fill();
+      X.beginPath(); X.moveTo(p[0] - 4, p[1] - 4); X.lineTo(p[0] + 4, p[1] - 4); X.lineTo(p[0], p[1] + 6); X.fill();
+      if (c.prize) { X.fillStyle = '#fff'; X.font = '700 8px Inter'; X.fillText('🎁', p[0], p[1] - 3); }
+      if (sel) { X.strokeStyle = '#007aff'; X.lineWidth = 2; X.beginPath(); X.arc(p[0], p[1] - 4, 12 + Math.sin(t * 4) * 2.5, 0, 7); X.stroke(); }
+    }
+    if (sel) {   // dashed bearing line from you, clipped at the edge, chevron pointing onward
+      const dx = p[0] - cc[0], dy = p[1] - cc[1];
+      const k = Math.min(1, (Math.min(W, H) / 2 - 16) / (Math.hypot(dx, dy) || 1));
+      const ex = cc[0] + dx * k, ey = cc[1] + dy * k;
       X.strokeStyle = '#007aff'; X.lineWidth = 1.5; X.setLineDash([4, 4]);
-      X.beginPath(); X.moveTo(q[0], q[1]); X.lineTo(p[0], p[1]); X.stroke(); X.setLineDash([]);
+      X.beginPath(); X.moveTo(cc[0], cc[1]); X.lineTo(ex, ey); X.stroke(); X.setLineDash([]);
+      if (k < 1) {
+        X.save(); X.translate(ex, ey); X.rotate(Math.atan2(dy, dx));
+        X.fillStyle = '#007aff'; X.beginPath();
+        X.moveTo(9, 0); X.lineTo(-4, -5.5); X.lineTo(-4, 5.5); X.fill(); X.restore();
+      }
     }
-    const q = mapXY(w.x, w.z);
-    if (!w.on) X.globalAlpha = .55;
-    X.strokeStyle = 'rgba(0,122,255,.25)'; X.lineWidth = 1;
-    X.beginPath(); X.arc(q[0], q[1], 9 + Math.sin(t * 2.2) * 3, 0, 7); X.stroke();
-    X.fillStyle = '#fff'; X.beginPath(); X.arc(q[0], q[1], 6, 0, 7); X.fill();
-    X.fillStyle = '#007aff'; X.beginPath(); X.arc(q[0], q[1], 4.5, 0, 7); X.fill();
-    if (w.on && w.yaw) {                                   // heading cone from the walk camera
-      X.fillStyle = 'rgba(0,122,255,.3)';
-      X.beginPath(); X.moveTo(q[0], q[1]);
-      X.arc(q[0], q[1], 16, -w.yaw - .45, -w.yaw + .45); X.fill();
-    }
-    X.globalAlpha = 1;
   }
+  // "you" — always dead-center (the world slides, the dot doesn't): iOS blue + pulse + heading
+  if (!ctr.on) X.globalAlpha = .7;
+  X.strokeStyle = 'rgba(0,122,255,.25)'; X.lineWidth = 1.2;
+  X.beginPath(); X.arc(cc[0], cc[1], 12 + Math.sin(t * 2.2) * 4, 0, 7); X.stroke();
+  if (ctr.on && ctr.yaw) {   // heading cone: walk yaw is atan2(x,z) → canvas angle is π/2 − yaw
+    const a = Math.PI / 2 - ctr.yaw;
+    X.fillStyle = 'rgba(0,122,255,.3)';
+    X.beginPath(); X.moveTo(cc[0], cc[1]);
+    X.arc(cc[0], cc[1], 26, a - .45, a + .45); X.fill();
+  }
+  X.fillStyle = '#fff'; X.beginPath(); X.arc(cc[0], cc[1], 7, 0, 7); X.fill();
+  X.fillStyle = '#007aff'; X.beginPath(); X.arc(cc[0], cc[1], 5.5, 0, 7); X.fill();
+  X.globalAlpha = 1;
   X.fillStyle = '#6b6b74'; X.font = '700 8px Inter'; X.textAlign = 'left';
   X.fillText('N↑', 6, 12);
 }
