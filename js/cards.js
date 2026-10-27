@@ -302,10 +302,69 @@ function startSlapjack() {
 
 // ---------- Speed ----------
 function startSpeed() {
-  body.innerHTML = `<p style="color:#f2c14e">⚡ Speed — race to empty your hand by playing cards one rank up or down on either center pile.</p>
-  <p style="opacity:.6;font-size:11px">(Simplified: tap a card to play it on a center pile if it's ±1 rank.)</p>
-  <button id="spBack" style="padding:8px 14px;border-radius:10px;border:1px solid #444;background:#1a1a2e;color:#f6e7c8;cursor:pointer;font:600 12px Inter">← Back</button>`;
-  body.querySelector('#spBack').onclick = showMenu;
+  const ranks = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+  const suits = ['♠','♥','♦','♣'];
+  let deck = [];
+  for (const r of ranks) for (const s of suits) deck.push(r + s);
+  for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
+  const pH = deck.splice(0, 5);
+  const aH = deck.splice(0, 5);
+  const center = [deck.pop(), deck.pop()]; // two discard piles
+  let msg = 'Play cards ±1 rank on either pile. First to empty hand wins!';
+  let turn = 'player';
+
+  function rv(c) { return ranks.indexOf(c.slice(0, -1)); }
+  function canPlay(c, pile) {
+    const v = rv(c), pv = rv(pile);
+    return v === pv + 1 || v === pv - 1 || (v === 0 && pv === 12) || (v === 12 && pv === 0);
+  }
+
+  function render() {
+    body.innerHTML = `
+      <div style="margin-bottom:6px">Center: ${center[0]} | ${center[1]}</div>
+      <div style="margin-bottom:6px">You: ${pH.join(' ')} (${pH.length})</div>
+      <div style="margin-bottom:6px">AI: ${aH.length} cards</div>
+      <div style="margin-bottom:8px;color:#f2c14e">${msg}</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">
+        ${pH.map(c => `<button class="spBtn" data-c="${c}" style="padding:4px 8px;border-radius:8px;border:1px solid #444;background:#1a1a2e;color:#f6e7c8;cursor:pointer">${c}</button>`).join('')}
+      </div>
+      <button id="spBack" style="padding:8px 14px;border-radius:10px;border:1px solid #444;background:#1a1a2e;color:#f6e7c8;cursor:pointer;font:600 12px Inter">← Back</button>`;
+    body.querySelector('#spBack').onclick = showMenu;
+    body.querySelectorAll('.spBtn').forEach(b => b.onclick = () => playCard(b.dataset.c));
+  }
+
+  function playCard(c) {
+    if (turn !== 'player') return;
+    let played = false;
+    for (let i = 0; i < 2; i++) {
+      if (canPlay(c, center[i])) { center[i] = c; pH.splice(pH.indexOf(c), 1); played = true; break; }
+    }
+    if (!played) { msg = 'No valid play.'; render(); return; }
+    msg = 'You played ' + c;
+    if (pH.length === 0) { msg = '⚡ You win!'; turn = 'done'; render(); return; }
+    turn = 'ai'; render();
+    setTimeout(aiTurn, 500);
+  }
+
+  function aiTurn() {
+    if (turn !== 'ai') return;
+    let played = false;
+    for (const c of aH) {
+      for (let i = 0; i < 2; i++) {
+        if (canPlay(c, center[i])) { center[i] = c; aH.splice(aH.indexOf(c), 1); played = true; break; }
+      }
+      if (played) break;
+    }
+    if (played) {
+      msg = 'AI played.';
+      if (aH.length === 0) { msg = 'AI wins!'; turn = 'done'; render(); return; }
+    } else {
+      msg = 'AI passes.';
+    }
+    turn = 'player'; render();
+  }
+
+  render();
 }
 
 // ---------- President ----------
