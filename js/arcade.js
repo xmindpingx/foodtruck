@@ -308,7 +308,7 @@ function buildProps() {
       uno.add(card);
     }
     uno.traverse(o => { o.userData.midway = 'uno'; });
-    uno.position.set(-0.5, 0, -4); uno.rotation.y = -.2; rig.add(uno); props.uno = uno;
+    uno.position.set(1.5, 0, -4); uno.rotation.y = -.2; rig.add(uno); props.uno = uno;
   }
   // ♟️ crystal chess table — a polished table with a crystal chess set (tap to play)
   let chess = null;
@@ -327,7 +327,7 @@ function buildProps() {
       chess.add(piece);
     }
     chess.traverse(o => { o.userData.midway = 'chess'; });
-    chess.position.set(-1.5, 0, -4); chess.rotation.y = .2; rig.add(chess); props.chess = chess;
+    chess.position.set(-3.5, 0, -4); chess.rotation.y = .2; rig.add(chess); props.chess = chess;
   }
   // 🎯 two bean-bag boards angled toward the toss line, west lawn (skipped when the game is off)
   if (gameOn('bbt')) for (let i = 0; i < 2; i++) {
