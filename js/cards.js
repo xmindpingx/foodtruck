@@ -369,9 +369,64 @@ function startSpeed() {
 
 // ---------- President ----------
 function startPresident() {
-  body.innerHTML = `<p style="color:#f2c14e">👑 President — shed all your cards first to become President. (Simplified single-player vs AI.)</p>
-  <button id="prBack" style="padding:8px 14px;border-radius:10px;border:1px solid #444;background:#1a1a2e;color:#f6e7c8;cursor:pointer;font:600 12px Inter">← Back</button>`;
-  body.querySelector('#prBack').onclick = showMenu;
+  const ranks = ['3','4','5','6','7','8','9','10','J','Q','K','A','2'];
+  const suits = ['♠','♥','♦','♣'];
+  let deck = [];
+  for (const r of ranks) for (const s of suits) deck.push(r + s);
+  for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
+  const pH = deck.splice(0, 13);
+  const aH = deck.splice(0, 13);
+  let pile = [];
+  let msg = 'Play a higher card than the top, or pass.';
+  let turn = 'player';
+
+  function rv(c) { return ranks.indexOf(c.slice(0, -1)); }
+
+  function render() {
+    body.innerHTML = `
+      <div style="margin-bottom:6px">Pile top: ${pile.length ? pile[pile.length-1] : '—'} · You: ${pH.length} · AI: ${aH.length}</div>
+      <div style="margin-bottom:8px;color:#f2c14e">${msg}</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">
+        ${pH.map(c => `<button class="prBtn" data-c="${c}" style="padding:4px 8px;border-radius:8px;border:1px solid #444;background:#1a1a2e;color:#f6e7c8;cursor:pointer">${c}</button>`).join('')}
+      </div>
+      <button id="prPass" style="padding:8px 14px;border-radius:10px;border:1px solid #f2c14e;background:rgba(242,193,78,.15);color:#f6e7c8;cursor:pointer;font:600 12px Inter;margin-right:6px">Pass</button>
+      <button id="prBack" style="padding:8px 14px;border-radius:10px;border:1px solid #444;background:#1a1a2e;color:#f6e7c8;cursor:pointer;font:600 12px Inter">← Back</button>`;
+    body.querySelector('#prBack').onclick = showMenu;
+    body.querySelectorAll('.prBtn').forEach(b => b.onclick = () => playCard(b.dataset.c));
+    body.querySelector('#prPass').onclick = () => {
+      if (turn !== 'player') return;
+      msg = 'You passed.'; turn = 'ai'; render(); setTimeout(aiTurn, 600);
+    };
+  }
+
+  function playCard(c) {
+    if (turn !== 'player') return;
+    if (pile.length && rv(c) <= rv(pile[pile.length-1])) { msg = 'Must play higher.'; render(); return; }
+    pH.splice(pH.indexOf(c), 1);
+    pile.push(c);
+    msg = 'You played ' + c;
+    if (pH.length === 0) { msg = '👑 You are President!'; turn = 'done'; render(); return; }
+    turn = 'ai'; render(); setTimeout(aiTurn, 600);
+  }
+
+  function aiTurn() {
+    if (turn !== 'ai') return;
+    // AI plays lowest card that beats top
+    const top = pile.length ? rv(pile[pile.length-1]) : -1;
+    const playable = aH.filter(c => rv(c) > top).sort((a,b) => rv(a)-rv(b));
+    if (playable.length) {
+      const c = playable[0];
+      aH.splice(aH.indexOf(c), 1);
+      pile.push(c);
+      msg = 'AI played ' + c;
+      if (aH.length === 0) { msg = 'AI is President!'; turn = 'done'; render(); return; }
+    } else {
+      msg = 'AI passed.';
+    }
+    turn = 'player'; render();
+  }
+
+  render();
 }
 
 function init() {
