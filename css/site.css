@@ -89,10 +89,10 @@ scene — a CSS resize corner would need pointer events over the whole box and b
 .eolLookChip{font:11px Inter,sans-serif;padding:4px 9px;border-radius:999px;border:1px solid rgba(255,255,255,.35);background:rgba(30,22,40,.85);color:#f6e7c8;cursor:pointer}
 .eolLookChip.on{background:#e83a73;border-color:#e83a73;color:#fff}
 .eolLookSave{margin-top:8px;width:100%;padding:7px 0;border-radius:999px;border:0;background:#e83a73;color:#fff;font:600 12px Inter,system-ui,sans-serif;cursor:pointer}
-#eolNameBtn{flex:none;border:none;border-radius:20px;padding:0 10px;height:34px;background:rgba(20,16,10,.78);color:#f2c14e;font:700 12px Inter,sans-serif;cursor:pointer;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#eolModeBtn{flex:none;border:none;border-radius:50%;width:34px;height:34px;background:rgba(20,16,10,.78);color:#f2c14e;font-size:16px;cursor:pointer;padding:0}
-#eolChatIn{flex:1;min-width:0;padding:8px 12px;border-radius:20px;border:1px solid rgba(255,255,255,.3);background:rgba(20,16,10,.78);color:#f3e4b8;font:13px Inter,sans-serif;outline:none}
-#eolChatSend{flex:none;border:none;border-radius:50%;width:34px;height:34px;background:#f2c14e;color:#1a1510;font-weight:800;cursor:pointer}
+#eolNameBtn{flex:none;border:none;border-radius:20px;padding:0 9px;height:29px;background:rgba(20,16,10,.78);color:#f2c14e;font:700 10px Inter,sans-serif;cursor:pointer;max-width:102px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#eolModeBtn{flex:none;border:none;border-radius:50%;width:29px;height:29px;background:rgba(20,16,10,.78);color:#f2c14e;font-size:14px;cursor:pointer;padding:0}
+#eolChatIn{flex:1;min-width:0;padding:7px 10px;border-radius:20px;border:1px solid rgba(255,255,255,.3);background:rgba(20,16,10,.78);color:#f3e4b8;font:11px Inter,sans-serif;outline:none}
+#eolChatSend{flex:none;border:none;border-radius:50%;width:29px;height:29px;background:#f2c14e;color:#1a1510;font-weight:800;cursor:pointer}
 @media(max-width:640px){
  header{flex-direction:column;align-items:stretch;gap:8px;padding:10px 12px}
  .brand{font-size:26px;white-space:nowrap}.brand small{display:inline;margin:0 0 0 8px;font-size:.62em} nav{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;scrollbar-width:none;-webkit-overflow-scrolling:touch;order:1}
