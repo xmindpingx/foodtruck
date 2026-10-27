@@ -173,8 +173,7 @@ scene — a CSS resize corner would need pointer events over the whole box and b
 .eolMidHead button{background:none;border:0;color:#f6e7c8;font-size:15px;cursor:pointer}
 .eolMidTabs{display:flex;gap:5px;padding:8px 10px;overflow-x:auto;scrollbar-width:none}
 .eolMidTabs::-webkit-scrollbar{display:none}
-.eolMidTab{flex:none;display:flex;align-items:center;gap:4px;padding:7px 10px;border-radius:999px;
- border:1px solid rgba(255,255,255,.22);background:rgba(20,16,10,.6);color:#f6e7c8;font:600 12px Inter,sans-serif;cursor:pointer}
+.eolMidTab{flex:none;display:flex;align-items:center;gap:4px;padding:7px 10px;border-radius:999px;position:absolute!important;top:10px;right:10px;margin-right:8px;user-select:none;border:1px solid rgba(255,255,255,.22);background:rgba(20,16,10,.6);color:#f6e7c8;font:600 12px Inter,sans-serif;cursor:pointer} border:1px solid rgba(255,255,255,.22);background:rgba(20,16,10,.6);color:#f6e7c8;font:600 12px Inter,sans-serif;cursor:pointer}
 .eolMidTab.on{background:#f2c14e;color:#241b2e}
 #eolMidwayBody{padding:4px 13px 12px;overflow-y:auto}
 .eolMidSay{min-height:16px;font-size:12px;color:#ffd98a;margin:2px 0 6px}

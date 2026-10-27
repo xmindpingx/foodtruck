@@ -7,7 +7,7 @@
 // did to them), with the iOS-blue "you" dot riding your walking position. position via
 // scene.js' __EOL_WALK hook; props via __EOL_PROPS; tables via __EOL_SEATS.
 import {CONFIG} from './shop.js?v=6';
-import * as Account from './account.js?v=6';
+import * as Account from './account.js?v=7';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 const LOT = {x0: -62, x1: 62, z0: -60, z1: 34};        // walkable lot bounds (walkCollide's clamp)

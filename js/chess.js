@@ -124,20 +124,81 @@ function drawBoard() {
 function drawCrystalPiece(code, gx, cx, cy) {
   const side = code[0], type = code[1];
   const isW = side === 'w';
-  // crystal gradient fill
-  const grad = ctx.createRadialGradient(cx - 6, cy - 8, 2, cx, cy, SQ * .42);
-  if (isW) { grad.addColorStop(0, 'rgba(255,255,255,.95)'); grad.addColorStop(.4, 'rgba(220,230,255,.85)'); grad.addColorStop(1, 'rgba(160,180,220,.7)'); }
-  else { grad.addColorStop(0, 'rgba(80,60,120,.95)'); grad.addColorStop(.4, 'rgba(40,20,80,.85)'); grad.addColorStop(1, 'rgba(15,5,40,.7)'); }
+  // color palette per side (crystal: white = ice crystal, black = amethyst)
+  const base = isW ? '#e8f0ff' : '#6a4a8a';
+  const mid = isW ? '#b8c8e8' : '#4a2a6a';
+  const dark = isW ? '#8090b8' : '#2a1040';
+  const accent = isW ? '#ffd24d' : '#ff4d6d';
+  const r = SQ * 0.38;
   // drop shadow
   ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2;
+  ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3;
+  // body gradient (crystal sphere-ish)
+  const grad = ctx.createRadialGradient(cx - r*0.3, cy - r*0.4, r*0.1, cx, cy, r);
+  grad.addColorStop(0, isW ? 'rgba(255,255,255,.98)' : 'rgba(180,140,220,.98)');
+  grad.addColorStop(0.35, isW ? 'rgba(220,230,255,.9)' : 'rgba(100,60,160,.9)');
+  grad.addColorStop(0.7, isW ? 'rgba(160,180,220,.8)' : 'rgba(60,30,100,.8)');
+  grad.addColorStop(1, isW ? 'rgba(120,140,180,.6)' : 'rgba(30,10,60,.6)');
   ctx.fillStyle = grad;
-  ctx.font = 'bold 40px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText((isW ? PIECE_GLYPH[type] : PIECE_GLYPH[type]), cx, cy);
+  // draw piece silhouette based on type
+  if (type === 'P') {
+    // pawn: small sphere on a base
+    ctx.beginPath(); ctx.arc(cx, cy - 4, r * 0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillRect(cx - r*0.35, cy + 2, r*0.7, r*0.25);
+  } else if (type === 'N') {
+    // knight: horse head silhouette
+    ctx.beginPath();
+    ctx.moveTo(cx - r*0.6, cy + r*0.5);
+    ctx.lineTo(cx - r*0.3, cy - r*0.2);
+    ctx.lineTo(cx, cy - r*0.8);
+    ctx.lineTo(cx + r*0.2, cy - r*0.9);
+    ctx.lineTo(cx + r*0.5, cy - r*0.5);
+    ctx.lineTo(cx + r*0.6, cy + r*0.3);
+    ctx.lineTo(cx + r*0.4, cy + r*0.5);
+    ctx.closePath(); ctx.fill();
+  } else if (type === 'B') {
+    // bishop: tall mitre with a slit
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - r*0.9); ctx.lineTo(cx - r*0.4, cy + r*0.5); ctx.lineTo(cx + r*0.4, cy + r*0.5);
+    ctx.closePath(); ctx.fill();
+    // slit
+    ctx.strokeStyle = isW ? 'rgba(160,180,220,.9)' : 'rgba(60,30,100,.9)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(cx, cy - r*0.5); ctx.lineTo(cx, cy + r*0.3); ctx.stroke();
+  } else if (type === 'R') {
+    // rook: tower/castle
+    ctx.fillRect(cx - r*0.5, cy - r*0.6, r, r*1.1);
+    // battlements
+    for (let i = 0; i < 3; i++) {
+      ctx.fillRect(cx - r*0.5 + i*(r/2), cy - r*0.85, r*0.3, r*0.25);
+    }
+  } else if (type === 'Q') {
+    // queen: crown with points
+    ctx.beginPath();
+    ctx.moveTo(cx - r*0.6, cy + r*0.4);
+    ctx.lineTo(cx - r*0.6, cy - r*0.2);
+    ctx.lineTo(cx - r*0.3, cy - r*0.5);
+    ctx.lineTo(cx, cy - r*0.8);
+    ctx.lineTo(cx + r*0.3, cy - r*0.5);
+    ctx.lineTo(cx + r*0.6, cy - r*0.2);
+    ctx.lineTo(cx + r*0.6, cy + r*0.4);
+    ctx.closePath(); ctx.fill();
+    // base
+    ctx.fillRect(cx - r*0.65, cy + r*0.35, r*1.3, r*0.2);
+  } else if (type === 'K') {
+    // king: cross on top
+    ctx.fillRect(cx - r*0.15, cy - r*0.9, r*0.3, r*1.4);
+    ctx.fillRect(cx - r*0.5, cy - r*0.5, r, r*0.2);
+    ctx.fillRect(cx - r*0.5, cy + r*0.2, r, r*0.3);
+  }
   ctx.restore();
   // specular highlight
-  ctx.fillStyle = isW ? 'rgba(255,255,255,.55)' : 'rgba(200,180,255,.35)';
-  ctx.beginPath(); ctx.ellipse(cx - 6, cy - 8, 6, 4, -.4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = isW ? 'rgba(255,255,255,.5)' : 'rgba(200,180,255,.3)';
+  ctx.beginPath(); ctx.ellipse(cx - r*0.2, cy - r*0.3, r*0.25, r*0.15, -.4, 0, Math.PI * 2); ctx.fill();
+  // piece type label (small, at bottom)
+  ctx.fillStyle = isW ? 'rgba(100,120,160,.7)' : 'rgba(180,140,220,.7)';
+  ctx.font = 'bold 9px Inter,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(type, cx, cy + r*0.7);
 }
 
 function startBattleAnim(mv) {
@@ -608,7 +669,7 @@ async function joinRoom(id) {
 
 async function listRooms() {
   try {
-    const r = await fetch('/api/chess/rooms').then(x => x.json());
+    const r = await fetch('/api/chess/rooms', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'}).then(x => x.json());
     const el = lobbyEl.querySelector('#chRooms');
     if (!r.rooms || !r.rooms.length) { el.innerHTML = '<p style="opacity:.6">No open tables — create one!</p>'; return; }
     el.innerHTML = r.rooms.map(rm => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;margin:4px 0;border:1px solid rgba(255,255,255,.12);border-radius:10px;background:rgba(30,22,40,.6)">

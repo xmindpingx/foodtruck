@@ -51,7 +51,7 @@ function showLobby() {
 
 async function listRooms() {
   try {
-    const r = await fetch('/api/uno/rooms').then(x => x.json());
+    const r = await fetch('/api/uno/rooms', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'}).then(x => x.json());
     const el = body.querySelector('#unoRooms');
     if (!r.rooms || !r.rooms.length) { el.innerHTML = '<p style="opacity:.6">No open tables — create one!</p>'; return; }
     el.innerHTML = r.rooms.map(rm => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;margin:4px 0;border:1px solid rgba(255,255,255,.12);border-radius:10px;background:rgba(30,22,40,.6)">

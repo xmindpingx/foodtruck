@@ -6,8 +6,8 @@
 // 🟡 pill) to open it; swipe or use the D-pad; high scores feed the 🏆 board by the truck.
 // Points come from the arcade economy: a level clear banks a mini collectible + points.
 import {CONFIG} from './shop.js?v=6';
-import {clockNow} from './avatars.js?v=6';
-import * as Account from './account.js?v=6';
+import {clockNow} from './avatars.js?v=9';
+import * as Account from './account.js?v=7';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 
