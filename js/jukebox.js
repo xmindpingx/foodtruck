@@ -28,7 +28,7 @@ function init() {
   chip = document.createElement('button');            // 💿 chip: start playback when the browser blocked it
   chip.id = 'eolJbChip'; chip.hidden = true; chip.textContent = '💿 Listen';
   chip.title = 'A song is playing on the lot — tap to listen in';
-  chip.style.cssText = 'position:fixed;left:12px;bottom:54px;z-index:6;font:600 13px Inter,system-ui,sans-serif;' +
+  chip.style.cssText = 'position:fixed;right:110px;bottom:10px;z-index:6;font:600 13px Inter,system-ui,sans-serif;' +
     'padding:8px 12px;border-radius:999px;border:1px solid rgba(242,193,78,.55);background:rgba(20,16,26,.82);' +
     'color:#f6e7c8;cursor:pointer';
   chip.onclick = () => audio.play().then(() => { chip.hidden = true; }).catch(() => {});
