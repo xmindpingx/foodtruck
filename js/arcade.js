@@ -405,6 +405,17 @@ function buildProps() {
   const rSign = new THREE.Mesh(new THREE.PlaneGeometry(2.2, .7),
     new THREE.MeshBasicMaterial({map: signTexture('🎁 REDEEM · CANJE', '#f2c14e'), transparent: true}));
   rSign.position.set(0, 1.6, .61); redeem.add(rSign);
+  // floating sign above
+  const floatSign = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 1.0),
+    new THREE.MeshBasicMaterial({map: signTexture('⭐ POINTS SHOP · TIENDA', '#f2c14e'), transparent: true}));
+  floatSign.position.set(0, 2.6, 0); redeem.add(floatSign);
+  // demo collectibles on the counter
+  const demoColors = [0xf2c14e, 0x74dbe6, 0xe5534a, 0x53a86e, 0xd77bd0];
+  for (let i = 0; i < 5; i++) {
+    const d = new THREE.Mesh(new THREE.SphereGeometry(.12, 12, 10), new THREE.MeshStandardMaterial({color: demoColors[i], roughness: .4, metalness: .2}));
+    d.position.set(-.8 + i * .4, 1.22, .1);
+    redeem.add(d);
+  }
   redeem.traverse(o => { o.userData.midway = 'redeem'; });
   redeem.position.set(16, 0, -12); redeem.rotation.y = Math.PI; rig.add(redeem); props.redeem = redeem;
   pills = [claw, ...props.bbt, tag, board, pac, uno, chess, redeem].filter(Boolean);   // click targets for whatever got built
