@@ -1072,7 +1072,7 @@ function walkCollide(){
     if(dz<=dl&&dz<=dr){_wv.z=Math.sign(_wv.z||1)*(BW/2+.55);back();}
     else{_wv.x=_wv.x<bx0+BL/2?bx0-.55:bx0+BL+.55;back();}
   }
-  walkPushEdge(-9,25.2,-54.2,-39.9);            // stage deck box (world: 32x13 at 8,0,-47)
+  walkPushEdge(-8,24,-76.5,-63.5);            // stage deck box (world: 32x13 at 8,0,-70)
   walk.x=Math.max(-62,Math.min(62,walk.x));     // stay inside the painted lot
   walk.z=Math.max(-60,Math.min(34,walk.z));
 }
