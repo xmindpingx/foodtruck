@@ -87,7 +87,7 @@ let frightenedCount = 0;  // for doubling ghost scores
 let fruit = null;        // {type, tile, timer, score}
 let fruitTimer = 0;      // countdown to fruit appearance
 let fruitActive = false;
-let levelClearing = false, readyT = 0, streak = 0;
+let levelClearing = false, readyT = 0, streak = 0, newHighScore = false;
 let extraLifeGiven = false;
 let raf = 0, lastT = 0;
 let audioCtx = null;
@@ -548,7 +548,7 @@ function pacDie() {
   lives--;
   if (lives <= 0) {
     setTimeout(() => {
-      gameOver = true; reportScore();
+      gameOver = true; newHighScore = (score > (highScore || 0)); if (newHighScore) highScore = score; reportScore();
       // breaking the high score earns a collectible
       fetch('/api/scores').then(r => r.json()).then(j => {
         const hs = (j && j.pacman && j.pacman.best) ? (j.pacman.best.value || 0) : (highScore || 0);
@@ -696,6 +696,7 @@ function draw() {
     ctx.fillStyle = '#fff'; ctx.font = '12px monospace';
     ctx.fillText('Score: ' + score, CANVAS_W / 2, CANVAS_H / 2 + 10);
     ctx.fillText('Tap to play again', CANVAS_W / 2, CANVAS_H / 2 + 30);
+    if (newHighScore) { ctx.fillStyle = '#f2c14e'; ctx.font = 'bold 14px monospace'; ctx.fillText('NEW HIGH SCORE!', CANVAS_W / 2, CANVAS_H / 2 + 50); }
   }
 }
 
@@ -787,7 +788,7 @@ function handleKey(e) {
 // ---------- lifecycle ----------
 function startGame() {
   score = 0; level = 1; lives = 3; extraLifeGiven = false; awardedPrize = false;
-  gameOver = false; paused = false; levelClearing = false;
+  gameOver = false; paused = false; levelClearing = false; newHighScore = false;
   initLevel1();
   highScore = highScore || 0;
   fetch('/api/scores').then(r => r.json()).then(j => { if (j && j.pacman && j.pacman.best) highScore = j.pacman.best.value || 0; }).catch(() => {});
