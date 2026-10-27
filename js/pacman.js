@@ -87,7 +87,7 @@ let frightenedCount = 0;  // for doubling ghost scores
 let fruit = null;        // {type, tile, timer, score}
 let fruitTimer = 0;      // countdown to fruit appearance
 let fruitActive = false;
-let levelClearing = false;
+let levelClearing = false, readyT = 0;
 let extraLifeGiven = false;
 let raf = 0, lastT = 0;
 let audioCtx = null;
@@ -443,6 +443,7 @@ function resetLevel() {
   mode = 'scatter';
   const seq = modeSequence(level);
   modeCycle = 0;
+  readyT = 2;
   if (seq.length) { mode = seq[0].m; modeTimer = seq[0].t; modeCycle = 0; }
   else { mode = 'chase'; modeTimer = 999; }
   frightenedTimer = 0;
@@ -462,8 +463,8 @@ function initLevel1() {
   ghosts = ['blinky', 'pinky', 'inky', 'clyde'].map(makeGhost);
   mode = 'scatter';
   const seq = modeSequence(level);
-  if (seq.length) { mode = seq[0].m; modeTimer = seq[0].t; }
-  else { mode = 'chase'; modeTimer = 999; }
+  if (seq.length) { mode = seq[0].m; modeTimer = seq[0].t; readyT = 2; }
+  else { mode = 'chase'; modeTimer = 999; readyT = 2; }
 }
 
 // ---------- mode timer ----------
@@ -572,8 +573,8 @@ function resetAfterDeath() {
   ghosts = ['blinky', 'pinky', 'inky', 'clyde'].map(makeGhost);
   mode = 'scatter';
   const seq = modeSequence(level);
-  if (seq.length) { mode = seq[0].m; modeTimer = seq[0].t; modeCycle = 0; }
-  else { mode = 'chase'; modeTimer = 999; }
+  if (seq.length) { mode = seq[0].m; modeTimer = seq[0].t; modeCycle = 0; readyT = 2; }
+  else { mode = 'chase'; modeTimer = 999; readyT = 2; }
   frightenedTimer = 0;
   fruitActive = false; fruit = null;
 }
@@ -669,6 +670,11 @@ function draw() {
   }
   // fruit score popup (none needed)
   // level clear overlay
+  if (readyT > 0) {
+    ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.fillStyle = '#f2c14e'; ctx.font = 'bold 18px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('READY!', CANVAS_W / 2, CANVAS_H / 2);
+  }
   if (levelClearing) {
     ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
     ctx.fillStyle = '#f2c14e'; ctx.font = 'bold 16px monospace'; ctx.textAlign = 'center';
@@ -739,6 +745,7 @@ function drawGhost(g, gx, gy) {
 function update(dt) {
   if (paused || gameOver || levelClearing) return;
   if (pac.dead) { pac.deadT += dt; return; }
+  if (readyT > 0) { readyT -= dt; return; }
   // mode timer
   updateMode(dt);
   // frightened timer handled per-ghost in ghostStep
