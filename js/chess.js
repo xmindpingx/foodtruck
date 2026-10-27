@@ -146,7 +146,8 @@ function startBattleAnim(mv) {
   const fx = from.charCodeAt(0) - 97, fy = parseInt(from[1]) - 1;
   const tx = to.charCodeAt(0) - 97, ty = parseInt(to[1]) - 1;
   const captured = mv.captured;
-  anim = {from: {x: fx, y: fy}, to: {x: tx, y: ty}, captured: captured ? {x: tx, y: ty} : null,
+  anim = {from: {x: fx, y: fy}, to: {x: tx, y: ty},
+          captured: captured ? {x: tx, y: ty, piece: captured} : null,
           phase: 0, t0: performance.now(), dur: captured ? 2100 : 320};
   requestAnimationFrame(animLoop);
 }
@@ -170,59 +171,263 @@ function drawBattleAnim() {
   const ay = sy + (ey - sy) * (p < .4 ? e * .6 : .6 + (p - .4) * .67);
   const cx = ex, cy = ey;
 
+  // determine captured piece type
+  const capturedPiece = (anim.captured && anim.captured.piece) ? anim.captured.piece : '';
+  const pType = capturedPiece.length >= 2 ? capturedPiece[1] : 'P';
+  const pSide = capturedPiece.length >= 2 ? capturedPiece[0] : 'b';
+
+  // per-type config: accessories that fall off, quotes, colors
+  const TYPE_CFG = {
+    P: { // pawn — tiny soldier
+      name: 'Pawn', color: '#c8b89a', accent: '#8a6b3f',
+      quotes: ["I'm just a pawn!", "Tis but a scratch!", "Just a flesh wound!", "I yield!"],
+      // accessories: helmet, shield, sword (fall off before limbs)
+      accs: ['helmet', 'shield', 'sword'],
+    },
+    N: { // knight — horse
+      name: 'Knight', color: '#b8a080', accent: '#6b4a2a',
+      quotes: ["Neigh! Tis but a scratch!", "I'm invincible!", "Just a flesh wound!", "Alright, we'll call it a draw."],
+      accs: ['mane', 'head', 'tail'],
+    },
+    B: { // bishop — clergy
+      name: 'Bishop', color: '#d8d0e8', accent: '#6b4a8a',
+      quotes: ["My faith is unshaken!", "Tis but a scratch to the clergy!", "Just a flesh wound!", "I yield!"],
+      accs: ['mitre', 'staff', 'robe'],
+    },
+    R: { // rook — castle tower
+      name: 'Rook', color: '#b0b8c8', accent: '#4a5a7a',
+      quotes: ["The walls are crumbling!", "Tis but a scratch in the masonry!", "Just a flesh wound!", "I yield!"],
+      accs: ['turret', 'wall', 'flag'],
+    },
+    Q: { // queen — regal
+      name: 'Queen', color: '#e8d0f0', accent: '#8a4a8a',
+      quotes: ["Off with their heads!", "I am not amused!", "Just a flesh wound!", "I yield!"],
+      accs: ['crown', 'scepter', 'cape'],
+    },
+    K: { // king — royal
+      name: 'King', color: '#f0e0c0', accent: '#8a6a2a',
+      quotes: ["I am the king!", "Well, I didn't vote for you.", "Help, help, I'm being repressed!", "I yield! ...okay, I'm dead."],
+      accs: ['crown', 'sword', 'cape'],
+    },
+  };
+  const cfg = TYPE_CFG[pType] || TYPE_CFG.P;
+
   if (anim.captured) {
-    // ---- Monty Python "Black Knight" comedy: limbs fall off one by one ----
     const arm1 = p >= 0.18, leg1 = p >= 0.34, arm2 = p >= 0.50, leg2 = p >= 0.66, shatter = p >= 0.82;
+    const acc1 = p >= 0.10, acc2 = p >= 0.26, acc3 = p >= 0.42;  // accessories fall first
     const bx = cx, by = cy;
     ctx.save();
-    ctx.strokeStyle = 'rgba(200,180,255,.9)'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
-    // head (always, until shatter)
-    if (!shatter || p < 0.95) {
-      ctx.fillStyle = 'rgba(220,200,255,.9)';
-      ctx.beginPath(); ctx.arc(bx, by - 14, 5, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#1a0a2e';
-      ctx.beginPath(); ctx.arc(bx - 1.5, by - 15, 1, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(bx + 1.5, by - 15, 1, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = 'rgba(220,200,255,.9)'; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(bx, by - 12, 2.5, 0.2, Math.PI - 0.2); ctx.stroke();
-    }
-    // body (torso) — stays until shatter
-    if (!shatter) {
-      ctx.beginPath(); ctx.moveTo(bx, by - 9); ctx.lineTo(bx, by + 2); ctx.stroke();
-    }
-    // arms
-    if (!arm1) {
-      ctx.beginPath(); ctx.moveTo(bx, by - 6); ctx.lineTo(bx - 9, by - 2); ctx.stroke();
-    }
-    if (!arm2) {
-      ctx.beginPath(); ctx.moveTo(bx, by - 6); ctx.lineTo(bx + 9, by - 2); ctx.stroke();
-    }
-    // legs
-    if (!leg1) {
-      ctx.beginPath(); ctx.moveTo(bx, by + 2); ctx.lineTo(bx - 5, by + 12); ctx.stroke();
-    }
-    if (!leg2) {
-      ctx.beginPath(); ctx.moveTo(bx, by + 2); ctx.lineTo(bx + 5, by + 12); ctx.stroke();
-    }
-    ctx.restore();
+    ctx.strokeStyle = cfg.color; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
 
-    // flying severed limbs
-    const limbFly = (startP, ang) => {
+    // ---- type-specific drawing ----
+    if (pType === 'R') {
+      // Rook: a castle tower — body is a box, turret on top, flag
+      // base (always until shatter)
+      if (!shatter) {
+        ctx.fillStyle = cfg.color;
+        ctx.fillRect(bx - 9, by - 4, 18, 14);
+        ctx.strokeStyle = cfg.accent; ctx.lineWidth = 1.5;
+        ctx.strokeRect(bx - 9, by - 4, 18, 14);
+        // battlements
+        for (let i = 0; i < 3; i++) {
+          ctx.fillStyle = cfg.color;
+          ctx.fillRect(bx - 9 + i * 6, by - 8, 4, 4);
+        }
+      }
+      // turret (falls first)
+      if (!acc1) {
+        ctx.fillStyle = cfg.accent;
+        ctx.fillRect(bx - 5, by - 12, 10, 5);
+      }
+      // flag (falls second)
+      if (!acc2) {
+        ctx.strokeStyle = cfg.accent; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(bx + 5, by - 12); ctx.lineTo(bx + 5, by - 20); ctx.stroke();
+        ctx.fillStyle = cfg.color;
+        ctx.fillRect(bx + 5, by - 20, 8, 5);
+      }
+      // wall crumbles (acc3 → body cracks)
+      if (acc3 && !shatter) {
+        ctx.strokeStyle = 'rgba(0,0,0,.4)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(bx - 3, by - 4); ctx.lineTo(bx + 2, by + 4); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(bx + 4, by - 2); ctx.lineTo(bx - 1, by + 6); ctx.stroke();
+      }
+    } else if (pType === 'N') {
+      // Knight: a horse head + body
+      if (!shatter) {
+        // body
+        ctx.fillStyle = cfg.color;
+        ctx.beginPath(); ctx.ellipse(bx, by + 2, 8, 6, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = cfg.accent; ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+      // head (falls as acc2)
+      if (!acc2) {
+        ctx.fillStyle = cfg.color;
+        ctx.beginPath(); ctx.ellipse(bx + 6, by - 8, 6, 5, .3, 0, Math.PI * 2); ctx.fill();
+        // eye
+        ctx.fillStyle = '#1a0a2e'; ctx.beginPath(); ctx.arc(bx + 8, by - 9, 1.2, 0, Math.PI * 2); ctx.fill();
+        // ear
+        ctx.fillStyle = cfg.accent;
+        ctx.beginPath(); ctx.moveTo(bx + 4, by - 13); ctx.lineTo(bx + 6, by - 17); ctx.lineTo(bx + 8, by - 13); ctx.fill();
+      }
+      // mane (falls first)
+      if (!acc1) {
+        ctx.fillStyle = cfg.accent;
+        ctx.beginPath(); ctx.moveTo(bx + 2, by - 10); ctx.quadraticCurveTo(bx + 4, by - 16, bx + 8, by - 12); ctx.stroke();
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(bx + 3, by - 9); ctx.quadraticCurveTo(bx + 5, by - 14, bx + 7, by - 11); ctx.stroke();
+      }
+      // tail (falls third)
+      if (!acc3) {
+        ctx.strokeStyle = cfg.accent; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(bx - 8, by + 4); ctx.quadraticCurveTo(bx - 14, by + 2, bx - 12, by - 2); ctx.stroke();
+      }
+      // legs
+      if (!arm1) {
+        ctx.beginPath(); ctx.moveTo(bx - 3, by + 6); ctx.lineTo(bx - 5, by + 14); ctx.stroke();
+      }
+      if (!arm2) {
+        ctx.beginPath(); ctx.moveTo(bx + 3, by + 6); ctx.lineTo(bx + 5, by + 14); ctx.stroke();
+      }
+    } else {
+      // humanoids: P, B, Q, K — stick figure base with type-specific accessories
+      // head
+      if (!shatter || p < 0.95) {
+        ctx.fillStyle = cfg.color;
+        ctx.beginPath(); ctx.arc(bx, by - 14, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#1a0a2e';
+        ctx.beginPath(); ctx.arc(bx - 1.5, by - 15, 1, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(bx + 1.5, by - 15, 1, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = cfg.color; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(bx, by - 12, 2.5, 0.2, Math.PI - 0.2); ctx.stroke();
+      }
+      // body
+      if (!shatter) {
+        ctx.beginPath(); ctx.moveTo(bx, by - 9); ctx.lineTo(bx, by + 2); ctx.stroke();
+      }
+      // type-specific accessories (fall off in early phases)
+      if (pType === 'P') {
+        // helmet (acc1), shield (acc2), sword (acc3)
+        if (!acc1) {
+          ctx.fillStyle = cfg.accent;
+          ctx.beginPath(); ctx.arc(bx, by - 16, 6, Math.PI, 0); ctx.fill();
+          ctx.fillRect(bx - 6, by - 16, 12, 2);
+        }
+        if (!acc2) {
+          ctx.fillStyle = cfg.accent;
+          ctx.beginPath(); ctx.ellipse(bx - 9, by - 2, 4, 5, -.3, 0, Math.PI * 2); ctx.fill();
+        }
+        if (!acc3) {
+          ctx.strokeStyle = cfg.accent; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(bx + 8, by - 4); ctx.lineTo(bx + 8, by + 8); ctx.stroke();
+        }
+      } else if (pType === 'B') {
+        // mitre (acc1), staff (acc2), robe (acc3)
+        if (!acc1) {
+          ctx.fillStyle = cfg.accent;
+          ctx.beginPath(); ctx.moveTo(bx - 4, by - 14); ctx.lineTo(bx, by - 22); ctx.lineTo(bx + 4, by - 14); ctx.fill();
+        }
+        if (!acc2) {
+          ctx.strokeStyle = cfg.accent; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(bx + 7, by - 4); ctx.lineTo(bx + 7, by + 10); ctx.stroke();
+        }
+        if (!acc3) {
+          ctx.fillStyle = cfg.color; ctx.globalAlpha = .4;
+          ctx.beginPath(); ctx.moveTo(bx - 6, by - 9); ctx.lineTo(bx - 8, by + 10); ctx.lineTo(bx + 8, by + 10); ctx.lineTo(bx + 6, by - 9); ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+      } else if (pType === 'Q') {
+        // crown (acc1), scepter (acc2), cape (acc3)
+        if (!acc1) {
+          ctx.fillStyle = cfg.accent;
+          ctx.beginPath();
+          ctx.moveTo(bx - 6, by - 14); ctx.lineTo(bx - 4, by - 20); ctx.lineTo(bx - 2, by - 14);
+          ctx.lineTo(bx, by - 21); ctx.lineTo(bx + 2, by - 14); ctx.lineTo(bx + 4, by - 20);
+          ctx.lineTo(bx + 6, by - 14); ctx.fill();
+        }
+        if (!acc2) {
+          ctx.strokeStyle = cfg.accent; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(bx + 7, by - 4); ctx.lineTo(bx + 7, by + 10); ctx.stroke();
+          ctx.fillStyle = cfg.accent;
+          ctx.beginPath(); ctx.arc(bx + 7, by - 5, 2.5, 0, Math.PI * 2); ctx.fill();
+        }
+        if (!acc3) {
+          ctx.fillStyle = cfg.color; ctx.globalAlpha = .35;
+          ctx.beginPath(); ctx.moveTo(bx - 7, by - 9); ctx.quadraticCurveTo(bx - 12, by + 4, bx - 8, by + 12);
+          ctx.lineTo(bx + 8, by + 12); ctx.quadraticCurveTo(bx + 12, by + 4, bx + 7, by - 9); ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+      } else if (pType === 'K') {
+        // crown (acc1), sword (acc2), cape (acc3)
+        if (!acc1) {
+          ctx.fillStyle = cfg.accent;
+          ctx.fillRect(bx - 6, by - 18, 12, 4);
+          ctx.fillRect(bx - 1, by - 22, 2, 6);
+        }
+        if (!acc2) {
+          ctx.strokeStyle = cfg.accent; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(bx + 7, by - 4); ctx.lineTo(bx + 7, by + 8); ctx.stroke();
+          ctx.fillStyle = cfg.accent;
+          ctx.beginPath(); ctx.moveTo(bx + 5, by + 8); ctx.lineTo(bx + 9, by + 8); ctx.lineTo(bx + 7, by + 12); ctx.fill();
+        }
+        if (!acc3) {
+          ctx.fillStyle = cfg.color; ctx.globalAlpha = .35;
+          ctx.beginPath(); ctx.moveTo(bx - 7, by - 9); ctx.quadraticCurveTo(bx - 12, by + 4, bx - 8, by + 12);
+          ctx.lineTo(bx + 8, by + 12); ctx.quadraticCurveTo(bx + 12, by + 4, bx + 7, by - 9); ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+      }
+      // arms (fall off as acc1/acc2 for humanoids, acc1/acc3 for others)
+      const armsGone1 = (pType === 'R' || pType === 'N') ? acc2 : arm1;
+      const armsGone2 = (pType === 'R' || pType === 'N') ? acc3 : arm2;
+      if (!armsGone1) {
+        ctx.beginPath(); ctx.moveTo(bx, by - 6); ctx.lineTo(bx - 9, by - 2); ctx.stroke();
+      }
+      if (!armsGone2) {
+        ctx.beginPath(); ctx.moveTo(bx, by - 6); ctx.lineTo(bx + 9, by - 2); ctx.stroke();
+      }
+      // legs (fall off as leg1/leg2)
+      if (!leg1) {
+        ctx.beginPath(); ctx.moveTo(bx, by + 2); ctx.lineTo(bx - 5, by + 12); ctx.stroke();
+      }
+      if (!leg2) {
+        ctx.beginPath(); ctx.moveTo(bx, by + 2); ctx.lineTo(bx + 5, by + 12); ctx.stroke();
+      }
+    }
+
+    // flying severed limbs/accessories
+    const limbFly = (startP, ang, col) => {
       const k = Math.min(1, (p - startP) / 0.16);
       if (k <= 0) return;
       const dist = k * 26;
       const lx = bx + Math.cos(ang) * dist, ly = by + Math.sin(ang) * dist;
-      ctx.save(); ctx.strokeStyle = 'rgba(200,180,255,.9)'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+      ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
       ctx.globalAlpha = 1 - k * 0.6;
       ctx.beginPath(); ctx.moveTo(lx - 4, ly - 2); ctx.lineTo(lx + 4, ly + 2); ctx.stroke();
       ctx.restore();
     };
-    if (arm1) limbFly(0.18, -2.2);
-    if (leg1) limbFly(0.34, 2.6);
-    if (arm2) limbFly(0.50, -0.9);
-    if (leg2) limbFly(0.66, 2.0);
+    if (pType === 'R') {
+      if (acc1) limbFly(0.10, -1.8);
+      if (acc2) limbFly(0.26, -0.6);
+      if (acc3) limbFly(0.42, 1.2);
+    } else if (pType === 'N') {
+      if (acc1) limbFly(0.10, -2.0);
+      if (acc2) limbFly(0.26, -0.8);
+      if (acc3) limbFly(0.42, 1.5);
+      if (arm1) limbFly(0.18, -2.2);
+      if (leg1) limbFly(0.34, 2.6);
+    } else {
+      if (acc1) limbFly(0.10, -2.0);
+      if (acc2) limbFly(0.26, -0.5);
+      if (acc3) limbFly(0.42, 1.2);
+      if (arm1) limbFly(0.18, -2.2);
+      if (leg1) limbFly(0.34, 2.6);
+      if (arm2) limbFly(0.50, -0.9);
+      if (leg2) limbFly(0.66, 2.0);
+    }
 
-    // Monty Python speech bubbles
+    // Monty Python speech bubbles (per-type quotes)
     const bubble = (txt, phase) => {
       if (p < phase || p > phase + 0.22) return;
       const k = (p - phase) / 0.22;
@@ -230,15 +435,15 @@ function drawBattleAnim() {
       ctx.save(); ctx.globalAlpha = alpha;
       ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.strokeStyle = '#ff4d6d'; ctx.lineWidth = 1.5;
       const bx2 = cx + 30, by2 = cy - 40;
-      ctx.beginPath(); ctx.roundRect(bx2 - 4, by2 - 12, 128, 24, 6); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.roundRect(bx2 - 4, by2 - 12, 132, 24, 6); ctx.fill(); ctx.stroke();
       ctx.fillStyle = '#1a0a2e'; ctx.font = '600 9px Inter,sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText(txt, bx2 + 60, by2 + 2);
+      ctx.fillText(txt, bx2 + 62, by2 + 2);
       ctx.restore();
     };
-    bubble("Tis but a scratch!", 0.18);
-    bubble("I'm invincible!", 0.34);
-    bubble("Just a flesh wound!", 0.50);
-    bubble("Alright, we'll call it a draw.", 0.66);
+    bubble(cfg.quotes[0], 0.10);
+    bubble(cfg.quotes[1], 0.26);
+    bubble(cfg.quotes[2], 0.50);
+    bubble(cfg.quotes[3], 0.66);
 
     // clash flash
     if (p > 0.12 && p < 0.72) {
