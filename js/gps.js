@@ -22,7 +22,7 @@ function init() {
 
   const st = document.createElement('style');          // one-time styles for the phone frame + iOS bits
   st.textContent = `
-#eolGpsPill{position:fixed;left:12px;bottom:10px;z-index:99999;font:600 11px Inter,system-ui,sans-serif;padding:4px 8px;
+#eolGpsPill{position:fixed;left:120px;bottom:10px;z-index:99999;font:600 11px Inter,system-ui,sans-serif;padding:4px 8px;
  border-radius:999px;border:1px solid rgba(74,169,255,.6);background:rgba(16,20,30,.85);color:#e8f2ff;cursor:pointer}
 #eolGpsPill:hover{background:rgba(24,44,74,.9)}
 #eolGps{position:fixed;right:14px;top:calc(126px + env(safe-area-inset-top,0px));z-index:58;width:284px;max-height:78vh;

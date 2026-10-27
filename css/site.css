@@ -40,7 +40,7 @@ body.nogl{background:linear-gradient(160deg,#1b1546,#4b2c8f);overflow:auto}body.
 /* chat dock: a column parked on the left — message log above, controls row below. Styles live
 here (not inline) so breakpoints can restack the controls instead of colliding with the
 footer/hint pills that used to occupy the same bottom strip. */
-#eolDock{position:fixed;left:12px;bottom:40px;z-index:5;font:13px/1.35 Inter,system-ui,sans-serif;pointer-events:none;max-width:min(340px,64vw);width:max-content}
+#eolDock{position:fixed;left:50%;bottom:40px;transform:translateX(-50%);z-index:5;font:13px/1.35 Inter,system-ui,sans-serif;pointer-events:none;max-width:min(340px,64vw);width:max-content}
 /* hot dog contest panel + its launcher pill: floats low-right, above the hint pill */
 #eolHdPill{position:fixed;right:12px;bottom:44px;z-index:6;font:600 13px Inter,system-ui,sans-serif;padding:8px 12px;border-radius:999px;
   border:1px solid rgba(232,58,115,.55);background:rgba(20,12,26,.82);color:#f6e7c8;cursor:pointer}
