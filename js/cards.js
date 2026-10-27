@@ -34,9 +34,11 @@ function showMenu() {
     <button class="cardBtn" data-g="president">👑 President</button>
   </div>
   <p style="opacity:.6;font-size:11px;margin-top:10px">Tap a game to play. (Animations are themed per game.)</p>
-  <div id="cardsStats" style="opacity:.7;font-size:11px;margin-top:6px"></div>`;
+  <div id="cardsStats" style="opacity:.7;font-size:11px;margin-top:6px"></div>
+  <button id="cardsReset" style="margin-top:6px;padding:4px 10px;border-radius:8px;border:1px solid #444;background:#1a1a2e;color:#f6e7c8;cursor:pointer;font:600 11px Inter">Reset stats</button>`;
   body.querySelectorAll('.cardBtn').forEach(b => b.onclick = () => startGame(b.dataset.g));
   body.querySelectorAll('.cardBtn').forEach(b => b.style.cssText = 'padding:12px;border-radius:10px;border:1px solid rgba(242,193,78,.4);background:rgba(242,193,78,.12);color:#f6e7c8;cursor:pointer;font:600 13px Inter');
+  const rs = body.querySelector('#cardsReset'); if (rs) rs.onclick = () => { try { localStorage.removeItem('eol-cards-wins'); } catch(e){} const el = body.querySelector('#cardsStats'); if (el) el.textContent = 'Wins — Go Fish: 0 · War: 0'; };
   try { const w = JSON.parse(localStorage.getItem('eol-cards-wins') || '{}'); const el = body.querySelector('#cardsStats'); if (el) el.textContent = 'Wins — Go Fish: ' + (w.gofish||0) + ' · War: ' + (w.war||0); } catch(e){}
 }
 
