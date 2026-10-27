@@ -417,7 +417,7 @@ function buildProps() {
     redeem.add(d);
   }
   redeem.traverse(o => { o.userData.midway = 'redeem'; });
-  redeem.position.set(16, 0, -12); redeem.rotation.y = Math.PI; rig.add(redeem); props.redeem = redeem;
+  redeem.position.set(12, 0, -12); redeem.rotation.y = Math.PI; rig.add(redeem); props.redeem = redeem;
   pills = [claw, ...props.bbt, tag, board, pac, uno, chess, redeem].filter(Boolean);   // click targets for whatever got built
 }
 export function prop(id) { return props[id] || null; }   // scene.js #layout mode: movable prop groups by id
