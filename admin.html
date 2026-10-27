@@ -126,6 +126,16 @@ button:disabled{opacity:.5;cursor:wait}
  </section>
  <section data-tab="settings" hidden>
   <div class="bar"><h2 style="margin:0;flex:1">Settings</h2><button class="b p" id="saveSet">Save settings</button><span id="setMsg" class="muted"></span></div>
+  <div class="card"><h3>Backup / Restore</h3>
+   <p class="muted" style="margin:0 0 8px">Create a zip backup of all data and media, or restore from a backup zip. Store backups in a private GitHub repo for off-site safety.</p>
+   <div style="display:flex;gap:8px;flex-wrap:wrap">
+     <button class="b p" id="bkBackup">📦 Create backup</button>
+     <button class="b" id="bkDownload">⬇ Download latest</button>
+     <input type="file" id="bkFile" accept=".zip" style="display:none">
+     <button class="b" id="bkRestore">♻ Restore from zip</button>
+   </div>
+   <span id="bkMsg" class="muted" style="display:block;margin-top:8px"></span>
+  </div>
   <div class="card"><h3>Live avatars / chat</h3>
    <p class="muted">Other visitors show up as avatars in the 3D scene and can type short public chat messages to each other above their avatar. This is <b>not moderated in real time</b> — use the off switch if someone abuses it.</p>
    <div class="grid"><div><label>Chat</label><label class="chk"><input type="checkbox" data-s="avatarChatEnabled"> Allow visitor chat</label></div></div>
@@ -296,7 +306,32 @@ $('#chatRefresh').onclick=loadChat;
 
 async function start(){$('#login').hidden=true;$('#app').hidden=false;
   try{[MENU,SET]=await Promise.all([api('/api/admin/menu'),api('/api/admin/settings')]);}catch(e){return;}
-  renderMenu();renderSettings();loadOrders();clearInterval(_ordInterval);_ordInterval=setInterval(loadOrders,5000);}
+  // backup/restore handlers
+const bkMsg = document.getElementById('bkMsg');
+if (document.getElementById('bkBackup')) document.getElementById('bkBackup').onclick = async () => {
+  bkMsg.innerHTML = 'Creating backup…';
+  try { const r = await api('/api/admin/backup', {}); window._lastBackup = r.file; bkMsg.innerHTML = `<span class="ok">Backup created: ${esc(r.file)}</span>`; }
+  catch (e) { bkMsg.innerHTML = `<span class="err">${esc(e.message)}</span>`; }
+};
+if (document.getElementById('bkDownload')) document.getElementById('bkDownload').onclick = () => {
+  if (!window._lastBackup) { bkMsg.innerHTML = '<span class="err">Create a backup first.</span>'; return; }
+  fetch('/api/admin/backup/download', {method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+TOKEN}, body: JSON.stringify({file: window._lastBackup})})
+    .then(r=>r.blob()).then(b=>{const a=document.createElement('a');const u=URL.createObjectURL(b);a.href=u;a.download=window._lastBackup;a.click();URL.revokeObjectURL(u);})
+    .catch(e=>{bkMsg.innerHTML=`<span class="err">${esc(e.message)}</span>`;});
+};
+if (document.getElementById('bkRestore')) document.getElementById('bkRestore').onclick = () => document.getElementById('bkFile').click();
+if (document.getElementById('bkFile')) document.getElementById('bkFile').onchange = async (ev) => {
+  const f = ev.target.files && ev.target.files[0];
+  if (!f) return;
+  bkMsg.innerHTML = 'Restoring…';
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try { const b64 = reader.result.split(',')[1]; await api('/api/admin/restore', {zip_b64: b64}); bkMsg.innerHTML = '<span class="ok">Restored. Reload the page.</span>'; }
+    catch (e) { bkMsg.innerHTML = `<span class="err">${esc(e.message)}</span>`; }
+  };
+  reader.readAsDataURL(f);
+};
+renderMenu();renderSettings();loadOrders();clearInterval(_ordInterval);_ordInterval=setInterval(loadOrders,5000);}
 
 /* ---------- ORDERS ---------- */
 const money=n=>'$'+Number(n).toFixed(2);

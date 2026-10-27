@@ -2,7 +2,7 @@
 """El Otro Lado site server: static files + menu/settings/order API + admin API.
 Run: python3 server.py  (listens on 127.0.0.1:8095; Cloudflare tunnel fronts it)
 """
-import json, os, secrets, hashlib, hmac, time, threading, re, base64
+import json, os, secrets, hashlib, hmac, time, threading, re, base64, zipfile, io, shutil
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, urlencode
 import urllib.request, urllib.error
@@ -2733,7 +2733,11 @@ class H(SimpleHTTPRequestHandler):
                             break
             return self.send_json({'received': True})
 
-        try: data = self.body()
+        try:
+            if p == '/api/admin/restore':
+                data = self.body_large(90_000_000)
+            else:
+                data = self.body()
         except Exception: return self.send_json({'error': 'bad request'}, 400)
         if not isinstance(data, dict): return self.send_json({'error': 'bad request'}, 400)
 
@@ -3501,6 +3505,52 @@ class H(SimpleHTTPRequestHandler):
             for k in ('ollamaUrl', 'imageServiceUrl', 'comfyUrl'):
                 if not re.match(r'^https?://(127\.0\.0\.1|localhost)(:\d+)?/?$', str(s[k])): s[k] = DEFAULT_SETTINGS[k]
             with LOCK: save('settings.json', s)
+            return self.send_json({'ok': True})
+        if p == '/api/admin/backup':
+            os.makedirs(os.path.join(DATA, 'backups'), exist_ok=True)
+            ts = time.strftime('%Y%m%d-%H%M%S')
+            fn = f'backup-{ts}.zip'
+            zpath = os.path.join(DATA, 'backups', fn)
+            with zipfile.ZipFile(zpath, 'w', zipfile.ZIP_DEFLATED) as z:
+                for root, _, files in os.walk(DATA):
+                    for f in files:
+                        if f.endswith('.zip'): continue
+                        full = os.path.join(root, f)
+                        arc = os.path.relpath(full, ROOT)
+                        z.write(full, arc)
+                if os.path.isdir(MEDIA):
+                    for root, _, files in os.walk(MEDIA):
+                        for f in files:
+                            full = os.path.join(root, f)
+                            arc = os.path.relpath(full, ROOT)
+                            z.write(full, arc)
+            return self.send_json({'ok': True, 'file': fn})
+        if p == '/api/admin/backup/download':
+            fn = re.sub(r'[^A-Za-z0-9._-]', '', str(data.get('file') or ''))
+            if not fn or not fn.startswith('backup-') or not fn.endswith('.zip'):
+                return self.send_json({'error': 'bad file'}, 400)
+            zpath = os.path.join(DATA, 'backups', fn)
+            if not os.path.isfile(zpath): return self.send_json({'error': 'not found'}, 404)
+            with open(zpath, 'rb') as f: b = f.read()
+            self.send_response(200); self.send_header('Content-Type', 'application/zip')
+            self.send_header('Content-Disposition', f'attachment; filename="{fn}"')
+            self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b)
+            return
+        if p == '/api/admin/restore':
+            b64 = data.get('zip_b64') or ''
+            try: raw = base64.b64decode(b64)
+            except Exception: return self.send_json({'error': 'bad zip'}, 400)
+            try:
+                z = zipfile.ZipFile(io.BytesIO(raw))
+            except zipfile.BadZipFile: return self.send_json({'error': 'bad zip'}, 400)
+            with LOCK:
+                for info in z.infolist():
+                    if info.is_dir(): continue
+                    target = os.path.join(ROOT, info.filename)
+                    if not os.path.realpath(target).startswith(ROOT): continue
+                    os.makedirs(os.path.dirname(target), exist_ok=True)
+                    with z.open(info) as src, open(target, 'wb') as dst:
+                        shutil.copyfileobj(src, dst)
             return self.send_json({'ok': True})
         if p == '/api/admin/order':
             sms = None
