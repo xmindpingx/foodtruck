@@ -787,13 +787,27 @@ function pinStart() {
       const px = pinX(), py = pinY() + 30;
       cx.beginPath(); cx.moveTo(170, 40); cx.lineTo(px, py - 16); cx.stroke();
       if (st.hits < 5) {
+        // body
         cx.fillStyle = st.hits % 2 ? '#53a86e' : '#e5534a';
-        cx.beginPath(); cx.ellipse(px, py, 19, 15, 0, 0, 7); cx.fill();
-        for (let i = 0; i < 5; i++) {
-          cx.strokeStyle = HUE[i % HUE.length]; cx.lineWidth = 2;
-          cx.beginPath(); cx.moveTo(px - 18, py - 14 + i * 6); cx.lineTo(px + 18, py - 14 + i * 6); cx.stroke();
+        cx.beginPath(); cx.ellipse(px, py, 22, 17, 0, 0, Math.PI * 2); cx.fill();
+        cx.strokeStyle = '#1a1a1a'; cx.lineWidth = 2; cx.stroke();
+        // tissue-paper fringes
+        for (let i = 0; i < 7; i++) {
+          const yy = py - 14 + i * 4.5;
+          cx.strokeStyle = HUE[i % HUE.length]; cx.lineWidth = 3;
+          cx.beginPath();
+          for (let j = -20; j <= 20; j += 4) {
+            cx.moveTo(px + j, yy);
+            cx.lineTo(px + j + 2, yy + 5);
+          }
+          cx.stroke();
         }
-        if (st.hits) cx.fillStyle = '#0006', cx.fillRect(px - 8 - st.hits * 4, py - 6, 16 + st.hits * 8, 4);
+        // stripes
+        cx.fillStyle = '#f2c14e';
+        cx.fillRect(px - 22, py - 4, 44, 6);
+        cx.fillStyle = '#4f76e5';
+        cx.fillRect(px - 22, py + 4, 44, 6);
+        if (st.hits) { cx.fillStyle = '#0006'; cx.fillRect(px - 10 - st.hits * 4, py - 8, 20 + st.hits * 8, 5); }
         cx.fillStyle = '#fff'; cx.font = '13px sans-serif'; cx.textAlign = 'left';
         cx.fillText((ES() ? 'Golpes: ' : 'Hits: ') + st.hits + '/5 · ' + (ES() ? 'Fallados: ' : 'Misses: ') + st.miss, 8, 20);
         // 🪅 swing meter: a GUI marker rides the bar with the piñata's swing, and the pink
