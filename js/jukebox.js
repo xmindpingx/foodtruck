@@ -7,7 +7,7 @@
 // (Settings → Jukebox); points deduct server-side on the phone account, exactly like the
 // 🏬 collectible shop — the payer can never tip themselves.
 import {CONFIG} from './shop.js?v=6';
-import {clockNow, aboveDock} from './avatars.js?v=10';
+import {clockNow, aboveDock} from './avatars.js?v=11';
 import * as Account from './account.js?v=7';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));

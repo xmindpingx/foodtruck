@@ -14,6 +14,7 @@ import * as Account from './account.js?v=7';   // language picked at sign-up dri
 
 const ID_KEY = 'eol-visitor-id', NAME_KEY = 'eol-visitor-name', PROFILE_KEY = 'eol-visitor-profile';
 const CAP_STYLES = ['', 'ball', 'cowboy', 'beret', 'cone', 'marge', 'bart', 'lisa', 'homer', 'duff', 'krusty', 'moes', 'flanders'];
+const FACE_STYLES = ['', 'smile', 'neutral', 'surprised', 'wink', 'grumpy'];
 const SKIN_TONES = [0xe8b98c, 0xd9a978, 0xc78f5e, 0xa8714a, 0x8a5a35, 0x6b4626];
 let myId = localStorage.getItem(ID_KEY);
 if (!myId) {
@@ -27,7 +28,8 @@ let myProfile = (() => {
   try { const p = JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null') || {}; return {
     hue: Number.isFinite(+p.hue) ? Math.max(0, Math.min(359, +p.hue | 0)) : null,
     sk: Number.isFinite(+p.sk) ? Math.max(0, Math.min(5, +p.sk | 0)) : null,
-    cap: CAP_STYLES.includes(p.cap) ? p.cap : ''}; } catch (e) { return {hue: null, sk: null, cap: ''}; }
+    cap: CAP_STYLES.includes(p.cap) ? p.cap : '',
+    face: FACE_STYLES.includes(p.face) ? p.face : ''}; } catch (e) { return {hue: null, sk: null, cap: '', face: ''}; }
 })();
 function saveProfile() {
   try { localStorage.setItem(PROFILE_KEY, JSON.stringify(myProfile)); } catch (e) {}
@@ -46,6 +48,15 @@ function reskinLive() {
     else if (o.userData.custom === 'skin') o.material.color.setHex(SKIN_TONES[(myProfile.sk != null ? myProfile.sk : hue) % SKIN_TONES.length]);
     else if (o.userData.custom === 'cap') o.material.color.setHSL(hue / 360, .6, .3);
   });
+}
+function rebuildSelf() {
+  const a = live.get(myId);
+  if (a) { try { S.remove(a.group); } catch (e) {} live.delete(myId); }
+  const me = spawn(myId, selfHue(), myName, myProfile);
+  me.self = true;
+  live.set(myId, me);
+  const st = myStatus();
+  if (st !== 'browsing') setStatus(me, st, myName, true);
 }
 
 const live = new Map();   // visitor id -> avatar state
@@ -442,6 +453,25 @@ function makeBody(hue, prof = {}) {
     const hat = new THREE.Mesh(new THREE.ConeGeometry(.12, .1, 12), new THREE.MeshStandardMaterial({color: 0x2a6b35}));
     hat.position.y = hatY + .05; hat.userData.custom = 'cap'; g.add(hat);
   }
+  // face: eyes + mouth (customizable expression)
+  const face = prof.face || '';
+  const eyeM = new THREE.MeshStandardMaterial({color: 0x1a1a1a, roughness: .4});
+  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(.025, 8, 6), eyeM);
+  eyeL.position.set(-.05, .94, .12); eyeL.userData.custom = 'face'; g.add(eyeL);
+  const eyeR = new THREE.Mesh(new THREE.SphereGeometry(.025, 8, 6), eyeM);
+  eyeR.position.set(.05, .94, .12); eyeR.userData.custom = 'face'; g.add(eyeR);
+  const mouthM = new THREE.MeshStandardMaterial({color: 0xb05050, roughness: .5});
+  let mouth;
+  if (face === 'smile') mouth = new THREE.Mesh(new THREE.TorusGeometry(.04, .012, 6, 12, Math.PI), mouthM);
+  else if (face === 'grumpy') mouth = new THREE.Mesh(new THREE.TorusGeometry(.04, .012, 6, 12, Math.PI), mouthM);
+  else if (face === 'surprised') mouth = new THREE.Mesh(new THREE.SphereGeometry(.025, 8, 6), mouthM);
+  else if (face === 'wink') mouth = new THREE.Mesh(new THREE.TorusGeometry(.04, .012, 6, 12, Math.PI), mouthM);
+  else mouth = new THREE.Mesh(new THREE.BoxGeometry(.06, .012, .01), mouthM);
+  mouth.position.set(0, .88, .12);
+  if (face === 'grumpy') mouth.rotation.z = Math.PI;
+  if (face === 'wink') { eyeR.scale.set(1, .3, 1); }
+  if (face === 'surprised') { eyeL.scale.set(1.3, 1.3, 1.3); eyeR.scale.set(1.3, 1.3, 1.3); }
+  mouth.userData.custom = 'face'; g.add(mouth);
   // 🌱 render any sprouts clipped to this avatar (gifted by other visitors)
   const sprouts = (prof && Array.isArray(prof.sprouts)) ? prof.sprouts : [];
   for (const sp of sprouts) {
@@ -675,6 +705,7 @@ function buildDock() {
       <div class="eolLookCap">Shirt</div><div id="eolLookShirt" class="eolLookSw"></div>
       <div class="eolLookCap">Skin tone</div><div id="eolLookSkin" class="eolLookSw"></div>
       <div class="eolLookCap">Hat</div><div id="eolLookCap" class="eolLookChips"></div>
+      <div class="eolLookCap">Face</div><div id="eolLookFace" class="eolLookChips"></div>
       <button id="eolLookSave" class="eolLookSave">Save look</button>
     </div>`;
   document.body.appendChild(wrap);
@@ -745,6 +776,15 @@ function buildDock() {
     myProfile.cap = b.dataset.cap;
     wrap.querySelectorAll('.eolLookChip').forEach(x => x.classList.remove('on')); b.classList.add('on');
     saveProfile();
+    rebuildSelf();
+  });
+  wrap.querySelector('#eolLookFace').innerHTML = FACE_STYLES.map(c =>
+    `<button class="eolLookChip${myProfile.face === c ? ' on' : ''}" data-face="${c}">${c === '' ? 'Default' : c[0].toUpperCase() + c.slice(1)}</button>`).join('');
+  wrap.querySelectorAll('#eolLookFace .eolLookChip').forEach(b => b.onclick = () => {
+    myProfile.face = b.dataset.face;
+    wrap.querySelectorAll('#eolLookFace .eolLookChip').forEach(x => x.classList.remove('on')); b.classList.add('on');
+    saveProfile();
+    rebuildSelf();
   });
   lookBtn.onclick = () => { lookPanel.hidden = !lookPanel.hidden; };
   wrap.querySelector('#eolLookX').onclick = () => { lookPanel.hidden = true; };

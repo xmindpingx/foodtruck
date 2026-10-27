@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {CONFIG,MENU,money,open,hooks} from './shop.js?v=6';
 import {buildTruck,WX0,WX1,WY0,WY1,BW,BL,BH,bx0,FLOOR,CL} from './truck.js?v=6';
-import * as Avatars from './avatars.js?v=10';
+import * as Avatars from './avatars.js?v=11';
 import * as Account from './account.js?v=7';   // phone-number arcade profiles (language-first sign-up)
 import * as Arcade from './arcade.js?v=16';    // 🎪 The Midway props + six minigames + HIGH SCORES board + Pac-Man cabinet
 
