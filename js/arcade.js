@@ -5,7 +5,7 @@
 // Lobby + done screens speak the language picked at sign-up (Account.lang()).
 import * as THREE from 'three';
 import {announce, clockNow, visitorName, aboveDock} from './avatars.js?v=11';
-import {CONFIG} from './shop.js?v=6';                // games on/off switches (Admin → Settings → Games)
+import {CONFIG} from './shop.js?v=7';                // games on/off switches (Admin → Settings → Games)
 import * as Account from './account.js?v=7';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));

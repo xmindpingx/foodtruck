@@ -9,7 +9,7 @@
 // is an after-the-fact audit log, and Settings has an on/off switch if it's ever misused.
 import * as THREE from 'three';
 import {WX0, WX1, BW, FLOOR} from './truck.js';
-import {CONFIG} from './shop.js?v=6';
+import {CONFIG} from './shop.js?v=7';
 import * as Account from './account.js?v=7';   // language picked at sign-up drives chips + docks
 
 const ID_KEY = 'eol-visitor-id', NAME_KEY = 'eol-visitor-name', PROFILE_KEY = 'eol-visitor-profile';

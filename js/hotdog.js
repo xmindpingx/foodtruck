@@ -7,7 +7,7 @@
 // three clean bites swallow a dog, a miss costs a jaw-lockout, so rhythm beats mashing.
 // Plain DOM + one small canvas; the 3D scene never has to drop a frame for a contest.
 import {announce, clockNow, visitorName, HD} from './avatars.js?v=11';
-import {CONFIG} from './shop.js?v=6';               // Settings → Games can switch the contest off
+import {CONFIG} from './shop.js?v=7';               // Settings → Games can switch the contest off
 
 const DUR = 60;         // seconds per round
 const COLLECT_MS = 25000;

@@ -221,3 +221,9 @@ scene — a CSS resize corner would need pointer events over the whole box and b
  #eolMidway{left:5vw;width:90vw}
  #eolScores{left:5vw;width:90vw}
 }
+
+/* ---- modal menu backdrop: when any .panel is open, everything else dims + unclickable ---- */
+#eolModalBackdrop{position:fixed;inset:0;z-index:1000;background:rgba(4,2,10,.55);
+ display:none;pointer-events:auto}
+body.panel-open #eolModalBackdrop{display:block}
+body.panel-open .panel{z-index:1001}

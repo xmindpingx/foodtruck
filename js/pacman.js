@@ -5,7 +5,7 @@
 // lives, level speed scaling, the tunnel wrap and the intermission. Tap the cabinet (or the
 // 🟡 pill) to open it; swipe or use the D-pad; high scores feed the 🏆 board by the truck.
 // Points come from the arcade economy: a level clear banks a mini collectible + points.
-import {CONFIG} from './shop.js?v=6';
+import {CONFIG} from './shop.js?v=7';
 import {clockNow} from './avatars.js?v=11';
 import * as Account from './account.js?v=7';
 

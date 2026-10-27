@@ -2,7 +2,7 @@
 // handling and the animation loop. Imports the truck from truck.js and the ordering UI from shop.js.
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
-import {CONFIG,MENU,money,open,hooks} from './shop.js?v=6';
+import {CONFIG,MENU,money,open,hooks} from './shop.js?v=7';
 import {buildTruck,WX0,WX1,WY0,WY1,BW,BL,BH,bx0,FLOOR,CL} from './truck.js?v=6';
 import * as Avatars from './avatars.js?v=11';
 import * as Account from './account.js?v=7';   // phone-number arcade profiles (language-first sign-up)

@@ -2,7 +2,7 @@
 // open the lobby; create or join a room, and the game starts when 2+ players are in. Players
 // can leave mid-hand (their cards are discarded, turn advances) and new players can join mid-game
 // (dealt a hand from the deck). Polls /api/uno/room every 2s so everyone stays in sync.
-import {CONFIG} from './shop.js?v=6';
+import {CONFIG} from './shop.js?v=7';
 import * as Account from './account.js?v=7';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));

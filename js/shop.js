@@ -132,7 +132,17 @@ document.getElementById('oform').onsubmit=async e=>{e.preventDefault();if(!cart.
 document.getElementById('cform').onsubmit=e=>{e.preventDefault();const f=new FormData(e.target);
   if(!CONFIG.email){alert('Contact email not set up yet.');return;}
   location.href=`mailto:${CONFIG.email}?subject=${encodeURIComponent('Food truck inquiry from '+f.get('name'))}&body=${encodeURIComponent(f.get('msg')+'\n\nReply to: '+f.get('from'))}`;};
+let _backdrop=null;
+function ensureBackdrop(){
+  if(_backdrop&&_backdrop.isConnected)return _backdrop;
+  _backdrop=document.createElement('div');_backdrop.id='eolModalBackdrop';document.body.appendChild(_backdrop);
+  return _backdrop;
+}
 export const open=id=>{document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('open',p.id===id));
+  const anyOpen=!!document.querySelector('.panel.open');
+  document.body.classList.toggle('panel-open',anyOpen);
+  if(anyOpen){const bd=ensureBackdrop();bd.onclick=()=>open(null);}
+  else if(_backdrop&&_backdrop.isConnected)_backdrop.remove();
   dispatchEvent(new Event(id==='menu'?'eol:menu-open':'eol:menu-close'));};
 document.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{open(b.dataset.p);if(b.dataset.p==='menu')hooks.goWindow();});
 document.querySelectorAll('.x').forEach(b=>b.onclick=()=>open(null));

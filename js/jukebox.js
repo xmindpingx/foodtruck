@@ -6,7 +6,7 @@
 // start; the payer's own click counts as that tap. Songs + point costs are admin rows
 // (Settings → Jukebox); points deduct server-side on the phone account, exactly like the
 // 🏬 collectible shop — the payer can never tip themselves.
-import {CONFIG} from './shop.js?v=6';
+import {CONFIG} from './shop.js?v=7';
 import {clockNow, aboveDock} from './avatars.js?v=11';
 import * as Account from './account.js?v=7';
 

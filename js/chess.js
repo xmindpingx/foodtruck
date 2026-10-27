@@ -3,7 +3,7 @@
 // drawn as translucent crystal (gradient fills + specular highlights + drop shadows) and every
 // CAPTURE plays a battle animation: the attacker slides in, the two clash with a spark, and
 // the captured piece shatters into crystal shards. Polls /api/chess/room every 2s.
-import {CONFIG} from './shop.js?v=6';
+import {CONFIG} from './shop.js?v=7';
 import * as Account from './account.js?v=7';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
