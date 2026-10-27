@@ -257,6 +257,41 @@ function buildProps() {
     claw.position.set(-6.9, 0, -8.3); claw.rotation.y = .3; rig.add(claw); props.claw = claw;   // west flank of the HIGH SCORES board (was mid serving-side lawn) — user layout pass
   }
 
+  // 🟡 Pac-Man arcade cabinet — a real upright cabinet on the east lawn (tap to play)
+  // (only when its game is on; registered as a movable prop + walk collider below)
+  let pac = null;
+  if (gameOn('pacman')) {
+    pac = new THREE.Group();
+    const matCab = new THREE.MeshStandardMaterial({color: 0x1a1a2e, roughness: .5, metalness: .2});
+    const matTrim = new THREE.MeshStandardMaterial({color: 0xffd24d, roughness: .4, metalness: .3});
+    const matScreen = new THREE.MeshBasicMaterial({color: 0x000000});
+    const matMarquee = new THREE.MeshBasicMaterial({map: signTexture('🟡 PAC-MAN', '#ffd24d'), transparent: true});
+    // base + lower body
+    const base = new THREE.Mesh(new THREE.BoxGeometry(1.0, .25, .85), matCab); base.position.y = .125; pac.add(base);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.5, .75), matCab); body.position.y = 1.0; pac.add(body);
+    // control deck (angled)
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(1.0, .08, .5), matCab); deck.position.set(0, 1.6, .45); deck.rotation.x = -.5; pac.add(deck);
+    // CRT screen (slightly recessed)
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(.72, .56), matScreen); screen.position.set(0, 1.35, .38); pac.add(screen);
+    const bezel = new THREE.Mesh(new THREE.BoxGeometry(.82, .66, .04), matTrim); bezel.position.set(0, 1.35, .36); pac.add(bezel);
+    // marquee on top
+    const marq = new THREE.Mesh(new THREE.BoxGeometry(1.05, .22, .4), matCab); marq.position.y = 1.95; pac.add(marq);
+    const marqFace = new THREE.Mesh(new THREE.PlaneGeometry(.95, .18), matMarquee); marqFace.position.set(0, 1.95, .21); pac.add(marqFace);
+    // joystick + buttons
+    const stick = new THREE.Mesh(new THREE.CylinderGeometry(.015, .015, .12, 8), new THREE.MeshStandardMaterial({color: 0xcccccc, metalness: .8, roughness: .2}));
+    stick.position.set(-.15, 1.62, .42); pac.add(stick);
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(.03, 8, 6), new THREE.MeshStandardMaterial({color: 0xff0000, roughness: .4}));
+    knob.position.set(-.15, 1.69, .42); pac.add(knob);
+    for (const bx of [.1, .22, .34]) {
+      const b = new THREE.Mesh(new THREE.CylinderGeometry(.025, .025, .02, 10), new THREE.MeshStandardMaterial({color: 0xffff00, roughness: .4}));
+      b.position.set(bx, 1.62, .42); pac.add(b);
+    }
+    // coin door
+    const coin = new THREE.Mesh(new THREE.BoxGeometry(.3, .18, .02), new THREE.MeshStandardMaterial({color: 0x222, roughness: .7}));
+    coin.position.set(0, .55, .385); pac.add(coin);
+    pac.traverse(o => { o.userData.midway = 'pac'; });
+    pac.position.set(5.5, 0, -7); pac.rotation.y = -.3; rig.add(pac); props.pac = pac;
+  }
   // 🎯 two bean-bag boards angled toward the toss line, west lawn (skipped when the game is off)
   if (gameOn('bbt')) for (let i = 0; i < 2; i++) {
     const g = new THREE.Group();
@@ -311,7 +346,7 @@ function buildProps() {
   board.position.set(-2.1, 2.0, 0); board.rotation.y = Math.PI - .065;
   rig.add(board); props.board = board;
 
-  pills = [claw, ...props.bbt, tag, board].filter(Boolean);   // click targets for whatever got built
+  pills = [claw, ...props.bbt, tag, board, pac].filter(Boolean);   // click targets for whatever got built
 }
 export function prop(id) { return props[id] || null; }   // scene.js #layout mode: movable prop groups by id
 function signTexture(txt, col) {
@@ -336,12 +371,14 @@ export function walkBalls() {
   for (const b of props.bbt) if (b.parent) { b.getWorldPosition(_bv); out.push({x: _bv.x, z: _bv.z, r: .6}); }
   if (props.tag && props.tag.parent) { props.tag.getWorldPosition(_bv); out.push({x: _bv.x, z: _bv.z, r: .42}); }
   if (props.board && props.board.parent) { props.board.getWorldPosition(_bv); out.push({x: _bv.x, z: _bv.z, r: .55}); }
+  if (props.pac && props.pac.parent) { props.pac.getWorldPosition(_bv); out.push({x: _bv.x, z: _bv.z, r: .6}); }
   return out;
 }
 export const targets = () => pills;
 export function openFrom(obj) {
   const mw = obj && obj.userData && obj.userData.midway;
   if (mw === 'board') { openScores(); return true; }
+  if (mw === 'pac') { dispatchEvent(new Event('eol:pac-open')); return true; }
   if (mw) { openPanel(mw); return true; }
   return false;
 }
@@ -429,7 +466,10 @@ function finishGame(gameId, opts) {
     refreshPts();
   }
 }
-function refreshPts() { const el = panel && panel.querySelector('.eolMidPts'); if (el) el.textContent = '🪙 ' + Math.round(Account.points()) + ' pts'; }
+function refreshPts() {
+  const el = panel && panel.querySelector('.eolMidPts');
+  if (el) el.textContent = '🪙 ' + Math.round(Account.points()) + ' pts';
+}
 
 // ---------- minigame engine (one <canvas> + one shared rAF) ----------
 let live = null;                                  // {id, canvas, cx, w, h, step(), draw(), stop()}
@@ -1013,3 +1053,52 @@ export function tick(dt, t) {
     if (f) { f.rotation.y = Math.sin(t * 3 + 1) * .45; f.rotation.x = .15 + Math.sin(t * 2.2) * .1; }
   }
 }
+
+// Draggable game tabs — make them movable cards in the midway section
+(function() {
+  const DRAGGABLES = document.querySelectorAll('.eolMidTab');
+  
+  DRAGGABLES.forEach(function(el) {
+    makeDraggable(el);
+  });
+
+  function makeDraggable(el) {
+    var isDragging = false, startX, startY, initialLeft, initialTop;
+
+    el.addEventListener('mousedown', function(e) {
+      // Only drag if clicking the card background, not buttons inside
+      if (e.target.tagName === 'BUTTON') return;
+      
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      initialLeft = el.offsetLeft;
+      initialTop = el.offsetTop;
+    });
+
+    document.addEventListener('mousemove', function(e) {
+      if (!isDragging) return;
+      
+      var dx = e.clientX - startX;
+      var dy = e.clientY - startY;
+      
+      el.style.left = initialLeft + dx + 'px';
+      el.style.top = initialTop + dy + 'px';
+    });
+
+    function stopDrag() {
+      if (isDragging) {
+        isDragging = false;
+      }
+    }
+
+    document.addEventListener('mouseup', stopDrag);
+    
+    el.addEventListener('click', function(e) {
+      // Don't trigger drag on actual button clicks
+      if (e.target.tagName === 'BUTTON') return;
+      e.preventDefault();
+      e.stopPropagation();
+    });
+  }
+})();

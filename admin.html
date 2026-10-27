@@ -43,9 +43,10 @@ button:disabled{opacity:.5;cursor:wait}
 
 <div id="app" hidden>
 <header><h1>el Otro Lado</h1><span>Admin</span>
- <nav class="tabs"><button data-t="orders" class="on">Orders</button><button data-t="menu">Menu</button><button data-t="settings">Settings</button><button id="out">Sign out</button></nav>
+ <nav class="tabs"><button data-t="orders" class="on">Orders</button><button data-t="menu">Menu</button><button data-t="chat">Live chat</button><button data-t="inventory">Inventory</button><button data-t="reports">Reports</button><button data-t="marketing">Marketing</button><button data-t="outreach">Outreach</button><button data-t="settings">Settings</button><button id="out">Sign out</button></nav>
 </header>
 <main>
+ <div id="probAlert" onclick="document.querySelector('[data-t=&quot;orders&quot;]').click()" hidden style="position:fixed;top:0;left:0;right:0;z-index:60;background:#b3242c;color:#fff;padding:10px 16px;text-align:center;font-weight:700;cursor:pointer">⚠️ <span></span></div>
  <!-- ORDERS -->
  <section data-tab="orders">
   <div class="bar"><h2 style="margin:0;flex:1">Live orders</h2><label class="chk"><input type="checkbox" id="showDone"> show finished</label><span class="muted" id="ordUpd"></span></div>
@@ -59,9 +60,99 @@ button:disabled{opacity:.5;cursor:wait}
   <div id="cats"></div>
  </section>
 
+ <!-- LIVE CHAT (audit log - the chat itself is unmoderated and happens on the public site) -->
+ <section data-tab="chat" hidden>
+  <div class="bar"><h2 style="margin:0;flex:1">Live site chat</h2><button class="b" id="chatRefresh">Refresh</button><span class="muted">Visitors' avatar chat from the 3D site. Turn it off entirely in Settings → "Live avatars / chat" if it's being misused.</span></div>
+  <div class="card" id="chatLog"><p class="muted">Loading…</p></div>
+ </section>
+
  <!-- SETTINGS -->
+ <section data-tab="inventory" hidden>
+  <div class="bar"><h2 style="margin:0;flex:1">Inventory & recipes</h2><button class="b p" id="saveInv">Save inventory</button><span id="invMsg" class="muted"></span></div>
+  <div class="card"><h3>Ingredients</h3>
+   <p class="muted">Orders deduct these via the recipes below; cancelled orders put them back automatically. The <b>+stock / waste</b> buttons log to the ledger for the EOM report.</p>
+   <div id="ingRows" class="muted">Loading…</div>
+   <button class="b" onclick="addIngRow()">+ ingredient</button>
+  </div>
+  <div class="card"><h3>Recipes (per menu item)</h3>
+   <p class="muted">JSON list of {"ing": id-or-$protein, "qty": n} per serving. <b>$protein</b> = the chosen protein's own ingredient row.</p>
+   <div id="recRows" class="muted">Loading…</div>
+  </div>
+ </section>
+ <section data-tab="reports" hidden>
+  <div class="bar"><h2 style="margin:0;flex:1">Reports (end of month)</h2><span id="repMsg" class="muted"></span></div>
+  <div class="card">
+   <div class="row"><input type="month" id="repMonth"><button class="b p" onclick="loadReport()">Load</button><button class="b" onclick="writeEom()">Write EOM file</button></div>
+   <div id="repOut" class="muted">Pick a month.</div>
+  </div>
+ </section>
+ <section data-tab="marketing" hidden>
+  <div class="bar"><h2 style="margin:0;flex:1">Marketing & partners</h2><span class="muted">Banner + campaigns + partner links save with Save settings.</span></div>
+  <div class="card"><h3>Homepage banner</h3><div class="grid">
+   <div style="grid-column:1/-1"><label>Banner text (blank hides it)</label><input data-s="bannerText"></div>
+   <div style="grid-column:1/-1"><label>Banner link (optional)</label><input data-s="bannerLink"></div>
+  </div></div>
+  <div class="card"><h3>Ad campaigns</h3>
+   <p class="muted">Spend feeds the EOM report's marketing line (ROI = gross sales per $1 spent).</p>
+   <div id="campRows"></div><button class="b" onclick="addCampRow()">+ campaign</button>
+  </div>
+  <div class="card"><h3>Delivery & grocery partners</h3>
+   <p class="muted">Toggle on + paste the public listing URL → "Order on …" links appear on the site's Find Us panel.</p>
+   <div class="grid">
+    <div><label class="chk"><input type="checkbox" data-s="partnerGrubhubOn"> Grubhub</label><input data-s="partnerGrubhubLink" placeholder="listing URL"></div>
+    <div><label class="chk"><input type="checkbox" data-s="partnerUberOn"> Uber Eats</label><input data-s="partnerUberLink" placeholder="listing URL"></div>
+    <div><label class="chk"><input type="checkbox" data-s="partnerDoorDashOn"> DoorDash</label><input data-s="partnerDoorDashLink" placeholder="listing URL"></div>
+    <div><label class="chk"><input type="checkbox" data-s="partnerInstacartOn"> Instacart</label><input data-s="partnerInstacartLink" placeholder="listing URL"></div>
+   </div>
+   <p class="muted" style="margin-top:8px"><b>Signup guides:</b> <b>Grubhub</b> for Restaurants — self-serve, ~15–30% commission, tablet or POS order feed, weekly payouts. <b>Uber Eats</b> Manager — self-serve, ~15–30%, tablet preferred for tickets, weekly payouts. <b>DoorDash</b> Merchant — self-serve, ~15–30% + possible flat fee, includes your-own-site ordering, weekly payouts. <b>Instacart</b> — grocery/retail focus: right for packaged sauces + merch, not hot food. All four need business/EIN info, payout bank details, a menu with prices, and short prep times — keep your pickup window tight, the food is made to order.</p>
+  </div>
+ </section>
+ <section data-tab="outreach" hidden>
+  <div class="bar"><h2 style="margin:0;flex:1">Local partner outreach</h2><span id="outMsg" class="muted"></span></div>
+  <div class="card"><h3>Find businesses near an address</h3>
+   <div class="row"><input id="outAddr" placeholder="Address or place" style="flex:1"><input id="outRad" type="number" value="4000" style="width:110px" title="radius, meters"><button class="b p" onclick="outSearch()">Search</button></div>
+   <div id="outCats" class="row" style="flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+   <p class="muted">Public OpenStreetMap data (Nominatim + Overpass) — no API keys. "Find emails" then reads each business's own site for a public contact address.</p>
+  </div>
+  <div class="card"><h3>Leads & pitch drafts</h3>
+   <div class="row"><button class="b" onclick="outFindEmails()">Find emails on their sites</button><span class="muted">drafts are per-category pairing pitches — copy & send from your own mail</span></div>
+   <div id="outLeads" class="muted">No search yet.</div>
+  </div>
+  <div class="card"><h3>Pitch template</h3>
+   <p class="muted">Placeholders: {business} {category} {angle} {address} {our} {tagline} {phone} {email} {social}. Blank = the built-in default.</p>
+   <textarea id="outTpl" rows="8" style="width:100%"></textarea>
+   <button class="b p" onclick="outSaveTpl()">Save template</button>
+  </div>
+ </section>
  <section data-tab="settings" hidden>
   <div class="bar"><h2 style="margin:0;flex:1">Settings</h2><button class="b p" id="saveSet">Save settings</button><span id="setMsg" class="muted"></span></div>
+  <div class="card"><h3>Live avatars / chat</h3>
+   <p class="muted">Other visitors show up as avatars in the 3D scene and can type short public chat messages to each other above their avatar. This is <b>not moderated in real time</b> — use the off switch if someone abuses it.</p>
+   <div class="grid"><div><label>Chat</label><label class="chk"><input type="checkbox" data-s="avatarChatEnabled"> Allow visitor chat</label></div></div>
+  </div>
+  <div class="card"><h3>AI order-taking assistant</h3>
+   <p class="muted">Lives in the same chat dock as visitor chat (visitors switch modes with a button). Runs your local Ollama model to answer menu questions and can place real orders — it can only add items that actually exist on the menu, at the real price, and chat orders never carry SMS consent (that stays an explicit checkbox at checkout only).</p>
+   <div class="grid"><div><label>Assistant</label><label class="chk"><input type="checkbox" data-s="aiAssistantEnabled"> Let visitors order through chat</label></div></div>
+  </div>
+  <div class="card"><h3>Games</h3>
+   <p class="muted">The 🎪 Midway arcade, its six minigames, the 🌭 hot dog eating contest and the 🤖 trivia bot can each be switched off. A minigame that's off loses its prop on the lot, its tab in the Midway panel and its row on the HIGH SCORES board; the trivia bot stops asking questions immediately (banked points and collections always stay); the hot dog contest loses its pill and the lawn-table tap. Visitors who already have a page open can't post scores for a game you just switched off.</p>
+   <div class="grid">
+    <div><label>Midway arcade (master)</label><label class="chk"><input type="checkbox" data-s="midwayOn"> Midway on — props, panel and HIGH SCORES board</label></div>
+    <div><label>Hot dog contest</label><label class="chk"><input type="checkbox" data-s="hotdogOn"> 🌭 Contest on</label></div>
+    <div><label>Trivia bot</label><label class="chk"><input type="checkbox" data-s="triviaBotOn"> 🤖 Trivia race in chat on</label></div>
+    <div><label>Pac-Man cabinet</label><label class="chk"><input type="checkbox" data-s="gamePacmanOn"> 🟡 Pac-Man on</label></div>
+    <div><label>Geocaching</label><label class="chk"><input type="checkbox" data-s="geocacheOn"> 🗺️ Hide-and-seek caches on (visitors stash collectibles)</label></div>
+   </div>
+   <div class="grid" style="margin-top:8px">
+    <div><label>Midway minigames</label>
+     <label class="chk"><input type="checkbox" data-s="gameClawOn"> 🦞 Claw Machine</label>
+     <label class="chk"><input type="checkbox" data-s="gameBbtOn"> 🎯 Bean-Bag Toss</label>
+     <label class="chk"><input type="checkbox" data-s="gameTagOn"> 🚩 Tag Arena</label>
+     <label class="chk"><input type="checkbox" data-s="gameC4On"> 🔴 Connect Four</label>
+     <label class="chk"><input type="checkbox" data-s="gameTttOn"> ⭕ Tic-Tac-Toe</label>
+     <label class="chk"><input type="checkbox" data-s="gamePinOn"> 🪅 Piñata Smash</label></div>
+   </div>
+  </div>
   <div class="card"><h3>Business</h3><div class="grid">
    <div><label>Business name</label><input data-s="businessName"></div>
    <div><label>Tagline</label><input data-s="tagline"></div>
@@ -70,12 +161,51 @@ button:disabled{opacity:.5;cursor:wait}
    <div><label>Social (Instagram/Facebook)</label><input data-s="social"></div>
    <div><label>Location</label><input data-s="location"></div>
    <div><label>Hours</label><input data-s="hours"></div>
+   <div style="grid-column:1/-1"><label>Logo image (shows next to the brand name in the header; png/jpg/webp/svg/gif, under 3MB)</label><input type="file" id="brandLogoUpload" accept=".png,.jpg,.jpeg,.webp,.svg,.gif"></div>
+   <div style="grid-column:1/-1" id="brandLogoCur" class="muted"></div>
+   <div style="grid-column:1/-1"><label>Copyright line (the header/footer notice; leave blank to keep the standard wording)</label><input data-s="copyrightLine"></div>
   </div></div>
   <div class="card"><h3>Online ordering</h3><div class="grid">
    <div><label>Accepting online orders</label><label class="chk"><input type="checkbox" data-s="orderingOpen"> Open</label></div>
    <div><label>Sales tax rate (decimal, e.g. 0.083 = 8.3%)</label><input data-s="taxRate" type="number" step="0.0001"></div>
    <div style="grid-column:1/-1"><label>Checkout note</label><input data-s="orderNote"></div>
   </div></div>
+  <div class="card"><h3>Payments</h3><div class="grid">
+   <div><label>Offer at checkout</label>
+    <label class="chk"><input type="checkbox" data-s="payStripe"> Card (Stripe)</label>
+    <label class="chk"><input type="checkbox" data-s="payCashapp"> CashApp</label>
+    <label class="chk"><input type="checkbox" data-s="payZelle"> Zelle</label>
+    <label class="chk"><input type="checkbox" data-s="payCash"> Cash at window</label></div>
+   <div><label>CashApp $tag (shown at checkout)</label><input data-s="cashappTag" placeholder="$ElOtroLado"></div>
+   <div><label>Zelle phone/email (shown at checkout)</label><input data-s="zelleContact"></div>
+   <div><label>Stripe secret key (server-side only)</label><input data-s="stripeSecret" type="password" placeholder="sk_live_… / sk_test_…"></div>
+   <div><label>Stripe webhook secret</label><input data-s="stripeWebhookSecret" placeholder="whsec_…"></div>
+   <div><label>Driver phone (customer "DRIVER" texts relay here)</label><input data-s="driverPhone" placeholder="+1…"></div>
+  </div>
+   <p class="muted">Stripe webhook to register in the Stripe dashboard → Developers → Webhooks → Add endpoint: <b>https://food.signaturediversified.com/api/stripe/webhook</b>, event <b>checkout.session.completed</b>; paste the endpoint's whsec_ here. Customers who text STOP are never texted again (self-managed opt-outs — no Messaging Service, so our webhook owns the keywords).</p>
+  </div>
+  <div class="card"><h3>Promotions</h3>
+   <p class="muted">Specials auto-price a menu item (optional weekdays 0=Mon..6=Sun, date window); codes are typed at checkout. Add rows, then hit Save settings.</p>
+   <div id="promoRows"></div><button class="b" onclick="addPromoRow()">+ promo</button>
+  </div>
+  <div class="card"><h3>Rewards</h3><div class="grid">
+   <div><label>Loyalty</label><label class="chk"><input type="checkbox" data-s="rewardsOn"> Rewards on</label></div>
+   <div><label>Points per $1 (pre-tax)</label><input data-s="pointsPerDollar" type="number" step="1"></div>
+  </div>
+   <p class="muted">Rewards redeem as a cents-off discount at checkout; balances ride the phone accounts. Add rows, then Save settings.</p>
+   <div id="rewardRows"></div><button class="b" onclick="addRewardRow()">+ reward</button>
+  </div>
+  <div class="card"><h3>Text alerts (SMS)</h3>
+   <p class="muted">Outbound texts (order-ready + broadcasts) go through the carrier here: <b>twilio</b> = the newly approved direct account (credentials come from the shared sms-gateway .env unless given below), <b>notifyhub</b> = the old iPhone relay, <b>gateway</b> = the legacy local service. The <b>admin alert phone</b> gets an instant text the moment a visitor reports a problem through the chat assistant (chips like "Something is wrong with what I received!").</p>
+   <div class="grid">
+    <div><label>Carrier</label><select data-s="smsGateway"><option value="twilio">twilio (direct)</option><option value="notifyhub">notifyhub (iPhone relay)</option><option value="gateway">gateway (legacy)</option></select></div>
+    <div><label>Admin alert phone (E.164, e.g. +14805551234)</label><input data-s="adminPhone" placeholder="+14805551234"></div>
+    <div><label>Admin alerts on</label><label class="chk"><input type="checkbox" data-s="adminSmsAlerts"> Text me on visitor problems</label></div>
+    <div><label>Twilio SID (optional override)</label><input data-s="twilioSid"></div>
+    <div><label>Twilio From number (optional override)</label><input data-s="twilioFrom"></div>
+    <div><label>Twilio Messaging Service SID (optional)</label><input data-s="twilioServiceSid"></div>
+   </div>
+  </div>
   <div class="card"><h3>AI menu photos</h3>
    <p class="muted">Ollama writes a photo description from each listing; the local FLUX.2 klein service on your GPU renders it. Generated photos are drafts — use them as previews until you have real photos of your food.</p>
    <div class="grid">
@@ -87,7 +217,11 @@ button:disabled{opacity:.5;cursor:wait}
     <div><label>ComfyUI model (blank = FLUX.2 klein 4B; or pick an SD checkpoint)</label><input data-s="comfyCheckpoint" list="ckpts"><datalist id="ckpts"></datalist></div>
     <div><label>FLUX service URL (local only)</label><input data-s="imageServiceUrl"></div>
    </div>
-   <div style="margin-top:12px"><h3 style="margin-bottom:8px">Sampling / Quality</h3><div class="grid">
+   <div style="margin-top:12px"><h3 style="margin-bottom:8px">Sampling / Quality</h3>
+   <p class="muted" style="margin:0 0 8px">Settings must match the model or photos come out posterized/cartoonish.
+   <b>FLUX.2 klein (checkpoint blank — best realism):</b> steps 4, sampler euler, 768–1024 px; CFG is ignored.
+   <b>sd_xl_turbo:</b> steps 1–4, CFG 1.0, euler_ancestral, sgm_uniform, 512 px.
+   <b>v1-5:</b> steps 25–30, CFG 6–7, dpmpp_2m, karras, 512 px.</p><div class="grid">
     <div><label>Steps</label><input type="number" min="1" max="100" step="1" data-s="comfySamplingSteps" value="25"></div>
     <div><label>Guidance scale (CFG)</label><input type="number" min="0" max="20" step="0.1" data-s="comfyGuidanceScale" value="7.5"></div>
     <div><label>Sampler</label><input data-s="comfySampler" placeholder="euler, dpmpp_2m, etc."></div>
@@ -108,6 +242,30 @@ button:disabled{opacity:.5;cursor:wait}
    <div style="margin-top:8px;grid-column:1/-1"><label>Photo style (added to every prompt)</label><textarea data-s="photoStyle" rows="2"></textarea></div>
    <p style="margin-top:12px"><button class="b" id="health">Check services</button> <span id="healthOut" class="muted"></span></p>
   </div>
+  <div class="card"><h3>Truck boombox &amp; TV monitor</h3>
+   <p class="muted">A boombox prop rides on the roof and plays this music; a small TV monitor on the truck's back wall plays this video on loop. Browsers block audio from autoplaying, so visitors tap a speaker button to start the music — video plays muted automatically (browsers allow that).</p>
+   <div class="grid">
+    <div><label>Music</label><label class="chk"><input type="checkbox" data-s="bgMusicEnabled"> Play music from the boombox</label></div>
+    <div><label>Upload music (mp3/m4a/ogg/wav, under 20MB)</label><input type="file" id="bgMusicUpload" accept=".mp3,.m4a,.ogg,.wav"></div>
+    <div style="grid-column:1/-1" id="bgMusicCur" class="muted"></div>
+   </div>
+   <div class="grid" style="margin-top:8px">
+    <div><label>TV</label><label class="chk"><input type="checkbox" data-s="tvEnabled"> Show video on the TV monitor</label></div>
+    <div><label>Upload video (mp4/webm/mov, under 60MB)</label><input type="file" id="tvVideoUpload" accept=".mp4,.webm,.mov"></div>
+    <div style="grid-column:1/-1" id="tvVideoCur" class="muted"></div>
+   </div>
+   <p id="mediaMsg" class="muted" style="margin-top:8px"></p>
+  </div>
+  <div class="card"><h3>Jukebox (songs for points)</h3>
+   <p class="muted">Visitors tap the 🎵 jukebox on the lot and spend <b>arcade points</b> to play a song <b>for everyone on the lot</b> — the same song plays on every visitor's screen at the same moment. Points deduct server-side from their phone account (like the 🏬 collectible shop). A paid play runs for the play window below, then the next queued song (up to 3 waiting) takes over. Upload songs here, set each one's title and cost, then hit Save settings.</p>
+   <div class="grid">
+    <div><label>Jukebox</label><label class="chk"><input type="checkbox" data-s="jukeboxOn"> Jukebox on</label></div>
+    <div><label>Play window per paid song (seconds, 30–900)</label><input data-s="jukeboxPlaySecs" type="number" min="30" max="900" step="10"></div>
+    <div><label>Upload a song (mp3/m4a/ogg/wav, under 20MB)</label><input type="file" id="jukeboxUpload" accept=".mp3,.m4a,.ogg,.wav"></div>
+    <div style="grid-column:1/-1" id="jukeboxUploadMsg" class="muted"></div>
+   </div>
+   <div id="jukeRows"></div><button class="b" onclick="addJukeRow()">+ song</button>
+  </div>
   <div class="card"><h3>Admin password</h3><div class="row"><input type="password" id="newpw" placeholder="New password (8+ characters)"><button class="b p" id="setpw" style="flex:0 0 auto">Change</button></div><p id="pwMsg" class="muted"></p></div>
  </section>
 </main>
@@ -124,7 +282,15 @@ $('#lf').onsubmit=async e=>{e.preventDefault();$('#lerr').textContent='';
   if(!r.ok)return $('#lerr').textContent=j.error;TOKEN=j.token;sessionStorage.setItem('eol_admin',TOKEN);start();};
 $('#out').onclick=()=>{api('/api/admin/logout',{}).catch(()=>{});logout();};
 document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-t]').forEach(x=>x.classList.toggle('on',x===b));
-  document.querySelectorAll('[data-tab]').forEach(s=>s.hidden=s.dataset.tab!==b.dataset.t);});
+  document.querySelectorAll('[data-tab]').forEach(s=>s.hidden=s.dataset.tab!==b.dataset.t);
+  if(b.dataset.t==='chat')loadChat();});
+async function loadChat(){const el=$('#chatLog');
+  try{const {messages}=await api('/api/admin/chat');
+    el.innerHTML=messages.length?messages.slice().reverse().map(m=>`<div class="order"><div class="muted" style="font-size:11px">${new Date(m.ts*1000).toLocaleTimeString()}</div>
+      <div><b style="color:hsl(${m.hue},55%,65%)">${esc(m.name)}</b> ${esc(m.text)}</div><div></div></div>`).join('')
+      : '<p class="muted">No chat messages yet.</p>';}
+  catch(e){el.innerHTML=`<p class="err">${esc(e.message)}</p>`;}}
+$('#chatRefresh').onclick=loadChat;
 
 async function start(){$('#login').hidden=true;$('#app').hidden=false;
   try{[MENU,SET]=await Promise.all([api('/api/admin/menu'),api('/api/admin/settings')]);}catch(e){return;}
@@ -148,29 +314,36 @@ function smsBadge(o){
 async function loadOrders(){if(!TOKEN)return;let os;try{os=await api('/api/admin/orders');}catch(e){return;}
   try{OUTBOX=(await api('/api/admin/sms/outbox')).outbox||[];}catch(e){/* non-fatal: badges just show "queued" until the next poll succeeds */}
   const show=$('#showDone').checked;os=os.filter(o=>show||!['done','cancelled'].includes(o.status)).reverse();
+  const nu=(os.filter(o=>o.problem&&o.problem.unseen)).length;
+  const pb=$('#probAlert');if(pb){pb.hidden=!nu;pb.style.display=nu?'block':'none';pb.querySelector('span').textContent=nu+' visitor problem report'+(nu>1?'s':'')+' — check the Orders tab!';}
   $('#orders').innerHTML=os.length?os.map(o=>`<div class="order"><div class="num">#${o.number}</div><div>
-   <b>${esc(o.name)}</b> · <a style="color:#9fd" href="tel:${esc(o.phone)}">${esc(o.phone)}</a> · <span class="muted">${new Date(o.ts*1000).toLocaleTimeString()}</span> <span class="st ${o.status}">${o.status}</span> ${o.paid?'<span class="st ready">paid</span>':''}
+   <b>${esc(o.name)}</b> · <a style="color:#9fd" href="tel:${esc(o.phone)}">${esc(o.phone)}</a> · <span class="muted">${new Date(o.ts*1000).toLocaleTimeString()}</span> <span class="st ${o.status}">${o.status}</span> ${o.paid?'<span class="st ready">paid</span>':''}${(o.problem&&o.problem.unseen)?'<span class="st ready" style="background:#b3242c">⚠ PROBLEM</span>':''}
    <div>${o.items.map(i=>`${i.qty}× ${esc(i.name)}${i.protein?' — '+esc(i.protein):''}`).join('<br>')}</div>
-   ${o.notes?`<div class="muted">Note: ${esc(o.notes)}</div>`:''}<div class="muted">Total ${money(o.total)} (tax ${money(o.tax)})</div>${smsBadge(o)}</div>
+   ${o.notes?`<div class="muted">Note: ${esc(o.notes)}</div>`:''}<div class="muted">Total ${money(o.total)} (tax ${money(o.tax)})</div>${smsBadge(o)}${(o.problem&&o.problem.unseen)?`<div class="muted" style="color:#ffb4b4">⚠ ${(o.problem.kind==='cancel')?'wants to change/cancel':'problem reported'}: ${esc(o.problem.text||'')}</div>`:''}
    <div class="row" style="flex-direction:column;align-items:stretch;gap:6px">
     ${['cooking','ready','done'].map(s=>`<button class="b ${s==='ready'?'g':''}" onclick="setOrder('${o.id}',{status:'${s}'})">${s}</button>`).join('')}
     <button class="b" onclick="setOrder('${o.id}',{paid:${!o.paid}})">${o.paid?'unpaid':'mark paid'}</button>
+    <button class="b" id="sms-${o.id}" onclick="sendSms('${o.id}')">text customer</button>
+    ${(o.problem&&o.problem.unseen)?`<button class="b" onclick="probSeen('${o.id}')">problem seen ✔</button>`:''}
     <button class="b r" onclick="if(confirm('Cancel order #${o.number}?'))setOrder('${o.id}',{status:'cancelled'})">cancel</button></div></div>`).join('')
    :'<p class="muted">No open orders.</p>';$('#ordUpd').textContent='updated '+new Date().toLocaleTimeString();}
 async function setOrder(id,ch){await api('/api/admin/order',{id,...ch});loadOrders();}
+async function probSeen(oid){try{await api('/api/admin/help/seen',{orderId:oid});loadOrders();}catch(e){alert(e.message);}}
 async function sendSms(oid) {
-    const o = await api('/api/admin/order/' + oid);
-    const phone = o.phone || '1234567890'; // default placeholder
-    const message = `El Otro Lado (John Switzer): Order #${o.number} is ready for pickup at the window! Reply STOP to opt out, HELP for help.`;   // == registered sample #1
+    const btn = document.getElementById(`sms-${oid}`);
+    const say = t => { if (btn) btn.textContent = t; };
     try {
+        const o = await api('/api/admin/order/' + oid);
+        if (!o.phone) { say('✕ no phone on order'); return; }
+        const message = `El Otro Lado (Summer and Jesse): Order #${o.number} is ready for pickup at the window! Reply STOP to opt out, HELP for help.`;   // == registered sample #1
         await api('/api/admin/sms/send', {
-            to: phone,
+            to: o.phone,
             message: message,
             project: 'foodtruck'
         });
-        document.getElementById(`o-${oid}`).textContent = '✓ SMS sent';
+        say('✓ SMS sent');
     } catch(e) {
-        document.getElementById(`o-${oid}`).textContent = `✕ Error: ${e.message}`;
+        say(`✕ Error: ${e.message}`);
     }
 }
 $('#showDone').onchange=loadOrders;
@@ -222,12 +395,149 @@ async function gen(ci,ii){const it=I(ci,ii),box=$(`#gen-${ci}-${ii}`),btn=$(`#gb
 
 /* ---------- SETTINGS ---------- */
 function renderSettings(){document.querySelectorAll('[data-s]').forEach(el=>{const v=SET[el.dataset.s];el.type==='checkbox'?el.checked=!!v:el.value=v??'';});
-  api('/api/admin/comfy-checkpoints').then(l=>$('#ckpts').innerHTML=l.map(n=>`<option value="${esc(n)}">`).join('')).catch(()=>{});}
+  renderCommerceEditors();
+  api('/api/admin/comfy-checkpoints').then(l=>$('#ckpts').innerHTML=l.map(n=>`<option value="${esc(n)}">`).join('')).catch(()=>{});
+  $('#bgMusicCur').textContent=SET.bgMusicFile?`Current: ${SET.bgMusicFile}`:'No music uploaded yet.';
+  $('#tvVideoCur').textContent=SET.tvVideoFile?`Current: ${SET.tvVideoFile}`:'No video uploaded yet.';
+  $('#brandLogoCur').innerHTML=SET.brandLogo?`Current: <img src="/media/${esc(SET.brandLogo)}" style="height:34px;vertical-align:middle;border-radius:6px;margin:0 6px" alt=""> ${esc(SET.brandLogo)}`:'No logo uploaded — the site shows the text brand name.';}
+async function uploadMedia(kind,file){
+  const buf=await file.arrayBuffer();
+  let bin='';const bytes=new Uint8Array(buf);for(let i=0;i<bytes.length;i+=0x8000)bin+=String.fromCharCode(...bytes.subarray(i,i+0x8000));
+  const b64=btoa(bin);
+  return api('/api/admin/upload-media',{kind,filename:file.name,data:b64});
+}
+$('#bgMusicUpload').onchange=async e=>{const f=e.target.files[0];if(!f)return;
+  $('#mediaMsg').textContent='Uploading music…';
+  try{const r=await uploadMedia('audio',f);SET.bgMusicFile=r.file;renderSettings();$('#mediaMsg').innerHTML='<span class="ok">Music uploaded.</span>';}
+  catch(err){$('#mediaMsg').innerHTML=`<span class="err">${esc(err.message)}</span>`;}
+  e.target.value='';};
+$('#tvVideoUpload').onchange=async e=>{const f=e.target.files[0];if(!f)return;
+  $('#mediaMsg').textContent='Uploading video…';
+  try{const r=await uploadMedia('video',f);SET.tvVideoFile=r.file;renderSettings();$('#mediaMsg').innerHTML='<span class="ok">Video uploaded.</span>';}
+  catch(err){$('#mediaMsg').innerHTML=`<span class="err">${esc(err.message)}</span>`;}
+  e.target.value='';};
+$('#brandLogoUpload').onchange=async e=>{const f=e.target.files[0];if(!f)return;
+  $('#setMsg').textContent='Uploading logo…';
+  try{const r=await uploadMedia('image',f);SET.brandLogo=r.file;renderSettings();
+    $('#setMsg').innerHTML='<span class="ok">Logo uploaded — click Save settings to publish it site-wide.</span>';}
+  catch(err){$('#setMsg').innerHTML=`<span class="err">${esc(err.message)}</span>`;}
+  e.target.value='';};
 $('#saveSet').onclick=async()=>{const o={};document.querySelectorAll('[data-s]').forEach(el=>o[el.dataset.s]=el.type==='checkbox'?el.checked:el.type==='number'?parseFloat(el.value):el.value);
+  o.promos=collectPromos();o.rewardItems=collectRewards();o.marketingCampaigns=collectCamps();o.jukeboxSongs=collectJukes();
   $('#setMsg').textContent='Saving…';try{await api('/api/admin/settings',o);SET=await api('/api/admin/settings');renderSettings();renderMenu();$('#setMsg').innerHTML='<span class="ok">Saved.</span>';}catch(e){$('#setMsg').innerHTML=`<span class="err">${esc(e.message)}</span>`;}};
 $('#health').onclick=async()=>{$('#healthOut').textContent='Checking…';const h=await api('/api/admin/imagegen-health');
   $('#healthOut').innerHTML=`Ollama: ${h.ollama.error?'<span class="err">offline</span>':'<span class="ok">v'+esc(h.ollama.version)+'</span>'} · ComfyUI: ${h.comfyui.error?'<span class="err">offline</span>':'<span class="ok">online</span>'} · FLUX service: ${h.images.error?'<span class="err">offline</span>':'<span class="ok">online'+(h.images.loaded?', model loaded':', model loads on first use')+'</span>'}`;};
 $('#setpw').onclick=async()=>{try{await api('/api/admin/password',{password:$('#newpw').value});$('#pwMsg').innerHTML='<span class="ok">Password changed.</span>';$('#newpw').value='';}catch(e){$('#pwMsg').innerHTML=`<span class="err">${esc(e.message)}</span>`;}};
+
+/* ---------- commerce admin: promos · rewards · campaigns · inventory · reports · outreach ---------- */
+function addPromoRow(p={}){const r=document.createElement('div');r.style.cssText='display:flex;flex-wrap:wrap;gap:6px;align-items:center;border-top:1px solid var(--line);padding:6px 0';
+ r.innerHTML=`<select data-p="kind" style="width:88px"><option value="special"${p.kind==='special'?' selected':''}>special</option><option value="code"${p.kind==='code'?' selected':''}>code</option></select>
+ <input data-p="name" placeholder="name" style="width:140px" value="${esc(p.name||'')}">
+ <input data-p="itemId" placeholder="item id" style="width:100px" value="${esc(p.itemId||'')}">
+ <input data-p="code" placeholder="CODE" style="width:100px" value="${esc(p.code||'')}">
+ <input data-p="priceCents" type="number" placeholder="price ¢" style="width:85px" value="${p.priceCents??''}">
+ <input data-p="pctOff" type="number" placeholder="% off" style="width:70px" value="${p.pctOff??''}">
+ <input data-p="offCents" type="number" placeholder="off ¢" style="width:80px" value="${p.offCents??''}">
+ <input data-p="dow" placeholder="dow e.g. 2,5" style="width:100px" value="${esc((p.dow||[]).join(','))}">
+ <input data-p="starts" placeholder="2026-10-01" style="width:100px" value="${esc(p.starts||'')}">
+ <input data-p="ends" placeholder="ends date" style="width:100px" value="${esc(p.ends||'')}">
+ <label class="chk"><input type="checkbox" data-p="active"${p.active!==false?' checked':''}> on</label>
+ <button class="b r" onclick="this.parentElement.remove()">✕</button>`;
+ document.getElementById('promoRows').appendChild(r);}
+const _pv=(r,k)=>{const el=r.querySelector('[data-p="'+k+'"]');return el?(el.type==='checkbox'?el.checked:el.value):''};
+function collectPromos(){return [...document.querySelectorAll('#promoRows>div')].map(r=>({id:'p'+Math.random().toString(36).slice(2,7),kind:_pv(r,'kind'),name:_pv(r,'name'),itemId:_pv(r,'itemId'),code:(_pv(r,'code')||'').toUpperCase(),priceCents:parseInt(_pv(r,'priceCents')||'0')||0,pctOff:parseInt(_pv(r,'pctOff')||'0')||0,offCents:parseInt(_pv(r,'offCents')||'0')||0,dow:(_pv(r,'dow')||'').split(',').map(x=>parseInt(x.trim())).filter(x=>!isNaN(x)),starts:_pv(r,'starts'),ends:_pv(r,'ends'),active:_pv(r,'active')}));}
+function addRewardRow(t={}){const r=document.createElement('div');r.style.cssText='display:flex;flex-wrap:wrap;gap:6px;align-items:center;border-top:1px solid var(--line);padding:6px 0';
+ r.innerHTML=`<input data-r="name" placeholder="reward name" style="flex:1;min-width:160px" value="${esc(t.name||'')}">
+ <input data-r="points" type="number" placeholder="points" style="width:90px" value="${t.points??''}">
+ <input data-r="offCents" type="number" placeholder="cents off" style="width:100px" value="${t.offCents??''}">
+ <button class="b r" onclick="this.parentElement.remove()">✕</button>`;
+ document.getElementById('rewardRows').appendChild(r);}
+function collectRewards(){return [...document.querySelectorAll('#rewardRows>div')].map(r=>{const g=k=>r.querySelector('[data-r="'+k+'"]');return{id:'r'+Math.random().toString(36).slice(2,7),name:g('name').value,points:parseInt(g('points').value||'0')||0,offCents:parseInt(g('offCents').value||'0')||0};}).filter(t=>t.name&&t.points>0);}
+function addCampRow(c={}){const r=document.createElement('div');r.style.cssText='display:flex;flex-wrap:wrap;gap:6px;align-items:center;border-top:1px solid var(--line);padding:6px 0';
+ r.innerHTML=`<input data-c="name" placeholder="campaign" style="flex:1;min-width:150px" value="${esc(c.name||'')}">
+ <input data-c="platform" placeholder="platform" style="width:120px" value="${esc(c.platform||'')}">
+ <input data-c="budget" type="number" placeholder="budget $" style="width:100px" value="${c.budget??''}">
+ <input data-c="spend" type="number" placeholder="spend $ so far" style="width:120px" value="${c.spend??''}">
+ <input data-c="starts" placeholder="from" style="width:100px" value="${esc(c.starts||'')}">
+ <input data-c="ends" placeholder="to" style="width:100px" value="${esc(c.ends||'')}">
+ <label class="chk"><input type="checkbox" data-c="active"${c.active!==false?' checked':''}> active</label>
+ <button class="b r" onclick="this.parentElement.remove()">✕</button>`;
+ document.getElementById('campRows').appendChild(r);}
+function collectCamps(){return [...document.querySelectorAll('#campRows>div')].map(r=>{const g=k=>r.querySelector('[data-c="'+k+'"]');return{id:'m'+Math.random().toString(36).slice(2,7),name:g('name').value,platform:g('platform').value,budget:parseFloat(g('budget').value||'0')||0,spend:parseFloat(g('spend').value||'0')||0,starts:g('starts').value,ends:g('ends').value,notes:'',active:g('active').checked};}).filter(c=>c.name);}
+function addJukeRow(t={}){const r=document.createElement('div');r.style.cssText='display:flex;flex-wrap:wrap;gap:6px;align-items:center;border-top:1px solid var(--line);padding:6px 0';
+ r.innerHTML=`<input data-j="title" placeholder="song title" style="flex:1;min-width:160px" value="${esc(t.title||'')}">
+  <input data-j="file" placeholder="file (upload →)" style="width:150px" value="${esc(t.file||'')}" readonly title="set by the upload above">
+  <input data-j="cost" type="number" placeholder="pts" style="width:70px" value="${t.cost??5}">
+  <button class="b r" onclick="this.parentElement.remove()">✕</button>`;
+  document.getElementById('jukeRows').appendChild(r);}
+const collectJukes=()=>[...document.querySelectorAll('#jukeRows>div')].map(r=>{const g=k=>r.querySelector('[data-j="'+k+'"]');return{title:g('title').value,file:g('file').value,cost:parseInt(g('cost').value||'5')||5};}).filter(t=>t.file);
+$('#jukeboxUpload').onchange=async e=>{const f=e.target.files[0];if(!f)return;
+  $('#jukeboxUploadMsg').textContent='Uploading song…';
+  try{const r=await uploadMedia('song',f);addJukeRow({title:f.name.replace(/\.[^.]+$/,''),file:r.file,cost:5});
+    $('#jukeboxUploadMsg').innerHTML='<span class="ok">Song uploaded — edit its title/cost, then Save settings.</span>';}
+  catch(err){$('#jukeboxUploadMsg').innerHTML=`<span class="err">${esc(err.message)}</span>`;}
+  e.target.value='';};
+function renderCommerceEditors(){['promoRows','rewardRows','campRows','jukeRows'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='';});
+ (SET.promos||[]).forEach(p=>addPromoRow(p));(SET.rewardItems||[]).forEach(t=>addRewardRow(t));(SET.marketingCampaigns||[]).forEach(c=>addCampRow(c));(SET.jukeboxSongs||[]).forEach(t=>addJukeRow(t));}
+let INV=null;
+async function loadInventory(){try{INV=await api('/api/admin/inventory');renderInv();}catch(e){$('#ingRows').innerHTML=`<span class="err">${esc(e.message)}</span>`;}}
+function renderInv(){if(!INV)return;
+ $('#ingRows').innerHTML=(INV.ingredients||[]).map((g,i)=>`
+ <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;border-top:1px solid var(--line);padding:6px 0">
+  <input value="${esc(g.id)}" style="width:130px" onchange="INV.ingredients[${i}].id=this.value">
+  <input value="${esc(g.name)}" style="flex:1;min-width:150px" onchange="INV.ingredients[${i}].name=this.value">
+  <input value="${esc(g.unit)}" style="width:80px" onchange="INV.ingredients[${i}].unit=this.value">
+  <input type="number" step="any" value="${g.stock}" style="width:85px" title="stock" onchange="INV.ingredients[${i}].stock=parseFloat(this.value)||0">
+  <input type="number" step="any" value="${g.lowAt??''}" style="width:85px" title="low at" onchange="INV.ingredients[${i}].lowAt=parseFloat(this.value)||0">
+  <button class="b" onclick="invAdjust('${esc(g.id)}','restock')">+stock</button>
+  <button class="b r" onclick="invAdjust('${esc(g.id)}','waste')">waste</button>
+  <button class="b r" onclick="INV.ingredients.splice(${i},1);renderInv()">✕</button>
+ </div>`).join('');
+ const midx={};(MENU.categories||[]).forEach(c=>c.items.forEach(it=>midx[it.id]=it.name));
+ $('#recRows').innerHTML=Object.entries(midx).map(([id,nm])=>`<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;border-top:1px solid var(--line);padding:6px 0">
+  <b style="width:170px">${esc(nm)}</b>
+  <input value='${esc(JSON.stringify((INV.recipes||{})[id]||[]))}' style="flex:1;min-width:240px" onchange="try{INV.recipes['${esc(id)}']=JSON.parse(this.value);this.style.background=''}catch(e){this.style.background='#5b1f24'}">
+ </div>`).join('');}
+async function invAdjust(ing,kind){const q=parseFloat(prompt(kind==='waste'?'How much to mark as waste:':'How much arrived (restock):'));
+ if(isNaN(q)||q<=0)return;try{await api('/api/admin/inventory/adjust',{ing,qty:q,kind,reason:kind});loadInventory();}catch(e){alert(e.message);}}
+function addIngRow(){if(!INV)INV={ingredients:[],recipes:{}};INV.ingredients.push({id:'',name:'',unit:'each',stock:0,lowAt:0});renderInv();}
+$('#saveInv').onclick=async()=>{if(!INV)return;try{await api('/api/admin/inventory',{ingredients:INV.ingredients,recipes:INV.recipes});$('#invMsg').innerHTML='<span class="ok">Saved.</span>';loadInventory();}catch(e){$('#invMsg').innerHTML=`<span class="err">${esc(e.message)}</span>`;}};
+function reportHtml(r){const k=(l,v)=>`<div class="row"><span>${l}</span><b>${v}</b></div>`;
+ return k('Orders',r.orders)+k('Gross sales','$'+r.grossSales)+k('Discounts','$'+r.discounts)+k('Tax collected','$'+r.taxCollected)+k('Avg ticket','$'+r.avgTicket)
+ +k('Unpaid at month end','$'+r.unpaidAtMonthEnd)+k('Voids',r.voids.count+' ($'+r.voids.value+')')
+ +k('By payment method',Object.entries(r.byPaymentMethod||{}).map(([m,d])=>`${m}: ${d.orders} / $${d.sales}`).join(' · ')||'—')
+ +k('Top items',(r.topItems||[]).map(t=>`${esc(t.item)} ×${t.qty}`).join(' · ')||'—')
+ +k('Promos used',Object.entries(r.promosUsed||{}).map(([p,n])=>`${esc(p)} ×${n}`).join(' · ')||'—')
+ +k('Rewards points',r.rewards.pointsEarned+' earned / '+r.rewards.pointsSpent+' spent')
+ +k('Ingredients used',Object.entries(r.ingredients.used||{}).map(([i,q])=>`${esc(i)}: ${q}`).join(' · ')||'—')
+ +k('Marketing spend','$'+r.marketing.spend+(r.marketing.roiGrossPerDollar?' · $'+r.marketing.roiGrossPerDollar+' sales per $1':''))
+ +`<div class="row"><span>Low stock</span><b style="color:${(r.lowStock||[]).length?'#ff8fb3':'inherit'}">${(r.lowStock||[]).join(', ')||'all good'}</b></div>`;}
+async function loadReport(){const m=$('#repMonth').value||new Date().toISOString().slice(0,7);
+ try{const r=await api('/api/admin/report?month='+m);$('#repOut').innerHTML=reportHtml(r);}catch(e){$('#repOut').innerHTML=`<span class="err">${esc(e.message)}</span>`;}}
+async function writeEom(){const m=$('#repMonth').value||new Date().toISOString().slice(0,7);
+ try{const r=await api('/api/admin/report/eom',{month:m});$('#repMsg').innerHTML=`<span class="ok">Written: ${esc(r.file)}</span>`;loadReport();}catch(e){$('#repMsg').innerHTML=`<span class="err">${esc(e.message)}</span>`;}}
+$('#repMonth').value=new Date().toISOString().slice(0,7);
+const OUT_CATS={brewery:'Bars & taprooms',coffee:'Coffee & tea',gym:'Gyms & fitness',salon:'Salons & spas',office:'Offices & coworking',venue:'Event venues',school:'Schools & churches',retail:'Retail'};
+$('#outCats').innerHTML=Object.entries(OUT_CATS).map(([k,l])=>`<label class="chk"><input type="checkbox" value="${k}" checked> ${l}</label>`).join('');
+async function outSearch(){$('#outMsg').textContent='Searching OpenStreetMap…';
+ const cats=[...document.querySelectorAll('#outCats input:checked')].map(i=>i.value);
+ try{const r=await api('/api/admin/outreach/search',{address:$('#outAddr').value,radiusM:parseInt($('#outRad').value)||4000,categories:cats});
+  $('#outMsg').innerHTML=`<span class="ok">${r.new} new leads near ${esc(r.center.display)}</span>`;renderLeads();}catch(e){$('#outMsg').innerHTML=`<span class="err">${esc(e.message)}</span>`;}}
+async function renderLeads(){let o;try{o=await api('/api/admin/outreach')}catch(e){return}
+ $('#outLeads').innerHTML=(o.leads||[]).length?o.leads.map(l=>`
+ <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;border-top:1px solid var(--line);padding:6px 0">
+  <b style="width:160px">${esc(l.name)}</b><span class="muted" style="width:120px">${esc(OUT_CATS[l.category]||l.category||'')}</span>
+  <span class="muted" style="flex:1">${esc(l.address||'')}</span>
+  ${l.website?`<a href="${esc(l.website)}" target="_blank" style="color:#9fd">site</a>`:''}
+  <span style="width:180px">${l.email?`✉ ${esc(l.email)}`:'<span class="muted">no email yet</span>'}</span>
+  <button class="b" onclick="const t=document.getElementById('ld-${esc(l.id)}');t.hidden=!t.hidden">draft</button>
+ </div>
+ <textarea id="ld-${esc(l.id)}" hidden rows="7" style="width:100%;margin:4px 0" onchange="api('/api/admin/outreach/lead',{id:'${esc(l.id)}',draft:this.value}).catch(()=>{})">${esc(l.draft||'')}</textarea>`).join(''):'No leads yet — run a search.';}
+async function outFindEmails(){$('#outMsg').textContent='Reading lead websites (gently)…';
+ try{const r=await api('/api/admin/outreach/find-emails',{});$('#outMsg').innerHTML=`<span class="ok">${(r.found||[]).length} email(s) found, ${r.tried} site(s) tried.</span>`;renderLeads();}catch(e){$('#outMsg').innerHTML=`<span class="err">${esc(e.message)}</span>`;}}
+async function outTplLoad(){try{const o=await api('/api/admin/outreach');$('#outTpl').value=(o.templates&&o.templates.default)||'';}catch(e){}}
+async function outSaveTpl(){try{await api('/api/admin/outreach/template',{template:$('#outTpl').value});$('#outMsg').innerHTML='<span class="ok">Template saved — future searches draft with it.</span>';}catch(e){$('#outMsg').innerHTML=`<span class="err">${esc(e.message)}</span>`;}}
+if(TOKEN){loadInventory();renderLeads();outTplLoad();}
 
 if(TOKEN)start();
 </script>

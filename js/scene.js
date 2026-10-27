@@ -6,7 +6,7 @@ import {CONFIG,MENU,money,open,hooks} from './shop.js?v=6';
 import {buildTruck,WX0,WX1,WY0,WY1,BW,BL,BH,bx0,FLOOR,CL} from './truck.js?v=6';
 import * as Avatars from './avatars.js?v=7';
 import * as Account from './account.js?v=6';   // phone-number arcade profiles (language-first sign-up)
-import * as Arcade from './arcade.js?v=10';    // 🎪 The Midway props + six minigames + HIGH SCORES board
+import * as Arcade from './arcade.js?v=11';    // 🎪 The Midway props + six minigames + HIGH SCORES board + Pac-Man cabinet
 
 const canvas=document.getElementById('c');
 const R=new THREE.WebGLRenderer({canvas,antialias:true});
@@ -663,6 +663,7 @@ const LAYOUT_MOVERS=[];   // {id,label,obj,base} — the truck itself is handled
   r:((obj.rotation.y*180/Math.PI)%360+360)%360}});};
  reg('jukebox','Jukebox',jukebox);
  reg('claw','Claw machine',Arcade.prop('claw'));
+ reg('pacman','Pac-Man cabinet',Arcade.prop('pac'));
  (Arcade.prop('bbt')||[]).forEach((b,i)=>reg('bbt'+i,'Bean-bag board '+(i+1),b));
  reg('tag','Tag arena',Arcade.prop('tag'));
  reg('scores','HIGH SCORES board',Arcade.prop('board'));

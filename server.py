@@ -312,6 +312,7 @@ DEFAULT_SETTINGS = {
     "midwayOn": True,
     "gameClawOn": True, "gameBbtOn": True, "gameTagOn": True,
     "gameC4On": True, "gameTttOn": True, "gamePinOn": True,
+    "gamePacmanOn": True,      # 🟡 the Pac-Man arcade cabinet on the lot
     "hotdogOn": True,
     "triviaBotOn": True,
     # --- 3D scene: truck position, set by dragging it in layout mode (see scene.js) ---
@@ -386,6 +387,7 @@ PUBLIC_SETTINGS = ('businessName', 'tagline', 'brandLogo', 'copyrightLine', 'pho
                    'partnerDoorDashOn', 'partnerDoorDashLink', 'partnerInstacartOn', 'partnerInstacartLink',
                    # games on/off switches — the 3D lot, the contest and the chat trivia gate on these
                    'midwayOn', 'gameClawOn', 'gameBbtOn', 'gameTagOn', 'gameC4On', 'gameTttOn', 'gamePinOn',
+                   'gamePacmanOn',
                    'hotdogOn', 'triviaBotOn',
                    # jukebox (public: catalog + on/off) + geocaching switch + saved #layout defaults for the lot props
                    'jukeboxOn', 'jukeboxSongs', 'geocacheOn', 'layoutProps')
@@ -679,7 +681,7 @@ TQ = {'i': 0, 'q': None}                             # next row index / open que
 TQ_LOCK = threading.Lock()
 
 GAME_FLAGS = {'claw': 'gameClawOn', 'bbt': 'gameBbtOn', 'tag': 'gameTagOn', 'c4': 'gameC4On',
-              'ttt': 'gameTttOn', 'pin': 'gamePinOn', 'hotdog': 'hotdogOn'}   # game id -> settings key
+              'ttt': 'gameTttOn', 'pin': 'gamePinOn', 'pacman': 'gamePacmanOn', 'hotdog': 'hotdogOn'}   # game id -> settings key
 def _game_allowed(s, game):
     """Admin → Settings → Games can switch any single game off. A disabled game's props/tabs
     never render client-side; this keeps a stale client from recording scores for it too."""
