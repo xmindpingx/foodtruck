@@ -155,7 +155,9 @@ const panoT=new THREE.CanvasTexture(panoC);panoT.colorSpace=THREE.SRGBColorSpace
 const panoDome=new THREE.Mesh(new THREE.SphereGeometry(180,48,24),new THREE.MeshBasicMaterial({map:panoT,side:THREE.BackSide,fog:false}));
 S.add(panoDome);
 S.environment=new THREE.PMREMGenerator(R).fromEquirectangular(panoT).texture;   // panorama lights every material
-S.fog=new THREE.FogExp2(0xe7dcc4,0.0042);   // warm desert haze to seat the truck in the horizon band
+const SCENE_THEME = (() => { try { return localStorage.getItem('eol-scene-theme') || 'default'; } catch (e) { return 'default'; } })();
+const THEME_FOG = {default: 0xe7dcc4, steampunk: 0x8a7a5a, retro: 0xd8c8a0, hyper: 0xd0e0f0};
+S.fog=new THREE.FogExp2(THEME_FOG[SCENE_THEME] || 0xe7dcc4,0.0042);   // themed haze
 TL.load('tex/panorama.jpg',t=>{   // owner can drop a real equirect later; scene upgrades itself
   t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;
   panoDome.material.map=t;panoDome.material.needsUpdate=true;
