@@ -14,7 +14,7 @@ const ES = () => Account.lang() === 'es';
 
 let panel, body, S, rig, MENU;                    // panel DOM + scene refs
 let pills = [];                                   // prop meshes for the click ray
-let props = {claw: null, bbt: [], tag: null, board: null};
+let props = {claw: null, bbt: [], tag: null, board: null, redeem: null};
 let tab = 'lobby';
 const GAMES = [
   {id: 'claw', icon: '🦞', name: 'Claw Machine', blurb: 'Time the drop. Three grabs per game — grab a mini menu item!'},
@@ -396,7 +396,18 @@ function buildProps() {
     new THREE.MeshBasicMaterial({map: signTexture('🎪 ARCADE · GAMES', '#f2c14e'), transparent: true}));
   arcadeSignEs.position.set(12, 1.8, -20); arcadeSignEs.rotation.y = Math.PI;
   rig.add(arcadeSignEs);
-  pills = [claw, ...props.bbt, tag, board, pac, uno, chess].filter(Boolean);   // click targets for whatever got built
+  // 🎁 points redemption booth — spend points on collectibles, right in the arcade
+  let redeem = new THREE.Group();
+  const rBase = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.0, 1.2), new THREE.MeshStandardMaterial({color: 0x8a3a1a, roughness: .6}));
+  rBase.position.y = .5; redeem.add(rBase);
+  const rTop = new THREE.Mesh(new THREE.BoxGeometry(2.6, .15, 1.4), new THREE.MeshStandardMaterial({color: 0xf2c14e, roughness: .4, metalness: .3}));
+  rTop.position.y = 1.08; redeem.add(rTop);
+  const rSign = new THREE.Mesh(new THREE.PlaneGeometry(2.2, .7),
+    new THREE.MeshBasicMaterial({map: signTexture('🎁 REDEEM · CANJE', '#f2c14e'), transparent: true}));
+  rSign.position.set(0, 1.6, .61); redeem.add(rSign);
+  redeem.traverse(o => { o.userData.midway = 'redeem'; });
+  redeem.position.set(16, 0, -12); redeem.rotation.y = Math.PI; rig.add(redeem); props.redeem = redeem;
+  pills = [claw, ...props.bbt, tag, board, pac, uno, chess, redeem].filter(Boolean);   // click targets for whatever got built
 }
 export function prop(id) { return props[id] || null; }   // scene.js #layout mode: movable prop groups by id
 function signTexture(txt, col) {
@@ -422,6 +433,7 @@ export function walkBalls() {
   if (props.tag && props.tag.parent) { props.tag.getWorldPosition(_bv); out.push({x: _bv.x, z: _bv.z, r: .42}); }
   if (props.board && props.board.parent) { props.board.getWorldPosition(_bv); out.push({x: _bv.x, z: _bv.z, r: .55}); }
   if (props.pac && props.pac.parent) { props.pac.getWorldPosition(_bv); out.push({x: _bv.x, z: _bv.z, r: .6}); }
+  if (props.redeem && props.redeem.parent) { props.redeem.getWorldPosition(_bv); out.push({x: _bv.x, z: _bv.z, r: 1.3}); }
   if (props.uno && props.uno.parent) { props.uno.getWorldPosition(_bv); out.push({x: _bv.x, z: _bv.z, r: .85}); }
   if (props.chess && props.chess.parent) { props.chess.getWorldPosition(_bv); out.push({x: _bv.x, z: _bv.z, r: .75}); }
   return out;
@@ -431,6 +443,7 @@ export function openFrom(obj) {
   const mw = obj && obj.userData && obj.userData.midway;
   if (mw === 'board') { openScores(); return true; }
   if (mw === 'pac') { dispatchEvent(new Event('eol:pac-open')); return true; }
+  if (mw === 'redeem') { dispatchEvent(new Event('eol:acct-open')); return true; }
   if (mw === 'uno') { dispatchEvent(new Event('eol:uno-open')); return true; }
   if (mw === 'chess') { dispatchEvent(new Event('eol:chess-open')); return true; }
   if (mw) { openPanel(mw); return true; }
