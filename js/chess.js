@@ -13,7 +13,7 @@ const FILES = 'abcdefgh';
 
 let panel, boardC, ctx, lobbyEl, roomId = null, mySide = null, pollT = 0, soloMode = false;
 let board = null, turn = 'white', winner = null, players = [], spectators = 0;
-let selected = null, legalTargets = [], anim = null, menuOpen = false, panelWasOpen = false;
+let selected = null, legalTargets = [], anim = null, menuOpen = false, panelWasOpen = false, flipped = false;
 let lastMoveKey = null;
 
 function vid() { return localStorage.getItem('eol-visitor-id') || ('v' + Math.random().toString(36).slice(2, 10)); }
@@ -48,6 +48,7 @@ function buildUI() {
       </select>
       <button id="chessLeave" style="padding:8px 14px;border-radius:10px;border:1px solid #e5534a;background:rgba(229,83,83,.15);color:#f6e7c8;cursor:pointer;font:600 12px Inter">Leave</button>
       <button id="chessResign" style="padding:8px 14px;border-radius:10px;border:1px solid #888;background:rgba(120,120,120,.15);color:#f6e7c8;cursor:pointer;font:600 12px Inter">Resign</button>
+
       <span id="chessInfo" style="opacity:.7;font-size:11px;margin-left:8px"></span></div>`;
   document.body.appendChild(panel);
   boardC = panel.querySelector('#chessC');
@@ -60,6 +61,7 @@ function buildUI() {
     if (!roomId) return;
     try { await fetch('/api/chess/resign', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({room: roomId, vid: vid()})}); tick(); } catch (e) {}
   };
+  // flip board disabled (coordinate remapping incomplete)
   const themeSel = panel.querySelector('#chessTheme');
   if (themeSel) {
     themeSel.value = pieceTheme;
@@ -1197,7 +1199,7 @@ function onBoardClick(e) {
   const r = boardC.getBoundingClientRect();
   const sx = e._sx || (boardC.width / r.width), sy = e._sy || (boardC.height / r.height);
   const x = Math.floor((e.clientX - r.left) * sx / SQ);
-  const y = Math.floor((e.clientY - r.top) * sy / SQ);
+  const y = flipped ? 7 - Math.floor((e.clientY - r.top) * sy / SQ) : Math.floor((e.clientY - r.top) * sy / SQ);
   if (x < 0 || x > 7 || y < 0 || y > 7) return;
   // if a promotion is pending, ignore (handled by promo picker — auto-queen for simplicity)
   if (selected) {
@@ -1210,7 +1212,7 @@ function onBoardClick(e) {
     }
   }
   // select own piece
-  const p = board[y][x];
+  const p = board[flipped ? (7 - y) : y][x];
   const myColor = soloMode ? (turn === 'white' ? 'w' : 'b') : (mySide === 'white' ? 'w' : 'b');
   if (p && p[0] === myColor) {
     selected = {x, y};
