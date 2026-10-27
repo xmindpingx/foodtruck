@@ -47,6 +47,7 @@ function buildUI() {
         <option value="battle">⚔️ BattleChess</option>
       </select>
       <button id="chessLeave" style="padding:8px 14px;border-radius:10px;border:1px solid #e5534a;background:rgba(229,83,83,.15);color:#f6e7c8;cursor:pointer;font:600 12px Inter">Leave</button>
+      <button id="chessResign" style="padding:8px 14px;border-radius:10px;border:1px solid #888;background:rgba(120,120,120,.15);color:#f6e7c8;cursor:pointer;font:600 12px Inter">Resign</button>
       <span id="chessInfo" style="opacity:.7;font-size:11px;margin-left:8px"></span></div>`;
   document.body.appendChild(panel);
   boardC = panel.querySelector('#chessC');
@@ -55,6 +56,10 @@ function buildUI() {
   panel.querySelector('#chessX').onclick = () => { panel.style.display = 'none'; panel.hidden = true; if (pollT) { clearInterval(pollT); pollT = 0; } };
   panel.querySelector('#chessNew').onclick = newGame;
   panel.querySelector('#chessLeave').onclick = leaveRoom;
+  panel.querySelector('#chessResign').onclick = async () => {
+    if (!roomId) return;
+    try { await fetch('/api/chess/resign', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({room: roomId, vid: vid()})}); tick(); } catch (e) {}
+  };
   const themeSel = panel.querySelector('#chessTheme');
   if (themeSel) {
     themeSel.value = pieceTheme;

@@ -3306,6 +3306,19 @@ class H(SimpleHTTPRequestHandler):
             r['last'] = time.time()
             with LOCK: save('chess_rooms.json', rooms)
             return self.send_json({'ok': True})
+        if p == '/api/chess/resign':
+            rid = str(data.get('room', '')); vid = re.sub(r'[^a-zA-Z0-9_-]', '', str(data.get('vid', '')))[:64]
+            rooms = load('chess_rooms.json', {})
+            r = rooms.get(rid)
+            if not r: return self.send_json({'error': 'room not found'}, 404)
+            if not any(p['id'] == vid for p in r['players']): return self.send_json({'error': 'not a player'}, 403)
+            if r.get('status') != 'playing': return self.send_json({'error': 'not playing'}, 400)
+            side = next((p['side'] for p in r['players'] if p['id'] == vid), None)
+            r['winner'] = 'black' if side == 'white' else 'white'
+            r['status'] = 'finished'
+            r['last'] = time.time()
+            with LOCK: save('chess_rooms.json', rooms)
+            return self.send_json({'ok': True})
 
 
         if p == '/api/assistant':
