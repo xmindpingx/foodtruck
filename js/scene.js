@@ -1244,7 +1244,7 @@ function goWindow(){   // frame the service window + menu board, wherever the tr
   const toWorld=(lx,ly,lz)=>new THREE.Vector3(lx,ly,lz).applyAxisAngle(axisY,rotY).add(truckRig.position);
   if(portrait()) flyTo(toWorld(-1.55,1.9,-fitDist(2.4,4.6)),toWorld(-1.55,1.9,0));
   else flyTo(toWorld(-2.1,1.8,-4.6),toWorld(-2.1,1.9,0));}
-let tour=false;document.getElementById('tour').onclick=()=>{tour=!tour;ctl.autoRotate=tour;ctl.autoRotateSpeed=1.2;document.getElementById('tour').textContent=tour?'Stop Tour':'Walk Around';};
+let tour=false;
 addEventListener('resize',()=>{cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();R.setSize(innerWidth,innerHeight);});
 const clock=new THREE.Clock();
 R.setAnimationLoop(()=>{const dt=Math.min(clock.getDelta(),0.1),t=clock.elapsedTime;
