@@ -13,7 +13,7 @@ import {CONFIG} from './shop.js?v=6';
 import * as Account from './account.js?v=7';   // language picked at sign-up drives chips + docks
 
 const ID_KEY = 'eol-visitor-id', NAME_KEY = 'eol-visitor-name', PROFILE_KEY = 'eol-visitor-profile';
-const CAP_STYLES = ['', 'ball', 'cowboy', 'beret', 'cone'];
+const CAP_STYLES = ['', 'ball', 'cowboy', 'beret', 'cone', 'marge', 'bart', 'lisa', 'homer', 'duff', 'krusty', 'moes', 'flanders'];
 const SKIN_TONES = [0xe8b98c, 0xd9a978, 0xc78f5e, 0xa8714a, 0x8a5a35, 0x6b4626];
 let myId = localStorage.getItem(ID_KEY);
 if (!myId) {
@@ -367,9 +367,9 @@ function makeBody(hue, prof = {}) {
   const head = new THREE.Mesh(new THREE.SphereGeometry(.14, 16, 12), skin);
   head.position.y = .92; head.castShadow = true; head.userData.custom = 'skin'; g.add(head);
   const style = prof.cap || 'ball';
-  const hatY = 1.03;
+  const hatY = 1.12;
   if (style === 'ball') {
-    const hat = new THREE.Mesh(new THREE.ConeGeometry(.15, .1, 16), cap);
+    const hat = new THREE.Mesh(new THREE.ConeGeometry(.15, .12, 16), cap);
     hat.position.y = hatY; hat.userData.custom = 'cap'; g.add(hat);
   } else if (style === 'cowboy') {
     const brim = new THREE.Mesh(new THREE.CylinderGeometry(.23, .24, .015, 16), cap);
@@ -384,6 +384,63 @@ function makeBody(hue, prof = {}) {
     const party = new THREE.MeshStandardMaterial({color: 0xff8a3c, roughness: .5});
     const c = new THREE.Mesh(new THREE.ConeGeometry(.09, .26, 12), party);
     c.position.y = hatY + .08; c.castShadow = true; g.add(c);
+  } else if (style === 'marge') {
+    const hair = new THREE.MeshStandardMaterial({color: 0x2a6fb0, roughness: .6});
+    const beehive = new THREE.Mesh(new THREE.CylinderGeometry(.1, .16, .45, 12), hair);
+    beehive.position.y = hatY + .18; beehive.userData.custom = 'cap'; g.add(beehive);
+    const top = new THREE.Mesh(new THREE.SphereGeometry(.11, 12, 8), hair);
+    top.position.y = hatY + .42; top.userData.custom = 'cap'; g.add(top);
+  } else if (style === 'bart') {
+    const hair = new THREE.MeshStandardMaterial({color: 0xf2c14e, roughness: .7});
+    for (let i = 0; i < 7; i++) {
+      const spike = new THREE.Mesh(new THREE.ConeGeometry(.03, .18, 6), hair);
+      spike.position.set(Math.cos(i / 7 * Math.PI * 2) * .09, hatY + .05, Math.sin(i / 7 * Math.PI * 2) * .09);
+      spike.rotation.z = Math.cos(i / 7 * Math.PI * 2) * .3;
+      spike.userData.custom = 'cap'; g.add(spike);
+    }
+  } else if (style === 'lisa') {
+    const hair = new THREE.MeshStandardMaterial({color: 0xf2c14e, roughness: .7});
+    const spikes = 9;
+    for (let i = 0; i < spikes; i++) {
+      const spike = new THREE.Mesh(new THREE.ConeGeometry(.025, .22, 6), hair);
+      const a = (i / spikes) * Math.PI * 2;
+      spike.position.set(Math.cos(a) * .1, hatY + .08, Math.sin(a) * .1);
+      spike.rotation.x = Math.sin(a) * .4;
+      spike.rotation.z = -Math.cos(a) * .4;
+      spike.userData.custom = 'cap'; g.add(spike);
+    }
+  } else if (style === 'homer') {
+    const hair = new THREE.MeshStandardMaterial({color: 0x1a1a1a, roughness: .8});
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(.13, .02, 6, 12), hair);
+    ring.position.y = hatY - .02; ring.rotation.x = Math.PI / 2; ring.userData.custom = 'cap'; g.add(ring);
+  } else if (style === 'duff') {
+    const capM = new THREE.MeshStandardMaterial({color: 0x1a3a8a, roughness: .6});
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(.22, .23, .02, 16), capM);
+    brim.position.y = hatY; brim.userData.custom = 'cap'; g.add(brim);
+    const crown = new THREE.Mesh(new THREE.CylinderGeometry(.1, .12, .14, 12), capM);
+    crown.position.y = hatY + .08; crown.userData.custom = 'cap'; g.add(crown);
+    const logo = new THREE.Mesh(new THREE.CircleGeometry(.05, 12), new THREE.MeshStandardMaterial({color: 0xffd700}));
+    logo.position.set(0, hatY + .09, .12); logo.rotation.y = 0; logo.userData.custom = 'cap'; g.add(logo);
+  } else if (style === 'krusty') {
+    const hair = new THREE.MeshStandardMaterial({color: 0x3a8a3a, roughness: .7});
+    for (let i = 0; i < 6; i++) {
+      const tuft = new THREE.Mesh(new THREE.SphereGeometry(.06, 8, 6), hair);
+      const a = (i / 6) * Math.PI * 2;
+      tuft.position.set(Math.cos(a) * .12, hatY + .05, Math.sin(a) * .12);
+      tuft.userData.custom = 'cap'; g.add(tuft);
+    }
+    const top = new THREE.Mesh(new THREE.SphereGeometry(.1, 8, 6), hair);
+    top.position.y = hatY + .12; top.userData.custom = 'cap'; g.add(top);
+  } else if (style === 'moes') {
+    const apron = new THREE.MeshStandardMaterial({color: 0x5a3a1f, roughness: .8});
+    const hat = new THREE.Mesh(new THREE.CylinderGeometry(.14, .16, .06, 12), apron);
+    hat.position.y = hatY; hat.userData.custom = 'cap'; g.add(hat);
+  } else if (style === 'flanders') {
+    const mustache = new THREE.MeshStandardMaterial({color: 0x6b4a2a, roughness: .8});
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(.12, .12, .02, 12), mustache);
+    m.position.y = hatY - .12; m.rotation.x = Math.PI / 2; m.userData.custom = 'cap'; g.add(m);
+    const hat = new THREE.Mesh(new THREE.ConeGeometry(.12, .1, 12), new THREE.MeshStandardMaterial({color: 0x2a6b35}));
+    hat.position.y = hatY + .05; hat.userData.custom = 'cap'; g.add(hat);
   }
   // 🌱 render any sprouts clipped to this avatar (gifted by other visitors)
   const sprouts = (prof && Array.isArray(prof.sprouts)) ? prof.sprouts : [];
