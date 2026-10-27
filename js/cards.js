@@ -86,12 +86,12 @@ function startGoFish() {
     const matches = aiHand.filter(c => c.startsWith(rank));
     if (matches.length) {
       // fishing animation
-      msg = `Got ${matches.length} ${rank}(s)!`;
+      msg = `🎣 Got ${matches.length} ${rank}(s)!`;
       hand.push(...matches);
       aiHand.splice(0, aiHand.length, ...aiHand.filter(c => !c.startsWith(rank)));
       turn = 'player';
     } else {
-      msg = 'Go fish!';
+      msg = '🎣 Go fish!';
       if (deck.length) { hand.push(deck.pop()); }
       turn = 'ai';
     }
@@ -162,8 +162,8 @@ function startWar() {
     if (!pH.length || !aH.length) { msg = pH.length ? 'You win!' : 'AI wins!'; render(); return; }
     pHCard = pH.shift(); aHCard = aH.shift();
     const pv = rankValue(pHCard), av = rankValue(aHCard);
-    if (pv > av) { msg = 'You win the battle!'; pH.push(pHCard, aHCard); }
-    else if (av > pv) { msg = 'AI wins the battle!'; aH.push(pHCard, aHCard); }
+    if (pv > av) { msg = '💥 You win the battle!'; pH.push(pHCard, aHCard); }
+    else if (av > pv) { msg = '💥 AI wins the battle!'; aH.push(pHCard, aHCard); }
     else { msg = 'War!'; // simplified: split
       pH.push(pHCard); aH.push(aHCard);
     }
