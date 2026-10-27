@@ -63,11 +63,14 @@ function isWall(tx, ty, ghost) {
   if (ch === '#') return true;
   if (ch === '-') return !ghost;          // ghost door: ghosts only
   if (ch === ' ') {
-    // ghost house interior (rows 12-13) or tunnel row: ghosts always; Pac-Man only on the tunnel row
     if (ghost) return false;
-    return ty !== 14;
+    // Pac-Man: tunnel row and open corridors walkable; ghost-house interior and side out-of-bounds blocked
+    if (ty === 14) return false;
+    if (ty >= 11 && ty <= 13 && tx >= 9 && tx <= 18) return true;
+    if (tx < 5 || tx > 22) return true;
+    return false;
   }
-  return false;   // '.', 'o' and anything else are walkable
+  return false;   // '.', 'o', 'E' and anything else are walkable
 }
 
 // ---------- state ----------
@@ -179,7 +182,10 @@ function isWallTile(tx, ty, ghost) {
   if (ch === '-') return !ghost;
   if (ch === ' ') {
     if (ghost) return false;
-    return ty !== 14;   // Pac-Man: only the tunnel row is walkable when ' '
+    if (ty === 14) return false;
+    if (ty >= 11 && ty <= 13 && tx >= 9 && tx <= 18) return true;
+    if (tx < 5 || tx > 22) return true;
+    return false;
   }
   return false;
 }

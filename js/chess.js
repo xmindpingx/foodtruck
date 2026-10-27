@@ -253,6 +253,7 @@ function drawBattlePiece(code, cx, cy) {
 }
 
 function drawCrystalPiece(code, gx, cx, cy) {
+  ctx.save();
   const side = code[0], type = code[1];
   const isW = side === 'w';
   if (pieceTheme === 'battle') {
