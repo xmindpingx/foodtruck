@@ -11,7 +11,7 @@ function buildUI() {
   panel = document.createElement('div');
   panel.id = 'eolCards'; panel.hidden = true; panel.style.display = 'none';
   panel.style.cssText = 'position:fixed;inset:0;z-index:80;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.92);backdrop-filter:blur(4px);font:13px/1.4 Inter,sans-serif;color:#f6e7c8';
-  const st = document.createElement('style'); st.textContent = '@keyframes slapAnim{0%{transform:translateY(-40px) scale(1.4);opacity:0}50%{transform:translateY(0) scale(1);opacity:1}100%{transform:translateY(20px);opacity:0}}'; document.head.appendChild(st);
+  const st = document.createElement('style'); st.textContent = '@keyframes slapAnim{0%{transform:translateY(-40px) scale(1.4);opacity:0}50%{transform:translateY(0) scale(1);opacity:1}100%{transform:translateY(20px);opacity:0}} @keyframes fishAnim{0%{transform:rotate(-30deg)}50%{transform:rotate(30deg)}100%{transform:rotate(0)}}'; document.head.appendChild(st);
   panel.innerHTML = `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
       <b style="font-size:16px">🃏 Card Games</b>
       <span id="cardsStatus" style="opacity:.7;font-size:12px"></span>
@@ -70,12 +70,14 @@ function startGoFish() {
   let books = 0, aiBooks = 0;
   let turn = 'player';
   let msg = 'Your turn. Ask for a rank.';
+  let fishAnim = 0;
 
   function render() {
     body.innerHTML = `
       <div style="margin-bottom:6px">You: ${hand.join(' ')} · Books: ${books}</div>
       <div style="margin-bottom:6px">AI: ${aiHand.length} cards · Books: ${aiBooks}</div>
       <div style="margin-bottom:8px;color:#f2c14e">${msg}</div>
+      ${fishAnim ? '<div style="font-size:48px;animation:fishAnim .5s">🎣</div>' : ''}
       ${slapAnim ? '<div style="font-size:48px;animation:slapAnim .4s">✋</div>' : ''}
       <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">
         ${ranks.map(r => `<button class="askBtn" data-r="${r}" style="padding:4px 8px;border-radius:8px;border:1px solid #444;background:#1a1a2e;color:#f6e7c8;cursor:pointer">${r}</button>`).join('')}
@@ -93,10 +95,12 @@ function startGoFish() {
       msg = `🎣 Got ${matches.length} ${rank}(s)!`;
       hand.push(...matches);
       aiHand.splice(0, aiHand.length, ...aiHand.filter(c => !c.startsWith(rank)));
+      fishAnim = 1; setTimeout(() => { fishAnim = 0; render(); }, 500);
       turn = 'player';
     } else {
       msg = '🎣 Go fish!';
       if (deck.length) { hand.push(deck.pop()); }
+      fishAnim = 1; setTimeout(() => { fishAnim = 0; render(); }, 500);
       turn = 'ai';
     }
     checkBooks();
@@ -157,6 +161,7 @@ function startWar() {
       <div style="margin-bottom:6px">You: ${pH.length} cards · ${pHCard ? pHCard : ''}</div>
       <div style="margin-bottom:6px">AI: ${aH.length} cards · ${aHCard ? aHCard : ''}</div>
       <div style="margin-bottom:8px;color:#f2c14e">${msg}</div>
+      ${fishAnim ? '<div style="font-size:48px;animation:fishAnim .5s">🎣</div>' : ''}
       ${slapAnim ? '<div style="font-size:48px;animation:slapAnim .4s">✋</div>' : ''}
       <button id="warBattle" style="padding:8px 14px;border-radius:10px;border:1px solid #43a047;background:rgba(67,160,71,.2);color:#f6e7c8;cursor:pointer;font:600 12px Inter;margin-right:6px">Battle</button>
       <button id="warBack" style="padding:8px 14px;border-radius:10px;border:1px solid #444;background:#1a1a2e;color:#f6e7c8;cursor:pointer;font:600 12px Inter">← Back</button>`;
@@ -207,6 +212,7 @@ function startCrazy8() {
       <div style="margin-bottom:6px">You: ${hand.join(' ')} (${hand.length})</div>
       <div style="margin-bottom:6px">AI: ${aiHand.length} cards</div>
       <div style="margin-bottom:8px;color:#f2c14e">${msg}</div>
+      ${fishAnim ? '<div style="font-size:48px;animation:fishAnim .5s">🎣</div>' : ''}
       ${slapAnim ? '<div style="font-size:48px;animation:slapAnim .4s">✋</div>' : ''}
       <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">
         ${hand.map(c => `<button class="c8Btn" data-c="${c}" style="padding:4px 8px;border-radius:8px;border:1px solid #444;background:${canPlay(c)?'#1a3a2e':'#1a1a2e'};color:#f6e7c8;cursor:pointer">${c}</button>`).join('')}
@@ -277,6 +283,7 @@ function startSlapjack() {
       <div style="margin-bottom:6px">You: ${pH.length} · AI: ${aH.length} · Pile: ${pile.length}</div>
       <div style="margin-bottom:6px">Top: ${pile.length ? pile[pile.length-1] : '—'}</div>
       <div style="margin-bottom:8px;color:#f2c14e">${msg}</div>
+      ${fishAnim ? '<div style="font-size:48px;animation:fishAnim .5s">🎣</div>' : ''}
       ${slapAnim ? '<div style="font-size:48px;animation:slapAnim .4s">✋</div>' : ''}
       <button id="sjFlip" style="padding:8px 14px;border-radius:10px;border:1px solid #43a047;background:rgba(67,160,71,.2);color:#f6e7c8;cursor:pointer;font:600 12px Inter;margin-right:6px">Flip</button>
       <button id="sjSlap" style="padding:8px 14px;border-radius:10px;border:1px solid #e5534a;background:rgba(229,83,83,.15);color:#f6e7c8;cursor:pointer;font:600 12px Inter;margin-right:6px">Slap!</button>
@@ -344,6 +351,7 @@ function startSpeed() {
       <div style="margin-bottom:6px">You: ${pH.join(' ')} (${pH.length})</div>
       <div style="margin-bottom:6px">AI: ${aH.length} cards</div>
       <div style="margin-bottom:8px;color:#f2c14e">${msg}</div>
+      ${fishAnim ? '<div style="font-size:48px;animation:fishAnim .5s">🎣</div>' : ''}
       ${slapAnim ? '<div style="font-size:48px;animation:slapAnim .4s">✋</div>' : ''}
       <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">
         ${pH.map(c => `<button class="spBtn" data-c="${c}" style="padding:4px 8px;border-radius:8px;border:1px solid #444;background:#1a1a2e;color:#f6e7c8;cursor:pointer">${c}</button>`).join('')}
@@ -406,6 +414,7 @@ function startPresident() {
     body.innerHTML = `
       <div style="margin-bottom:6px">Pile top: ${pile.length ? pile[pile.length-1] : '—'} · You: ${pH.length} · AI: ${aH.length}</div>
       <div style="margin-bottom:8px;color:#f2c14e">${msg}</div>
+      ${fishAnim ? '<div style="font-size:48px;animation:fishAnim .5s">🎣</div>' : ''}
       ${slapAnim ? '<div style="font-size:48px;animation:slapAnim .4s">✋</div>' : ''}
       <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">
         ${pH.map(c => `<button class="prBtn" data-c="${c}" style="padding:4px 8px;border-radius:8px;border:1px solid #444;background:#1a1a2e;color:#f6e7c8;cursor:pointer">${c}</button>`).join('')}
