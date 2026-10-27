@@ -595,6 +595,11 @@ function draw() {
   ctx.fillText('HIGH ' + highScore, CANVAS_W - 4, 12);
   ctx.textAlign = 'center';
   ctx.fillText('LEVEL ' + level, CANVAS_W / 2, 12);
+  if (frightenedCount > 0 && ghosts.some(g => g.frightenedT > 0)) {
+    ctx.textAlign = 'right'; ctx.fillStyle = '#00ffff'; ctx.font = 'bold 10px monospace';
+    ctx.fillText('COMBO x' + Math.pow(2, frightenedCount - 1), CANVAS_W - 4, 24);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 12px monospace';
+  }
   if (streak > 5) { ctx.textAlign = 'left'; ctx.fillStyle = '#f2c14e'; ctx.fillText('x' + streak, 4, 24); ctx.fillStyle = '#fff'; }
 
   // maze
