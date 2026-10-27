@@ -158,7 +158,8 @@ S.environment=new THREE.PMREMGenerator(R).fromEquirectangular(panoT).texture;   
 const SCENE_THEME = (() => { try { return localStorage.getItem('eol-scene-theme') || 'default'; } catch (e) { return 'default'; } })();
 const THEME_FOG = {default: 0xe7dcc4, steampunk: 0x8a7a5a, retro: 0xd8c8a0, hyper: 0xd0e0f0};
 S.fog=new THREE.FogExp2(THEME_FOG[SCENE_THEME] || 0xe7dcc4,0.0042);   // themed haze
-TL.load('tex/panorama.jpg',t=>{   // owner can drop a real equirect later; scene upgrades itself
+const panoFile = (SCENE_THEME === 'steampunk') ? 'tex/panorama-steampunk.jpg' : 'tex/panorama.jpg';
+TL.load(panoFile,t=>{   // themed equirect; owner can drop a real one later
   t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;
   panoDome.material.map=t;panoDome.material.needsUpdate=true;
   S.environment=new THREE.PMREMGenerator(R).fromEquirectangular(t).texture;},undefined,()=>{});}
