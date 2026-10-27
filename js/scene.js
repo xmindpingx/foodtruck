@@ -290,6 +290,7 @@ tvService.group.position.set(cabCx-.2,2.56,BW/2+.04);tvService.group.rotation.x=
 const tvFront=buildTVMonitor();
 tvFront.group.position.set(bx0-BL/2-.035,FLOOR+BH*.62,0);tvFront.group.rotation.y=-Math.PI/2;truckRig.add(tvFront.group);   // front end cap
 const ALL_TVS=[tvBack,tvService,tvFront];   // rear-end TV removed per owner (kept: cab sides + front)
+const TV_HIT=ALL_TVS.map(t=>t.group);
 
 if(CONFIG.bgMusicEnabled && CONFIG.bgMusicFile){
   const audioEl=document.createElement('audio');
@@ -309,6 +310,7 @@ if(CONFIG.bgMusicEnabled && CONFIG.bgMusicFile){
 let sharedVideoTexture=null;   // reused on the stage backdrops too (see buildStage below) so the same video decodes once, not three times
 if(CONFIG.tvEnabled && CONFIG.tvVideoFile){
   const videoEl=document.createElement('video');
+  window.__EOL_TV_VIDEO = videoEl;
   videoEl.src='/media/'+CONFIG.tvVideoFile;videoEl.loop=true;videoEl.muted=true;videoEl.playsInline=true;videoEl.autoplay=true;videoEl.preload='auto';
   videoEl.style.cssText='position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;';
   document.body.appendChild(videoEl);
@@ -1025,6 +1027,8 @@ canvas.addEventListener('click',e=>{m2.set(e.clientX/innerWidth*2-1,-(e.clientY/
     if (av && av.id !== (localStorage.getItem('eol-visitor-id')||'')) Avatars.openGiftPanel(av.id);
   }else if(ray.intersectObjects(TABLE_HIT,true).length){   // tap a lawn table → the contest
     dispatchEvent(new Event('eol:hd-open-table'));
+  }else if(TV_HIT.length && ray.intersectObjects(TV_HIT,true).length){   // tap a TV monitor → play/pause the shared video
+    const v=window.__EOL_TV_VIDEO; if(v){ if(v.paused) v.play().catch(()=>{}); else v.pause(); }
   }else if(ray.intersectObjects(CLICK,true).length){open('menu');goWindow();}});
 canvas.addEventListener('pointermove',e=>{m2.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1);ray.setFromCamera(m2,cam);
   const hit=ray.intersectObjects(CLICK,true).length>0;
