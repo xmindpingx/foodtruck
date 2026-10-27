@@ -13,7 +13,7 @@ const FILES = 'abcdefgh';
 
 let panel, boardC, ctx, lobbyEl, roomId = null, mySide = null, pollT = 0, soloMode = false;
 let board = null, turn = 'white', winner = null, players = [], spectators = 0;
-let selected = null, legalTargets = [], anim = null, menuOpen = false, panelWasOpen = false, flipped = false;
+let selected = null, legalTargets = [], anim = null, menuOpen = false, panelWasOpen = false, flipped = false, moveHistory = [];
 let lastMoveKey = null;
 
 function vid() { return localStorage.getItem('eol-visitor-id') || ('v' + Math.random().toString(36).slice(2, 10)); }
@@ -81,6 +81,8 @@ async function tick() {
     if (newMoveKey && newMoveKey !== lastMoveKey) {
       lastMoveKey = newMoveKey;
       if (r.moves[0].captured) startBattleAnim(r.moves[0]);
+      moveHistory.push(r.moves[0].from + '→' + r.moves[0].to);
+      if (moveHistory.length > 8) moveHistory.shift();
     }
     board = r.board; turn = r.turn; winner = r.winner; players = r.players; spectators = r.spectators;
     if (!mySide && Array.isArray(r.players)) {
@@ -1274,7 +1276,7 @@ async function newGame() {
 async function leaveRoom() {
   if (roomId) try { await fetch('/api/chess/leave', {method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({room: roomId, vid: vid()})}); } catch (e) {}
-  roomId = null; mySide = null; board = null; selected = null; legalTargets = []; anim = null; soloMode = false;
+  roomId = null; mySide = null; board = null; selected = null; legalTargets = []; anim = null; soloMode = false; moveHistory = [];
   if (pollT) { clearInterval(pollT); pollT = 0; }
   showLobby();
 }
@@ -1287,6 +1289,7 @@ function render() {
     if (winner === 'draw') st.textContent = 'Draw!';
     else if (winner) st.textContent = (winner === 'white' ? 'White' : 'Black') + ' wins!';
     else st.textContent = (turn === 'white' ? 'White' : 'Black') + ' to move' + (soloMode ? ' · solo' : (mySide ? ' · you are ' + mySide : ' · spectating'));
+    if (moveHistory.length) st.textContent += ' · ' + moveHistory.slice(-3).join(' ');
   }
 }
 
