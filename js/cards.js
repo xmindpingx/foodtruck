@@ -32,9 +32,11 @@ function showMenu() {
     <button class="cardBtn" data-g="speed">⚡ Speed</button>
     <button class="cardBtn" data-g="president">👑 President</button>
   </div>
-  <p style="opacity:.6;font-size:11px;margin-top:10px">Tap a game to play. (Animations are themed per game.)</p>`;
+  <p style="opacity:.6;font-size:11px;margin-top:10px">Tap a game to play. (Animations are themed per game.)</p>
+  <div id="cardsStats" style="opacity:.7;font-size:11px;margin-top:6px"></div>`;
   body.querySelectorAll('.cardBtn').forEach(b => b.onclick = () => startGame(b.dataset.g));
   body.querySelectorAll('.cardBtn').forEach(b => b.style.cssText = 'padding:12px;border-radius:10px;border:1px solid rgba(242,193,78,.4);background:rgba(242,193,78,.12);color:#f6e7c8;cursor:pointer;font:600 13px Inter');
+  try { const w = JSON.parse(localStorage.getItem('eol-cards-wins') || '{}'); const el = body.querySelector('#cardsStats'); if (el) el.textContent = 'Wins — Go Fish: ' + (w.gofish||0) + ' · War: ' + (w.war||0); } catch(e){}
 }
 
 // ---------- Go Fish ----------
@@ -126,6 +128,7 @@ function startGoFish() {
     }
     if (hand.length === 0 && deck.length === 0) {
       msg = books > aiBooks ? 'You win!' : books < aiBooks ? 'AI wins!' : 'Draw!';
+      try { const w = localStorage.getItem('eol-cards-wins') || '{}'; const o = JSON.parse(w); o.gofish = (o.gofish||0) + (books > aiBooks ? 1 : 0); localStorage.setItem('eol-cards-wins', JSON.stringify(o)); } catch(e){}
       turn = 'done';
     }
   }
@@ -159,7 +162,7 @@ function startWar() {
   }
 
   function battle() {
-    if (!pH.length || !aH.length) { msg = pH.length ? 'You win!' : 'AI wins!'; render(); return; }
+    if (!pH.length || !aH.length) { msg = pH.length ? 'You win!' : 'AI wins!'; try { const w = localStorage.getItem('eol-cards-wins') || '{}'; const o = JSON.parse(w); o.war = (o.war||0) + (pH.length ? 1 : 0); localStorage.setItem('eol-cards-wins', JSON.stringify(o)); } catch(e){} render(); return; }
     pHCard = pH.shift(); aHCard = aH.shift();
     const pv = rankValue(pHCard), av = rankValue(aHCard);
     if (pv > av) { msg = '💥 You win the battle!'; pH.push(pHCard, aHCard); }
