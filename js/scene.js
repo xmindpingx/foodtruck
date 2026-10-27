@@ -316,7 +316,7 @@ if(CONFIG.bgMusicEnabled && CONFIG.bgMusicFile){
   document.body.appendChild(audioEl);
   const btn=document.createElement('button');
   btn.textContent='🔊 Music';
-  btn.style.cssText='position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:40;padding:.5em .9em;border-radius:999px;border:none;background:#000a;color:#fff;font-size:14px;cursor:pointer;';
+  btn.style.cssText='position:fixed;bottom:10px;left:10px;z-index:40;padding:4px 8px;border-radius:999px;border:none;background:#000a;color:#fff;font-size:11px;cursor:pointer;';
   document.body.appendChild(btn);
   let playing=false;
   btn.onclick=()=>{
