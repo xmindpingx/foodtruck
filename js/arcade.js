@@ -4,9 +4,9 @@
 // HIGH SCORES board by the truck (click it) and the trivia bot's live-score questions stay true.
 // Lobby + done screens speak the language picked at sign-up (Account.lang()).
 import * as THREE from 'three';
-import {announce, clockNow, visitorName, aboveDock} from './avatars.js?v=7';
+import {announce, clockNow, visitorName, aboveDock} from './avatars.js?v=9';
 import {CONFIG} from './shop.js?v=6';                // games on/off switches (Admin → Settings → Games)
-import * as Account from './account.js?v=6';
+import * as Account from './account.js?v=7';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 const rnd = a => a[Math.floor(Math.random() * a.length)];
@@ -290,7 +290,44 @@ function buildProps() {
     const coin = new THREE.Mesh(new THREE.BoxGeometry(.3, .18, .02), new THREE.MeshStandardMaterial({color: 0x222, roughness: .7}));
     coin.position.set(0, .55, .385); pac.add(coin);
     pac.traverse(o => { o.userData.midway = 'pac'; });
-    pac.position.set(5.5, 0, -7); pac.rotation.y = -.3; rig.add(pac); props.pac = pac;
+    pac.position.set(0, 0, -5); pac.rotation.y = Math.PI; rig.add(pac); props.pac = pac;
+  }
+  // 🃏 UNO card table — green felt table on the east lawn (tap to open the card game)
+  let uno = null;
+  if (gameOn('uno')) {
+    uno = new THREE.Group();
+    const felt = new THREE.MeshStandardMaterial({color: 0x1b5e20, roughness: .8});
+    const wood = new THREE.MeshStandardMaterial({color: 0x5a3a1f, roughness: .7, metalness: .05});
+    const top = new THREE.Mesh(new THREE.BoxGeometry(1.6, .08, 1.0), felt); top.position.y = .72; uno.add(top);
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(.06, .08, .7, 12), wood); leg.position.y = .35; uno.add(leg);
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(.35, .4, .06, 16), wood); base.position.y = .03; uno.add(base);
+    // a few cards scattered on the felt
+    for (let i = 0; i < 5; i++) {
+      const card = new THREE.Mesh(new THREE.BoxGeometry(.22, .01, .32), new THREE.MeshStandardMaterial({color: [0xe53935,0x1e88e5,0x43a047,0xfdd835,0x222][i], roughness: .5}));
+      card.position.set(-.5 + i * .25, .77, (i % 2 ? .1 : -.1)); card.rotation.y = (i - 2) * .15;
+      uno.add(card);
+    }
+    uno.traverse(o => { o.userData.midway = 'uno'; });
+    uno.position.set(3, 0, -4); uno.rotation.y = -.4; rig.add(uno); props.uno = uno;
+  }
+  // ♟️ crystal chess table — a polished table with a crystal chess set (tap to play)
+  let chess = null;
+  if (gameOn('chess')) {
+    chess = new THREE.Group();
+    const marble = new THREE.MeshStandardMaterial({color: 0xe8e2d4, roughness: .25, metalness: .1});
+    const dark = new THREE.MeshStandardMaterial({color: 0x2b1b3a, roughness: .6, metalness: .2});
+    const top = new THREE.Mesh(new THREE.BoxGeometry(1.4, .08, 1.4), marble); top.position.y = .72; chess.add(top);
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(.07, .09, .7, 12), dark); leg.position.y = .35; chess.add(leg);
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(.4, .45, .06, 16), dark); base.position.y = .03; chess.add(base);
+    // crystal pieces on the board (a few, for visual flavor)
+    for (let i = 0; i < 4; i++) {
+      const piece = new THREE.Mesh(new THREE.ConeGeometry(.06, .18, 8), new THREE.MeshStandardMaterial({
+        color: i % 2 ? 0x8a5a8a : 0xd9d9e8, roughness: .15, metalness: .4, transparent: true, opacity: .85}));
+      piece.position.set(-.4 + (i % 2) * .8, .85, -.4 + Math.floor(i / 2) * .8);
+      chess.add(piece);
+    }
+    chess.traverse(o => { o.userData.midway = 'chess'; });
+    chess.position.set(-4, 0, -4); chess.rotation.y = .4; rig.add(chess); props.chess = chess;
   }
   // 🎯 two bean-bag boards angled toward the toss line, west lawn (skipped when the game is off)
   if (gameOn('bbt')) for (let i = 0; i < 2; i++) {
@@ -346,7 +383,7 @@ function buildProps() {
   board.position.set(-2.1, 2.0, 0); board.rotation.y = Math.PI - .065;
   rig.add(board); props.board = board;
 
-  pills = [claw, ...props.bbt, tag, board, pac].filter(Boolean);   // click targets for whatever got built
+  pills = [claw, ...props.bbt, tag, board, pac, uno, chess].filter(Boolean);   // click targets for whatever got built
 }
 export function prop(id) { return props[id] || null; }   // scene.js #layout mode: movable prop groups by id
 function signTexture(txt, col) {
@@ -372,6 +409,8 @@ export function walkBalls() {
   if (props.tag && props.tag.parent) { props.tag.getWorldPosition(_bv); out.push({x: _bv.x, z: _bv.z, r: .42}); }
   if (props.board && props.board.parent) { props.board.getWorldPosition(_bv); out.push({x: _bv.x, z: _bv.z, r: .55}); }
   if (props.pac && props.pac.parent) { props.pac.getWorldPosition(_bv); out.push({x: _bv.x, z: _bv.z, r: .6}); }
+  if (props.uno && props.uno.parent) { props.uno.getWorldPosition(_bv); out.push({x: _bv.x, z: _bv.z, r: .85}); }
+  if (props.chess && props.chess.parent) { props.chess.getWorldPosition(_bv); out.push({x: _bv.x, z: _bv.z, r: .75}); }
   return out;
 }
 export const targets = () => pills;
@@ -379,6 +418,8 @@ export function openFrom(obj) {
   const mw = obj && obj.userData && obj.userData.midway;
   if (mw === 'board') { openScores(); return true; }
   if (mw === 'pac') { dispatchEvent(new Event('eol:pac-open')); return true; }
+  if (mw === 'uno') { dispatchEvent(new Event('eol:uno-open')); return true; }
+  if (mw === 'chess') { dispatchEvent(new Event('eol:chess-open')); return true; }
   if (mw) { openPanel(mw); return true; }
   return false;
 }

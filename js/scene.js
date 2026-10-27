@@ -664,6 +664,8 @@ const LAYOUT_MOVERS=[];   // {id,label,obj,base} — the truck itself is handled
  reg('jukebox','Jukebox',jukebox);
  reg('claw','Claw machine',Arcade.prop('claw'));
  reg('pacman','Pac-Man cabinet',Arcade.prop('pac'));
+ reg('uno','UNO card table',Arcade.prop('uno'));
+ reg('chess','Crystal chess table',Arcade.prop('chess'));
  (Arcade.prop('bbt')||[]).forEach((b,i)=>reg('bbt'+i,'Bean-bag board '+(i+1),b));
  reg('tag','Tag arena',Arcade.prop('tag'));
  reg('scores','HIGH SCORES board',Arcade.prop('board'));
@@ -1041,7 +1043,7 @@ window.__EOL_LOOK=()=>({x:+ctl.target.x.toFixed(2),z:+ctl.target.z.toFixed(2)});
 const walkTyping=()=>{const a=document.activeElement;
   return !!a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.isContentEditable);};
 const walkUI=()=>(!!document.querySelector('.panel.open'))||
-  ['eolHd','eolLook','eolMidway','eolScores','eolAcct','eolJuke'].some(id=>{const el=document.getElementById(id);return el&&!el.hidden;})||
+  ['eolHd','eolLook','eolMidway','eolScores','eolAcct','eolJuke','eolPac','eolUno','eolChess'].some(id=>{const el=document.getElementById(id);return el&&!el.hidden;})||
   walkTyping();
 const walkChip=document.createElement('div');walkChip.id='eolWalkHint';walkChip.hidden=true;
 walkChip.textContent='◀ ▲ ▼ ▶ move · space jump · esc stop';document.body.appendChild(walkChip);

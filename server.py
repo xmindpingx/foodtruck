@@ -313,6 +313,8 @@ DEFAULT_SETTINGS = {
     "gameClawOn": True, "gameBbtOn": True, "gameTagOn": True,
     "gameC4On": True, "gameTttOn": True, "gamePinOn": True,
     "gamePacmanOn": True,      # 🟡 the Pac-Man arcade cabinet on the lot
+"gameUnoOn": True,         # 🃏 the UNO card table on the lot
+"gameChessOn": True,        # ♟️ the crystal chess table on the lot
     "hotdogOn": True,
     "triviaBotOn": True,
     # --- 3D scene: truck position, set by dragging it in layout mode (see scene.js) ---
@@ -387,7 +389,7 @@ PUBLIC_SETTINGS = ('businessName', 'tagline', 'brandLogo', 'copyrightLine', 'pho
                    'partnerDoorDashOn', 'partnerDoorDashLink', 'partnerInstacartOn', 'partnerInstacartLink',
                    # games on/off switches — the 3D lot, the contest and the chat trivia gate on these
                    'midwayOn', 'gameClawOn', 'gameBbtOn', 'gameTagOn', 'gameC4On', 'gameTttOn', 'gamePinOn',
-                   'gamePacmanOn',
+                   'gamePacmanOn', 'gameUnoOn', 'gameChessOn',
                    'hotdogOn', 'triviaBotOn',
                    # jukebox (public: catalog + on/off) + geocaching switch + saved #layout defaults for the lot props
                    'jukeboxOn', 'jukeboxSongs', 'geocacheOn', 'layoutProps')
@@ -689,7 +691,8 @@ TQ = {'i': 0, 'q': None}                             # next row index / open que
 TQ_LOCK = threading.Lock()
 
 GAME_FLAGS = {'claw': 'gameClawOn', 'bbt': 'gameBbtOn', 'tag': 'gameTagOn', 'c4': 'gameC4On',
-              'ttt': 'gameTttOn', 'pin': 'gamePinOn', 'pacman': 'gamePacmanOn', 'hotdog': 'hotdogOn'}   # game id -> settings key
+              'ttt': 'gameTttOn', 'pin': 'gamePinOn', 'pacman': 'gamePacmanOn',
+              'uno': 'gameUnoOn', 'chess': 'gameChessOn', 'hotdog': 'hotdogOn'}   # game id -> settings key
 def _game_allowed(s, game):
     """Admin → Settings → Games can switch any single game off. A disabled game's props/tabs
     never render client-side; this keeps a stale client from recording scores for it too."""
@@ -736,6 +739,373 @@ def _geo_fuzz(cid, x, z):
     h = int(hashlib.sha1(('geo' + str(cid)).encode()).hexdigest(), 16)
     return (round(float(x) + ((h % 41) - 20) * .1, 2), round(float(z) + ((h // 41 % 41) - 20) * .1, 2))
 
+
+# ---------- 🃏 UNO helpers (multiplayer, drop in / drop out) ----------
+import random as _rnd
+
+def _uno_deck():
+    deck = []
+    colors = ['red', 'blue', 'green', 'yellow']
+    for c in colors:
+        deck.append({'color': c, 'value': '0'})
+        for v in ['1','2','3','4','5','6','7','8','9','skip','reverse','draw2']:
+            deck.append({'color': c, 'value': v}); deck.append({'color': c, 'value': v})
+    for _ in range(4):
+        deck.append({'color': 'wild', 'value': 'wild'})
+        deck.append({'color': 'wild', 'value': 'wild4'})
+    _rnd.shuffle(deck)
+    return deck
+
+def _uno_can_play(card, top, color):
+    if card['color'] == 'wild': return True
+    if card['color'] == color: return True
+    if card['value'] == top['value'] and top['value'] not in ('wild', 'wild4'): return True
+    return False
+
+def _uno_deal_one(room, vid):
+    hand = room['hands'].setdefault(vid, [])
+    for _ in range(7):
+        if not room['deck']:
+            if len(room['discard']) > 1:
+                top = room['discard'].pop()
+                _rnd.shuffle(room['discard'])
+                room['deck'] = room['discard']; room['discard'] = [top]
+        if room['deck']:
+            hand.append(room['deck'].pop())
+
+def _uno_draw(room, vid, n):
+    hand = room['hands'].setdefault(vid, [])
+    for _ in range(n):
+        if not room['deck']:
+            if len(room['discard']) > 1:
+                top = room['discard'].pop()
+                _rnd.shuffle(room['discard'])
+                room['deck'] = room['discard']; room['discard'] = [top]
+        if room['deck']:
+            hand.append(room['deck'].pop())
+
+def _uno_advance(room, n=1):
+    players = room['players']
+    if not players: return
+    idx = room['turn']
+    for _ in range(n):
+        idx = (idx + room['dir']) % len(players)
+    room['turn'] = idx
+
+def _uno_start(room):
+    room['deck'] = _uno_deck()
+    room['discard'] = []
+    room['hands'] = {}
+    room['uno'] = {}
+    for p in room['players']:
+        room['hands'][p['id']] = []
+        room['uno'][p['id']] = False
+        _uno_deal_one(room, p['id'])
+    # first discard: must not be a wild/draw (reshuffle until a plain card)
+    while True:
+        c = room['deck'].pop()
+        if c['color'] != 'wild':
+            room['discard'].append(c); break
+        room['deck'].insert(0, c)
+    top = room['discard'][-1]
+    room['color'] = top['color']
+    room['value'] = top['value']
+    room['dir'] = 1
+    room['turn'] = 0
+    room['drawStack'] = 0
+    room['wild4'] = None
+    room['winner'] = None
+    room['status'] = 'playing'
+    # mode timer not needed for uno
+
+def _uno_play(room, vid, card_idx, chosen_color):
+    hand = room['hands'].get(vid, [])
+    if card_idx < 0 or card_idx >= len(hand): return 'bad index'
+    card = hand[card_idx]
+    top = room['discard'][-1]
+    if not _uno_can_play(card, top, room['color']): return 'not playable'
+    hand.pop(card_idx)
+    room['discard'].append(card)
+    skip_next = False
+    if card['value'] in ('wild', 'wild4'):
+        room['color'] = chosen_color if chosen_color in ('red', 'blue', 'green', 'yellow') else 'red'
+        if card['value'] == 'wild4':
+            nxt_vid = room['players'][(room['turn'] + room['dir']) % len(room['players'])]['id']
+            _uno_draw(room, nxt_vid, 4)
+            skip_next = True
+    elif card['value'] == 'draw2':
+        nxt_vid = room['players'][(room['turn'] + room['dir']) % len(room['players'])]['id']
+        _uno_draw(room, nxt_vid, 2)
+        skip_next = True
+    elif card['value'] == 'skip':
+        skip_next = True
+    elif card['value'] == 'reverse':
+        room['dir'] *= -1
+        if len(room['players']) == 2:
+            skip_next = True
+    if not hand:
+        room['status'] = 'finished'
+        room['winner'] = vid
+    if skip_next:
+        _uno_advance(room, 2)
+    else:
+        _uno_advance(room, 1)
+    if len(hand) == 1:
+        room['uno'][vid] = True
+    room['value'] = card['value'] if card['color'] != 'wild' else room['value']
+    if card['color'] != 'wild':
+        room['value'] = card['value']
+    return 'ok'
+
+# ---------- ♟️ chess helpers ----------
+_PIECES_START = [
+    ['bR','bN','bB','bQ','bK','bB','bN','bR'],
+    ['bP','bP','bP','bP','bP','bP','bP','bP'],
+    [None]*8, [None]*8, [None]*8, [None]*8,
+    ['wP','wP','wP','wP','wP','wP','wP','wP'],
+    ['wR','wN','wB','wQ','wK','wB','wN','wR'],
+]
+
+def _chess_start():
+    return [row[:] for row in _PIECES_START]
+
+def _chess_color(p): return p[0] if p else None
+def _chess_type(p): return p[1] if p else None
+
+def _chess_attacks(board, side, ep):
+    # set of (x,y) squares attacked by `side`
+    res = set()
+    for y in range(8):
+        for x in range(8):
+            p = board[y][x]
+            if not p or _chess_color(p) != side: continue
+            t = _chess_type(p)
+            if t == 'P':
+                d = 1 if side == 'w' else -1
+                for dx in (-1, 1):
+                    nx, ny = x + dx, y + d
+                    if 0 <= nx < 8 and 0 <= ny < 8:
+                        res.add((nx, ny))
+            elif t == 'N':
+                for dx, dy in ((1,2),(2,1),(-1,2),(-2,1),(1,-2),(2,-1),(-1,-2),(-2,-1)):
+                    nx, ny = x+dx, y+dy
+                    if 0 <= nx < 8 and 0 <= ny < 8: res.add((nx, ny))
+            elif t == 'K':
+                for dx in (-1,0,1):
+                    for dy in (-1,0,1):
+                        if dx == 0 and dy == 0: continue
+                        nx, ny = x+dx, y+dy
+                        if 0 <= nx < 8 and 0 <= ny < 8: res.add((nx, ny))
+            else:
+                # sliding: B, R, Q
+                dirs = []
+                if t in ('B','Q'): dirs += [(-1,-1),(-1,1),(1,-1),(1,1)]
+                if t in ('R','Q'): dirs += [(-1,0),(1,0),(0,-1),(0,1)]
+                for dx, dy in dirs:
+                    nx, ny = x+dx, y+dy
+                    while 0 <= nx < 8 and 0 <= ny < 8:
+                        res.add((nx, ny))
+                        if board[ny][nx]: break
+                        nx += dx; ny += dy
+    return res
+
+def _chess_in_check(board, side, ep):
+    opp = 'b' if side == 'w' else 'w'
+    attacks = _chess_attacks(board, opp, ep)
+    # find king
+    for y in range(8):
+        for x in range(8):
+            if board[y][x] == side + 'K':
+                return (x, y) in attacks
+    return False
+
+def _chess_pseudo_moves(board, x, y, castle, ep):
+    p = board[y][x]
+    if not p: return []
+    side = _chess_color(p); typ = _chess_type(p)
+    moves = []
+    if typ == 'P':
+        d = 1 if side == 'w' else -1
+        start = 1 if side == 'w' else 6
+        # forward
+        if 0 <= y + d < 8 and board[y+d][x] is None:
+            moves.append((x, y+d, None))
+            if y == start and board[y+2*d][x] is None:
+                moves.append((x, y+2*d, None))
+        # captures
+        for dx in (-1, 1):
+            nx, ny = x + dx, y + d
+            if 0 <= nx < 8 and 0 <= ny < 8:
+                target = board[ny][nx]
+                if target and _chess_color(target) != side:
+                    moves.append((nx, ny, None))
+                # en passant
+                if ep and ep == (nx, ny) and target is None:
+                    moves.append((nx, ny, 'ep'))
+    elif typ == 'N':
+        for dx, dy in ((1,2),(2,1),(-1,2),(-2,1),(1,-2),(2,-1),(-1,-2),(-2,-1)):
+            nx, ny = x+dx, y+dy
+            if 0 <= nx < 8 and 0 <= ny < 8:
+                t = board[ny][nx]
+                if t is None or _chess_color(t) != side:
+                    moves.append((nx, ny, None))
+    elif typ in ('B','R','Q'):
+        dirs = []
+        if typ in ('B','Q'): dirs += [(-1,-1),(-1,1),(1,-1),(1,1)]
+        if typ in ('R','Q'): dirs += [(-1,0),(1,0),(0,-1),(0,1)]
+        for dx, dy in dirs:
+            nx, ny = x+dx, y+dy
+            while 0 <= nx < 8 and 0 <= ny < 8:
+                t = board[ny][nx]
+                if t is None:
+                    moves.append((nx, ny, None))
+                elif _chess_color(t) != side:
+                    moves.append((nx, ny, None)); break
+                else:
+                    break
+                nx += dx; ny += dy
+    elif typ == 'K':
+        for dx in (-1,0,1):
+            for dy in (-1,0,1):
+                if dx == 0 and dy == 0: continue
+                nx, ny = x+dx, y+dy
+                if 0 <= nx < 8 and 0 <= ny < 8:
+                    t = board[ny][nx]
+                    if t is None or _chess_color(t) != side:
+                        moves.append((nx, ny, None))
+        # castling
+        if side == 'w' and x == 4 and y == 0 and castle.get('wK'):
+            if board[0][5] is None and board[0][6] is None and board[0][7] == 'wR':
+                if not _chess_in_check(board, 'w', ep) and (5,0) not in _chess_attacks(board, 'b', ep) and (6,0) not in _chess_attacks(board, 'b', ep):
+                    moves.append((6, 0, 'castleK'))
+            if castle.get('wQ') and board[0][1] is None and board[0][2] is None and board[0][3] is None and board[0][0] == 'wR':
+                if not _chess_in_check(board, 'w', ep) and (3,0) not in _chess_attacks(board, 'b', ep) and (2,0) not in _chess_attacks(board, 'b', ep):
+                    moves.append((2, 0, 'castleQ'))
+        if side == 'b' and x == 4 and y == 7 and castle.get('bK'):
+            if board[7][5] is None and board[7][6] is None and board[7][7] == 'bR':
+                if not _chess_in_check(board, 'b', ep) and (5,7) not in _chess_attacks(board, 'w', ep) and (6,7) not in _chess_attacks(board, 'w', ep):
+                    moves.append((6, 7, 'castleK'))
+            if castle.get('bQ') and board[7][1] is None and board[7][2] is None and board[7][3] is None and board[7][0] == 'bR':
+                if not _chess_in_check(board, 'b', ep) and (3,7) not in _chess_attacks(board, 'w', ep) and (2,7) not in _chess_attacks(board, 'w', ep):
+                    moves.append((2, 7, 'castleQ'))
+    # promotion
+    out = []
+    for (nx, ny, sp) in moves:
+        if typ == 'P' and (ny == 0 or ny == 7):
+            for pr in ('q','r','b','n'):
+                out.append((nx, ny, pr))
+        else:
+            out.append((nx, ny, sp))
+    return out
+
+def _chess_legal_moves(board, side, castle, ep):
+    moves = []
+    for y in range(8):
+        for x in range(8):
+            p = board[y][x]
+            if not p or _chess_color(p) != side: continue
+            for (nx, ny, sp) in _chess_pseudo_moves(board, x, y, castle, ep):
+                # simulate
+                snap = [row[:] for row in board]
+                snap_castle = dict(castle)
+                snap_ep = ep
+                captured = board[ny][nx]
+                # handle ep capture
+                if sp == 'ep':
+                    cap_y = y
+                    snap[cap_y][nx] = None
+                board[ny][nx] = board[y][x]
+                board[y][x] = None
+                # castling rook move
+                if sp == 'castleK':
+                    board[ny][5] = board[ny][7]; board[ny][7] = None
+                elif sp == 'castleQ':
+                    board[ny][3] = board[ny][0]; board[ny][0] = None
+                # promotion
+                if sp in ('q','r','b','n'):
+                    board[ny][nx] = side + sp.upper()
+                # check legality
+                legal = not _chess_in_check(board, side, ep)
+                # restore
+                for i in range(8): board[i][:] = snap[i][:]
+                castle.clear(); castle.update(snap_castle)
+                # (castle was mutated above? no — we passed castle ref; restore manually)
+                # Actually castle is a dict ref; reassign
+                # restore castle properly:
+                for k in list(castle.keys()): del castle[k]
+                for k, v in snap_castle.items(): castle[k] = v
+                if legal:
+                    moves.append(((x, y), (nx, ny), sp))
+    return moves
+
+def _chess_try_move(room, fx, fy, tx, ty, promo):
+    board = room['board']; side = room['turn']; castle = room['castle']; ep = room['ep']
+    legal = _chess_legal_moves(board, side, castle, ep)
+    match = None
+    for (f, t, sp) in legal:
+        if f == (fx, fy) and t == (tx, ty):
+            if sp in ('q','r','b','n'):
+                if sp != promo: continue
+            match = sp; break
+    if match is None: return 'illegal move'
+    # apply
+    p = board[fy][fx]
+    captured = board[ty][tx]
+    # en passant capture
+    if match == 'ep':
+        captured = board[fy][tx]
+        board[fy][tx] = None
+    # castling
+    if match == 'castleK':
+        board[ty][5] = board[ty][7]; board[ty][7] = None
+    elif match == 'castleQ':
+        board[ty][3] = board[ty][0]; board[ty][0] = None
+    board[ty][tx] = p
+    board[fy][fx] = None
+    if match in ('q','r','b','n'):
+        board[ty][tx] = side + match.upper()
+    # update castling rights
+    if p == 'wK': castle['wK'] = castle['wQ'] = False
+    if p == 'bK': castle['bK'] = castle['bQ'] = False
+    if p == 'wR':
+        if fx == 0 and fy == 0: castle['wQ'] = False
+        if fx == 7 and fy == 0: castle['wK'] = False
+    if p == 'bR':
+        if fx == 0 and fy == 7: castle['bQ'] = False
+        if fx == 7 and fy == 7: castle['bK'] = False
+    if captured and captured[1] == 'R':
+        if tx == 0 and ty == 0: castle['wQ'] = False
+        if tx == 7 and ty == 0: castle['wK'] = False
+        if tx == 0 and ty == 7: castle['bQ'] = False
+        if tx == 7 and ty == 7: castle['bK'] = False
+    # en passant square
+    if p[1] == 'P' and abs(fy - ty) == 2:
+        room['ep'] = (fx, (fy + ty) // 2)
+    else:
+        room['ep'] = None
+    # half-move clock
+    if p[1] == 'P' or captured:
+        room['half'] = 0
+    else:
+        room['half'] += 1
+    if side == 'b':
+        room['full'] += 1
+    room['turn'] = 'b' if side == 'w' else 'w'
+    room['moves'].append({'from': chr(fx+97)+str(fy+1), 'to': chr(tx+97)+str(ty+1),
+                          'promo': match if match in ('q','r','b','n') else None,
+                          'captured': captured, 'piece': p})
+    # checkmate / stalemate
+    opp_moves = _chess_legal_moves(board, room['turn'], castle, room['ep'])
+    if not opp_moves:
+        if _chess_in_check(board, room['turn'], room['ep']):
+            room['winner'] = side
+        else:
+            room['winner'] = 'draw'
+        room['status'] = 'finished'
+    # 50-move rule
+    if room['half'] >= 100:
+        room['winner'] = 'draw'; room['status'] = 'finished'
+    return 'ok'
 
 # ---------- leaderboards (data/scores.json) + score-driven trivia ----------
 # Every minigame finish (and each hot-dog contest round) reports its result to /api/score. The
@@ -2695,6 +3065,237 @@ class H(SimpleHTTPRequestHandler):
                     claimed.append(spr)
                 save('accounts.json', a)
             return self.send_json({'ok': True, 'claimed': len(claimed), 'sprouts': claimed})
+
+        # ---------- 🃏 UNO endpoints ----------
+        if p == '/api/uno/rooms':
+            rooms = load('uno_rooms.json', {})
+            out = []
+            for rid, r in rooms.items():
+                if time.time() - r.get('last', 0) > 7200: continue
+                out.append({'id': rid, 'name': r.get('name'), 'players': len(r.get('players', [])),
+                            'status': r.get('status'), 'max': 8})
+            return self.send_json({'rooms': out})
+        if p == '/api/uno/create':
+            name = _clean(str(data.get('name') or 'UNO table'))[:24] or 'UNO table'
+            vid = re.sub(r'[^a-zA-Z0-9_-]', '', str(data.get('vid', '')))[:64]
+            if not vid: return self.send_json({'error': 'bad request'}, 400)
+            pname = _clean(str(data.get('pname') or 'Player'))[:24] or 'Player'
+            rooms = load('uno_rooms.json', {})
+            rid = 'u' + secrets.token_hex(3)
+            rooms[rid] = {'id': rid, 'name': name, 'players': [{'id': vid, 'name': pname}],
+                          'status': 'lobby', 'deck': [], 'discard': [], 'hands': {vid: []},
+                          'color': None, 'value': None, 'dir': 1, 'turn': 0, 'drawStack': 0,
+                          'winner': None, 'uno': {vid: False}, 'created': int(time.time()),
+                          'last': time.time()}
+            with LOCK: save('uno_rooms.json', rooms)
+            return self.send_json({'ok': True, 'id': rid})
+        if p == '/api/uno/join':
+            rid = str(data.get('room', '')); vid = re.sub(r'[^a-zA-Z0-9_-]', '', str(data.get('vid', '')))[:64]
+            if not rid or not vid: return self.send_json({'error': 'bad request'}, 400)
+            pname = _clean(str(data.get('pname') or 'Player'))[:24] or 'Player'
+            rooms = load('uno_rooms.json', {})
+            r = rooms.get(rid)
+            if not r: return self.send_json({'error': 'room not found'}, 404)
+            if any(p['id'] == vid for p in r['players']):
+                r['last'] = time.time()
+                with LOCK: save('uno_rooms.json', rooms)
+                return self.send_json({'ok': True, 'id': rid, 'rejoined': True})
+            if len(r['players']) >= 8: return self.send_json({'error': 'room full'}, 409)
+            r['players'].append({'id': vid, 'name': pname})
+            r['hands'][vid] = []; r['uno'][vid] = False
+            r['last'] = time.time()
+            if r['status'] == 'playing':
+                _uno_deal_one(r, vid)
+            with LOCK: save('uno_rooms.json', rooms)
+            return self.send_json({'ok': True, 'id': rid, 'joinedMid': r['status'] == 'playing'})
+        if p == '/api/uno/leave':
+            rid = str(data.get('room', '')); vid = re.sub(r'[^a-zA-Z0-9_-]', '', str(data.get('vid', '')))[:64]
+            rooms = load('uno_rooms.json', {})
+            r = rooms.get(rid)
+            if not r: return self.send_json({'ok': True})
+            r['players'] = [p for p in r['players'] if p['id'] != vid]
+            r['hands'].pop(vid, None); r['uno'].pop(vid, None)
+            if not r['players']:
+                rooms.pop(rid, None)
+                with LOCK: save('uno_rooms.json', rooms)
+                return self.send_json({'ok': True, 'closed': True})
+            if r['turn'] >= len(r['players']): r['turn'] = 0
+            if r['status'] == 'playing' and len(r['players']) < 2:
+                r['status'] = 'finished'; r['winner'] = r['players'][0]['id']
+            r['last'] = time.time()
+            with LOCK: save('uno_rooms.json', rooms)
+            return self.send_json({'ok': True})
+        if p == '/api/uno/start':
+            rid = str(data.get('room', '')); vid = re.sub(r'[^a-zA-Z0-9_-]', '', str(data.get('vid', '')))[:64]
+            rooms = load('uno_rooms.json', {})
+            r = rooms.get(rid)
+            if not r: return self.send_json({'error': 'room not found'}, 404)
+            if r['status'] != 'lobby': return self.send_json({'ok': True, 'status': r['status']})
+            if len(r['players']) < 2: return self.send_json({'error': 'need at least 2 players'}, 400)
+            _uno_start(r)
+            r['last'] = time.time()
+            with LOCK: save('uno_rooms.json', rooms)
+            return self.send_json({'ok': True, 'status': 'playing'})
+        if p == '/api/uno/room':
+            rid = str(data.get('room', '')); vid = re.sub(r'[^a-zA-Z0-9_-]', '', str(data.get('vid', '')))[:64]
+            rooms = load('uno_rooms.json', {})
+            r = rooms.get(rid)
+            if not r: return self.send_json({'error': 'room not found'}, 404)
+            r['last'] = time.time()
+            with LOCK: save('uno_rooms.json', rooms)
+            top = r['discard'][-1] if r['discard'] else None
+            players = [{'id': p['id'], 'name': p['name'], 'count': len(r['hands'].get(p['id'], [])),
+                        'uno': bool(r['uno'].get(p['id']))} for p in r['players']]
+            return self.send_json({'ok': True, 'id': rid, 'name': r['name'], 'status': r['status'],
+                                   'players': players, 'top': top, 'color': r['color'], 'value': r['value'],
+                                   'dir': r['dir'], 'turn': r['turn'],
+                                   'turnId': (r['players'][r['turn']]['id'] if r['players'] and r['turn'] < len(r['players']) else None),
+                                   'drawStack': r.get('drawStack', 0), 'winner': r['winner'],
+                                   'hand': r['hands'].get(vid, []), 'deck': len(r['deck'])})
+        if p == '/api/uno/play':
+            rid = str(data.get('room', '')); vid = re.sub(r'[^a-zA-Z0-9_-]', '', str(data.get('vid', '')))[:64]
+            rooms = load('uno_rooms.json', {})
+            r = rooms.get(rid)
+            if not r or r['status'] != 'playing': return self.send_json({'error': 'not playing'}, 400)
+            if not r['players'] or r['turn'] >= len(r['players']) or r['players'][r['turn']]['id'] != vid:
+                return self.send_json({'error': 'not your turn'}, 403)
+            idx = int(data.get('idx', -1))
+            chosen = str(data.get('color') or '')
+            res = _uno_play(r, vid, idx, chosen)
+            if res != 'ok': return self.send_json({'error': res}, 400)
+            r['last'] = time.time()
+            with LOCK: save('uno_rooms.json', rooms)
+            return self.send_json({'ok': True})
+        if p == '/api/uno/draw':
+            rid = str(data.get('room', '')); vid = re.sub(r'[^a-zA-Z0-9_-]', '', str(data.get('vid', '')))[:64]
+            rooms = load('uno_rooms.json', {})
+            r = rooms.get(rid)
+            if not r or r['status'] != 'playing': return self.send_json({'error': 'not playing'}, 400)
+            if not r['players'] or r['turn'] >= len(r['players']) or r['players'][r['turn']]['id'] != vid:
+                return self.send_json({'error': 'not your turn'}, 403)
+            n = r.get('drawStack') or 1
+            r['drawStack'] = 0
+            _uno_draw(r, vid, n)
+            _uno_advance(r, 1)
+            r['last'] = time.time()
+            with LOCK: save('uno_rooms.json', rooms)
+            return self.send_json({'ok': True, 'drawn': n})
+        if p == '/api/uno/uno':
+            rid = str(data.get('room', '')); vid = re.sub(r'[^a-zA-Z0-9_-]', '', str(data.get('vid', '')))[:64]
+            rooms = load('uno_rooms.json', {})
+            r = rooms.get(rid)
+            if not r: return self.send_json({'error': 'room not found'}, 404)
+            r['uno'][vid] = True
+            r['last'] = time.time()
+            with LOCK: save('uno_rooms.json', rooms)
+            return self.send_json({'ok': True})
+
+        # ---------- ♟️ chess endpoints ----------
+        if p == '/api/chess/rooms':
+            rooms = load('chess_rooms.json', {})
+            out = []
+            for rid, r in rooms.items():
+                if time.time() - r.get('last', 0) > 7200: continue
+                out.append({'id': rid, 'name': r.get('name'), 'players': len(r.get('players', [])),
+                            'status': r.get('status')})
+            return self.send_json({'rooms': out})
+        if p == '/api/chess/create':
+            name = _clean(str(data.get('name') or 'Chess table'))[:24] or 'Chess table'
+            vid = re.sub(r'[^a-zA-Z0-9_-]', '', str(data.get('vid', '')))[:64]
+            if not vid: return self.send_json({'error': 'bad request'}, 400)
+            pname = _clean(str(data.get('pname') or 'Player'))[:24] or 'Player'
+            rooms = load('chess_rooms.json', {})
+            rid = 'c' + secrets.token_hex(3)
+            rooms[rid] = {'id': rid, 'name': name, 'players': [{'id': vid, 'name': pname, 'side': 'white'}],
+                          'spectators': [], 'status': 'lobby', 'board': _chess_start(), 'turn': 'white',
+                          'castle': {'wK': True, 'wQ': True, 'bK': True, 'bQ': True}, 'ep': None,
+                          'half': 0, 'full': 1, 'moves': [], 'winner': None, 'created': int(time.time()),
+                          'last': time.time()}
+            with LOCK: save('chess_rooms.json', rooms)
+            return self.send_json({'ok': True, 'id': rid, 'side': 'white'})
+        if p == '/api/chess/join':
+            rid = str(data.get('room', '')); vid = re.sub(r'[^a-zA-Z0-9_-]', '', str(data.get('vid', '')))[:64]
+            if not rid or not vid: return self.send_json({'error': 'bad request'}, 400)
+            pname = _clean(str(data.get('pname') or 'Player'))[:24] or 'Player'
+            rooms = load('chess_rooms.json', {})
+            r = rooms.get(rid)
+            if not r: return self.send_json({'error': 'room not found'}, 404)
+            if any(p['id'] == vid for p in r['players']):
+                r['last'] = time.time()
+                with LOCK: save('chess_rooms.json', rooms)
+                return self.send_json({'ok': True, 'id': rid, 'rejoined': True})
+            sides = {p['side'] for p in r['players']}
+            side = 'black' if 'black' not in sides else None
+            if side:
+                r['players'].append({'id': vid, 'name': pname, 'side': side})
+                if len(r['players']) >= 2 and r['status'] == 'lobby':
+                    r['status'] = 'playing'
+            else:
+                r['spectators'].append(vid)
+            r['last'] = time.time()
+            with LOCK: save('chess_rooms.json', rooms)
+            return self.send_json({'ok': True, 'id': rid, 'side': side, 'spectator': side is None})
+        if p == '/api/chess/leave':
+            rid = str(data.get('room', '')); vid = re.sub(r'[^a-zA-Z0-9_-]', '', str(data.get('vid', '')))[:64]
+            rooms = load('chess_rooms.json', {})
+            r = rooms.get(rid)
+            if not r: return self.send_json({'ok': True})
+            r['players'] = [p for p in r['players'] if p['id'] != vid]
+            r['spectators'] = [s for s in r['spectators'] if s != vid]
+            if not r['players']:
+                rooms.pop(rid, None)
+            elif r['status'] == 'playing' and len(r['players']) < 2:
+                r['status'] = 'finished'; r['winner'] = r['players'][0]['side']
+            r['last'] = time.time()
+            with LOCK: save('chess_rooms.json', rooms)
+            return self.send_json({'ok': True})
+        if p == '/api/chess/room':
+            rid = str(data.get('room', '')); vid = re.sub(r'[^a-zA-Z0-9_-]', '', str(data.get('vid', '')))[:64]
+            rooms = load('chess_rooms.json', {})
+            r = rooms.get(rid)
+            if not r: return self.send_json({'error': 'room not found'}, 404)
+            r['last'] = time.time()
+            with LOCK: save('chess_rooms.json', rooms)
+            side = next((p['side'] for p in r['players'] if p['id'] == vid), None)
+            return self.send_json({'ok': True, 'id': rid, 'name': r['name'], 'status': r['status'],
+                                   'players': r['players'], 'spectators': len(r['spectators']),
+                                   'board': r['board'], 'turn': r['turn'], 'side': side,
+                                   'moves': r['moves'][-1:] if r['moves'] else [],
+                                   'winner': r['winner'], 'ep': r.get('ep'), 'castle': r.get('castle')})
+        if p == '/api/chess/move':
+            rid = str(data.get('room', '')); vid = re.sub(r'[^a-zA-Z0-9_-]', '', str(data.get('vid', '')))[:64]
+            rooms = load('chess_rooms.json', {})
+            r = rooms.get(rid)
+            if not r or r['status'] != 'playing': return self.send_json({'error': 'not playing'}, 400)
+            side = next((p['side'] for p in r['players'] if p['id'] == vid), None)
+            if side is None: return self.send_json({'error': 'not a player'}, 403)
+            if side != r['turn']: return self.send_json({'error': 'not your turn'}, 403)
+            fr = str(data.get('from', '')); to = str(data.get('to', ''))
+            promo = str(data.get('promo') or 'q')
+            if len(fr) != 2 or len(to) != 2: return self.send_json({'error': 'bad squares'}, 400)
+            try:
+                fx, fy = ord(fr[0]) - 97, int(fr[1]) - 1
+                tx, ty = ord(to[0]) - 97, int(to[1]) - 1
+            except Exception: return self.send_json({'error': 'bad squares'}, 400)
+            if not (0 <= fx < 8 and 0 <= fy < 8 and 0 <= tx < 8 and 0 <= ty < 8):
+                return self.send_json({'error': 'off board'}, 400)
+            res = _chess_try_move(r, fx, fy, tx, ty, promo)
+            if res != 'ok': return self.send_json({'error': res}, 400)
+            r['last'] = time.time()
+            with LOCK: save('chess_rooms.json', rooms)
+            return self.send_json({'ok': True, 'moves': r['moves'][-1:]})
+        if p == '/api/chess/reset':
+            rid = str(data.get('room', '')); vid = re.sub(r'[^a-zA-Z0-9_-]', '', str(data.get('vid', '')))[:64]
+            rooms = load('chess_rooms.json', {})
+            r = rooms.get(rid)
+            if not r: return self.send_json({'error': 'room not found'}, 404)
+            if not any(p['id'] == vid for p in r['players']): return self.send_json({'error': 'not a player'}, 403)
+            r['board'] = _chess_start(); r['turn'] = 'white'; r['castle'] = {'wK': True, 'wQ': True, 'bK': True, 'bQ': True}
+            r['ep'] = None; r['half'] = 0; r['full'] = 1; r['moves'] = []; r['winner'] = None; r['status'] = 'playing'
+            r['last'] = time.time()
+            with LOCK: save('chess_rooms.json', rooms)
+            return self.send_json({'ok': True})
+
 
         if p == '/api/assistant':
             s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
