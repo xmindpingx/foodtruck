@@ -833,7 +833,8 @@ function buildUI() {
           <button class="eolPacD" data-d="right" style="width:44px;height:44px;border-radius:10px;border:1px solid #444;background:#1a1a2e;color:#fff;font-size:18px;cursor:pointer">▶</button>
         </div>
       </div>
-      <button id="eolPacSound" style="margin-left:12px;padding:8px 12px;border-radius:10px;border:1px solid #444;background:#1a1a2e;color:#fff;font-size:12px;cursor:pointer">🔊</button>
+      <button id="eolPacPause" style="margin-left:8px;padding:8px 12px;border-radius:10px;border:1px solid #444;background:#1a1a2e;color:#fff;font-size:12px;cursor:pointer">⏸</button>
+      <button id="eolPacSound" style="margin-left:8px;padding:8px 12px;border-radius:10px;border:1px solid #444;background:#1a1a2e;color:#fff;font-size:12px;cursor:pointer">🔊</button>
     </div>`;
   document.body.appendChild(panel);
   canvas = panel.querySelector('#eolPacC');
@@ -844,6 +845,7 @@ function buildUI() {
   panel.querySelectorAll('.eolPacD').forEach(b => {
     b.onpointerdown = (e) => { e.preventDefault(); setDir(b.dataset.d); };
   });
+  panel.querySelector('#eolPacPause').onclick = () => { paused = !paused; panel.querySelector('#eolPacPause').textContent = paused ? '▶' : '⏸'; };
   panel.querySelector('#eolPacSound').onclick = () => {
     soundOn = !soundOn;
     panel.querySelector('#eolPacSound').textContent = soundOn ? '🔊' : '🔇';
