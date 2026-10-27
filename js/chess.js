@@ -143,264 +143,162 @@ function setPieceTheme(t) {
 }
 
 function drawCrystalPiece(code, gx, cx, cy) {
-  if (pieceTheme === 'medieval') drawMedievalPiece(code, cx, cy);
-  else drawSouthParkPiece(code, cx, cy);
-}
-
-// ---------- South Park theme ----------
-function drawSouthParkPiece(code, cx, cy) {
   const side = code[0], type = code[1];
   const isW = side === 'w';
+  // High-contrast South Park medieval: bold outlines, clear colors, big head on body
   const skin = isW ? '#f5d6a8' : '#c8a070';
-  const cloth = isW ? '#e8e0d0' : '#4a3060';
+  const cloth = isW ? '#f0e8d8' : '#3a2050';
   const accent = isW ? '#ffd700' : '#cc2222';
-  const outline = '#1a1a1a';
-  const s = SQ * 0.35;
-  const bw = s * 0.8, bh = s * 0.8, hr = s * 0.42;
+  const outline = '#000000';
+  const s = SQ * 0.4;
+  const bw = s * 0.75, bh = s * 0.7;
+  const hr = s * 0.38;
+  const hy = cy - hr * 0.3;  // head sits just above body, not floating
+
+  // body (big, visible rect with bold outline)
   ctx.fillStyle = cloth;
+  ctx.strokeStyle = outline; ctx.lineWidth = 2;
+  ctx.fillRect(cx - bw, cy - bh * 0.1, bw * 2, bh);
+  ctx.strokeRect(cx - bw, cy - bh * 0.1, bw * 2, bh);
+  // belt
+  ctx.fillStyle = isW ? '#8a6b3f' : '#1a1a3a';
+  ctx.fillRect(cx - bw, cy + bh * 0.3, bw * 2, bh * 0.12);
+  // legs
+  ctx.fillStyle = cloth;
+  ctx.fillRect(cx - bw * 0.8, cy + bh * 0.9, bw * 0.65, s * 0.3);
+  ctx.fillRect(cx + bw * 0.15, cy + bh * 0.9, bw * 0.65, s * 0.3);
   ctx.strokeStyle = outline; ctx.lineWidth = 1.5;
-  ctx.fillRect(cx - bw, cy, bw * 2, bh);
-  ctx.strokeRect(cx - bw, cy, bw * 2, bh);
-  ctx.fillStyle = isW ? '#8a6b3f' : '#2b1b3a';
-  ctx.fillRect(cx - bw, cy + bh * 0.35, bw * 2, bh * 0.15);
+  ctx.strokeRect(cx - bw * 0.8, cy + bh * 0.9, bw * 0.65, s * 0.3);
+  ctx.strokeRect(cx + bw * 0.15, cy + bh * 0.9, bw * 0.65, s * 0.3);
+  // shoes
+  ctx.fillStyle = isW ? '#5a3a1f' : '#111';
+  ctx.fillRect(cx - bw * 0.85, cy + bh + s * 0.28, bw * 0.75, s * 0.1);
+  ctx.fillRect(cx + bw * 0.1, cy + bh + s * 0.28, bw * 0.75, s * 0.1);
+  // arms
   ctx.fillStyle = cloth;
-  ctx.fillRect(cx - bw * 0.7, cy + bh, bw * 0.6, s * 0.35);
-  ctx.fillRect(cx + bw * 0.1, cy + bh, bw * 0.6, s * 0.35);
+  ctx.fillRect(cx - bw - s * 0.15, cy, s * 0.18, bh * 0.7);
+  ctx.fillRect(cx + bw - s * 0.03, cy, s * 0.18, bh * 0.7);
   ctx.strokeStyle = outline; ctx.lineWidth = 1;
-  ctx.strokeRect(cx - bw * 0.7, cy + bh, bw * 0.6, s * 0.35);
-  ctx.strokeRect(cx + bw * 0.1, cy + bh, bw * 0.6, s * 0.35);
-  const hy = cy - hr - 1;
+  ctx.strokeRect(cx - bw - s * 0.15, cy, s * 0.18, bh * 0.7);
+  ctx.strokeRect(cx + bw - s * 0.03, cy, s * 0.18, bh * 0.7);
+  // hands
   ctx.fillStyle = skin;
-  ctx.strokeStyle = outline; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(cx - bw - s * 0.06, cy + bh * 0.75, s * 0.08, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 1; ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx + bw + s * 0.06, cy + bh * 0.75, s * 0.08, 0, Math.PI * 2); ctx.fill();
+  ctx.stroke();
+  // head
+  ctx.fillStyle = skin;
+  ctx.strokeStyle = outline; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.arc(cx, hy, hr, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  // hair
+  ctx.fillStyle = isW ? '#d4a040' : '#2a1a0a';
+  ctx.beginPath(); ctx.arc(cx, hy - hr * 0.15, hr * 1.0, Math.PI, 0); ctx.fill();
+  ctx.fillRect(cx - hr * 0.9, hy - hr * 0.15, hr * 1.8, hr * 0.25);
+  // eyes
   ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.arc(cx - hr * 0.3, hy - hr * 0.05, hr * 0.18, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(cx + hr * 0.3, hy - hr * 0.05, hr * 0.18, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(cx - hr * 0.3, hy - hr * 0.05, hr * 0.2, hr * 0.22, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(cx + hr * 0.3, hy - hr * 0.05, hr * 0.2, hr * 0.22, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.ellipse(cx - hr * 0.3, hy - hr * 0.05, hr * 0.2, hr * 0.22, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(cx + hr * 0.3, hy - hr * 0.05, hr * 0.2, hr * 0.22, 0, 0, Math.PI * 2); ctx.stroke();
+  // pupils
   ctx.fillStyle = '#1a1a1a';
-  ctx.beginPath(); ctx.arc(cx - hr * 0.3, hy - hr * 0.05, hr * 0.09, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(cx + hr * 0.3, hy - hr * 0.05, hr * 0.09, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = '#b05050'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(cx - hr * 0.3, hy - hr * 0.05, hr * 0.1, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + hr * 0.3, hy - hr * 0.05, hr * 0.1, 0, Math.PI * 2); ctx.fill();
+  // mouth
+  ctx.strokeStyle = '#b05050'; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.moveTo(cx - hr * 0.15, hy + hr * 0.25); ctx.lineTo(cx + hr * 0.15, hy + hr * 0.25); ctx.stroke();
+
+  // ---- role-specific medieval accessories ----
   if (type === 'K') {
     ctx.fillStyle = accent;
-    ctx.fillRect(cx - hr * 0.7, hy - hr * 1.1, hr * 1.4, hr * 0.22);
+    ctx.fillRect(cx - hr * 0.7, hy - hr * 1.0, hr * 1.4, hr * 0.2);
     ctx.strokeStyle = outline; ctx.lineWidth = 1;
-    ctx.strokeRect(cx - hr * 0.7, hy - hr * 1.1, hr * 1.4, hr * 0.22);
+    ctx.strokeRect(cx - hr * 0.7, hy - hr * 1.0, hr * 1.4, hr * 0.2);
     for (let i = 0; i < 5; i++) {
       const px = cx - hr * 0.6 + i * hr * 0.3;
       ctx.fillStyle = accent;
-      ctx.beginPath(); ctx.moveTo(px, hy - hr * 1.1); ctx.lineTo(px + hr * 0.08, hy - hr * 1.35); ctx.lineTo(px + hr * 0.16, hy - hr * 1.1); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(px, hy - hr * 1.0); ctx.lineTo(px + hr * 0.1, hy - hr * 1.25); ctx.lineTo(px + hr * 0.2, hy - hr * 1.0); ctx.fill();
+      ctx.strokeStyle = outline; ctx.lineWidth = 1; ctx.stroke();
     }
     ctx.strokeStyle = accent; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(cx + bw + s * 0.1, cy + bh * 0.3); ctx.lineTo(cx + bw + s * 0.1, cy - s * 0.6); ctx.stroke();
     ctx.fillStyle = accent;
     ctx.beginPath(); ctx.arc(cx + bw + s * 0.1, cy - s * 0.65, s * 0.08, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = outline; ctx.lineWidth = 1; ctx.stroke();
   } else if (type === 'Q') {
     ctx.fillStyle = accent;
-    ctx.fillRect(cx - hr * 0.7, hy - hr * 1.1, hr * 1.4, hr * 0.2);
+    ctx.fillRect(cx - hr * 0.7, hy - hr * 1.0, hr * 1.4, hr * 0.2);
     for (let i = 0; i < 3; i++) {
       const px = cx - hr * 0.5 + i * hr * 0.5;
       ctx.fillStyle = accent;
-      ctx.beginPath(); ctx.arc(px, hy - hr * 1.2, hr * 0.08, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(px, hy - hr * 1.1, hr * 0.08, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = outline; ctx.lineWidth = 1; ctx.stroke();
     }
     ctx.strokeStyle = outline; ctx.lineWidth = 1;
-    ctx.strokeRect(cx - hr * 0.7, hy - hr * 1.1, hr * 1.4, hr * 0.2);
+    ctx.strokeRect(cx - hr * 0.7, hy - hr * 1.0, hr * 1.4, hr * 0.2);
     ctx.strokeStyle = accent; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(cx + bw + s * 0.1, cy + bh * 0.3); ctx.lineTo(cx + bw + s * 0.1, cy - s * 0.6); ctx.stroke();
+    ctx.fillStyle = accent;
+    ctx.beginPath(); ctx.arc(cx + bw + s * 0.1, cy - s * 0.65, s * 0.08, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = outline; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = isW ? '#d0a0d0' : '#5a3070'; ctx.globalAlpha = .5;
+    ctx.beginPath(); ctx.moveTo(cx - bw, cy + bh * 0.9); ctx.lineTo(cx - bw * 1.2, cy + bh + s * 0.3); ctx.lineTo(cx + bw * 1.2, cy + bh + s * 0.3); ctx.lineTo(cx + bw, cy + bh * 0.9); ctx.fill();
+    ctx.globalAlpha = 1;
   } else if (type === 'R') {
     ctx.fillStyle = accent;
-    ctx.fillRect(cx - hr * 0.75, hy - hr * 0.95, hr * 1.5, hr * 0.25);
+    ctx.fillRect(cx - hr * 0.75, hy - hr * 0.9, hr * 1.5, hr * 0.22);
     for (let i = 0; i < 4; i++) {
-      ctx.fillRect(cx - hr * 0.65 + i * hr * 0.33, hy - hr * 1.2, hr * 0.22, hr * 0.22);
+      ctx.fillRect(cx - hr * 0.65 + i * hr * 0.33, hy - hr * 1.15, hr * 0.22, hr * 0.22);
+      ctx.strokeStyle = outline; ctx.lineWidth = 1; ctx.strokeRect(cx - hr * 0.65 + i * hr * 0.33, hy - hr * 1.15, hr * 0.22, hr * 0.22);
     }
     ctx.strokeStyle = outline; ctx.lineWidth = 1;
-    ctx.strokeRect(cx - hr * 0.75, hy - hr * 0.95, hr * 1.5, hr * 0.25);
+    ctx.strokeRect(cx - hr * 0.75, hy - hr * 0.9, hr * 1.5, hr * 0.22);
+    ctx.fillStyle = accent; ctx.globalAlpha = .6;
+    ctx.beginPath(); ctx.ellipse(cx - bw - s * 0.15, cy + bh * 0.1, s * 0.12, s * 0.15, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = outline; ctx.lineWidth = 1; ctx.stroke();
   } else if (type === 'B') {
     ctx.fillStyle = accent;
-    ctx.beginPath(); ctx.moveTo(cx, hy - hr * 1.4); ctx.lineTo(cx - hr * 0.45, hy - hr * 0.55); ctx.lineTo(cx + hr * 0.45, hy - hr * 0.55); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(cx, hy - hr * 1.3); ctx.lineTo(cx - hr * 0.4, hy - hr * 0.5); ctx.lineTo(cx + hr * 0.4, hy - hr * 0.5); ctx.fill();
+    ctx.strokeStyle = outline; ctx.lineWidth = 1; ctx.stroke();
+    ctx.strokeStyle = accent; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx + bw + s * 0.1, cy + bh * 0.3); ctx.lineTo(cx + bw + s * 0.1, cy - s * 0.6); ctx.stroke();
+    ctx.fillStyle = accent;
+    ctx.beginPath(); ctx.arc(cx + bw + s * 0.1, cy - s * 0.65, s * 0.06, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = outline; ctx.lineWidth = 1; ctx.stroke();
   } else if (type === 'N') {
     ctx.fillStyle = accent;
-    ctx.beginPath(); ctx.arc(cx, hy - hr * 0.1, hr * 1.05, Math.PI * 0.7, Math.PI * 2.3); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx, hy - hr * 0.1, hr * 1.0, Math.PI * 0.7, Math.PI * 2.3); ctx.fill();
     ctx.strokeStyle = outline; ctx.lineWidth = 1; ctx.stroke();
     ctx.fillStyle = isW ? '#cc2222' : '#ffd700';
-    ctx.beginPath(); ctx.moveTo(cx, hy - hr * 1.05); ctx.quadraticCurveTo(cx + hr * 0.25, hy - hr * 1.4, cx + hr * 0.1, hy - hr * 1.25); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(cx, hy - hr * 1.0); ctx.quadraticCurveTo(cx + hr * 0.2, hy - hr * 1.3, cx + hr * 0.1, hy - hr * 1.15); ctx.fill();
+    ctx.strokeStyle = accent; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx + bw + s * 0.1, cy + bh * 0.3); ctx.lineTo(cx + bw + s * 0.1, cy - s * 0.6); ctx.stroke();
+    ctx.fillStyle = accent;
+    ctx.beginPath(); ctx.moveTo(cx + bw + s * 0.1 - s * 0.05, cy - s * 0.55); ctx.lineTo(cx + bw + s * 0.1, cy - s * 0.65); ctx.lineTo(cx + bw + s * 0.1 + s * 0.05, cy - s * 0.55); ctx.fill();
+    ctx.strokeStyle = outline; ctx.lineWidth = 1; ctx.stroke();
   } else {
     ctx.fillStyle = accent;
-    ctx.beginPath(); ctx.arc(cx, hy - hr * 0.1, hr * 0.85, Math.PI, 0); ctx.fill();
-    ctx.fillRect(cx - hr * 0.85, hy - hr * 0.1, hr * 1.7, hr * 0.18);
+    ctx.beginPath(); ctx.arc(cx, hy - hr * 0.1, hr * 0.8, Math.PI, 0); ctx.fill();
+    ctx.fillRect(cx - hr * 0.8, hy - hr * 0.1, hr * 1.6, hr * 0.15);
     ctx.strokeStyle = outline; ctx.lineWidth = 1;
-    ctx.strokeRect(cx - hr * 0.85, hy - hr * 0.1, hr * 1.7, hr * 0.18);
-  }
-}
-
-// ---------- Medieval Classic theme (human-like 3D) ----------
-function drawMedievalPiece(code, cx, cy) {
-  const side = code[0], type = code[1];
-  const isW = side === 'w';
-  // metallic/medieval palette
-  const metal = isW ? '#c8c8d8' : '#484858';
-  const metalD = isW ? '#8888a0' : '#282838';
-  const metalL = isW ? '#e8e8f8' : '#686888';
-  const cloth = isW ? '#8a2a2a' : '#2a2a4a';
-  const accent = isW ? '#ffd700' : '#c0c0d0';
-  const skin = isW ? '#e8c8a0' : '#b89878';
-  const r = SQ * 0.38;
-
-  // drop shadow
-  ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 5; ctx.shadowOffsetY = 3;
-
-  // ---- base pedestal ----
-  ctx.fillStyle = metalD;
-  ctx.beginPath(); ctx.ellipse(cx, cy + r * 0.75, r * 0.5, r * 0.12, 0, 0, Math.PI * 2); ctx.fill();
-
-  // ---- body per piece type (traditional chess silhouettes with medieval detail) ----
-  if (type === 'P') {
-    // Pawn: small sphere on a tapered base
-    const grad = ctx.createRadialGradient(cx - r*0.1, cy - r*0.2, r*0.05, cx, cy - r*0.1, r*0.3);
-    grad.addColorStop(0, metalL); grad.addColorStop(0.5, metal); grad.addColorStop(1, metalD);
-    ctx.fillStyle = grad;
-    ctx.beginPath(); ctx.arc(cx, cy - r*0.15, r*0.28, 0, Math.PI * 2); ctx.fill();
-    // collar
-    ctx.fillStyle = metalD;
-    ctx.beginPath(); ctx.ellipse(cx, cy + r*0.1, r*0.25, r*0.08, 0, 0, Math.PI * 2); ctx.fill();
-    // base
-    ctx.fillStyle = metal;
-    ctx.beginPath(); ctx.ellipse(cx, cy + r*0.5, r*0.32, r*0.15, 0, 0, Math.PI * 2); ctx.fill();
-    // highlight
-    ctx.fillStyle = 'rgba(255,255,255,.4)';
-    ctx.beginPath(); ctx.arc(cx - r*0.08, cy - r*0.22, r*0.08, 0, Math.PI * 2); ctx.fill();
-  } else if (type === 'R') {
-    // Rook: castle tower with battlements
-    const grad = ctx.createLinearGradient(cx - r*0.35, cy, cx + r*0.35, cy);
-    grad.addColorStop(0, metalD); grad.addColorStop(0.4, metal); grad.addColorStop(1, metalD);
-    ctx.fillStyle = grad;
-    // tower body
-    ctx.fillRect(cx - r*0.28, cy - r*0.3, r*0.56, r*0.75);
-    // battlements
-    for (let i = 0; i < 4; i++) {
-      ctx.fillRect(cx - r*0.28 + i * (r*0.56/4), cy - r*0.45, r*0.12, r*0.15);
-    }
-    // base
-    ctx.fillStyle = metalD;
-    ctx.beginPath(); ctx.ellipse(cx, cy + r*0.5, r*0.35, r*0.12, 0, 0, Math.PI * 2); ctx.fill();
-    // stone texture lines
-    ctx.strokeStyle = 'rgba(0,0,0,.2)'; ctx.lineWidth = 0.5;
-    for (let i = 0; i < 3; i++) {
-      ctx.beginPath(); ctx.moveTo(cx - r*0.25, cy - r*0.15 + i * r*0.15); ctx.lineTo(cx + r*0.25, cy - r*0.15 + i * r*0.15); ctx.stroke();
-    }
-    // highlight
-    ctx.fillStyle = 'rgba(255,255,255,.35)';
-    ctx.fillRect(cx - r*0.22, cy - r*0.28, r*0.08, r*0.7);
-  } else if (type === 'N') {
-    // Knight: horse head with mane
-    const grad = ctx.createRadialGradient(cx - r*0.1, cy - r*0.3, r*0.05, cx, cy, r*0.4);
-    grad.addColorStop(0, metalL); grad.addColorStop(0.5, metal); grad.addColorStop(1, metalD);
-    ctx.fillStyle = grad;
-    // horse head silhouette
-    ctx.beginPath();
-    ctx.moveTo(cx - r*0.3, cy + r*0.4);
-    ctx.lineTo(cx - r*0.2, cy - r*0.1);
-    ctx.lineTo(cx - r*0.05, cy - r*0.35);
-    ctx.lineTo(cx + r*0.15, cy - r*0.45);
-    ctx.lineTo(cx + r*0.3, cy - r*0.3);
-    ctx.lineTo(cx + r*0.35, cy + r*0.1);
-    ctx.lineTo(cx + r*0.2, cy + r*0.4);
-    ctx.closePath(); ctx.fill();
-    // eye
-    ctx.fillStyle = '#1a1a1a';
-    ctx.beginPath(); ctx.arc(cx + r*0.1, cy - r*0.25, r*0.05, 0, Math.PI * 2); ctx.fill();
-    // mane
-    ctx.strokeStyle = isW ? '#8a6b3f' : '#2a1a0a'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(cx - r*0.05, cy - r*0.35); ctx.quadraticCurveTo(cx - r*0.15, cy - r*0.15, cx - r*0.2, cy + r*0.05); ctx.stroke();
-    // base
-    ctx.fillStyle = metalD;
-    ctx.beginPath(); ctx.ellipse(cx, cy + r*0.5, r*0.3, r*0.12, 0, 0, Math.PI * 2); ctx.fill();
-    // highlight
-    ctx.fillStyle = 'rgba(255,255,255,.4)';
-    ctx.beginPath(); ctx.arc(cx + r*0.05, cy - r*0.3, r*0.07, 0, Math.PI * 2); ctx.fill();
-  } else if (type === 'B') {
-    // Bishop: mitre with slit and collar
-    const grad = ctx.createLinearGradient(cx - r*0.25, cy - r*0.5, cx + r*0.25, cy + r*0.3);
-    grad.addColorStop(0, metalL); grad.addColorStop(0.5, metal); grad.addColorStop(1, metalD);
-    ctx.fillStyle = grad;
-    // mitre (tall pointed hat)
-    ctx.beginPath();
-    ctx.moveTo(cx, cy - r*0.55);
-    ctx.quadraticCurveTo(cx - r*0.3, cy - r*0.2, cx - r*0.22, cy + r*0.1);
-    ctx.lineTo(cx + r*0.22, cy + r*0.1);
-    ctx.quadraticCurveTo(cx + r*0.3, cy - r*0.2, cx, cy - r*0.55);
-    ctx.fill();
-    // slit
-    ctx.strokeStyle = metalD; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(cx, cy - r*0.4); ctx.lineTo(cx, cy); ctx.stroke();
-    // collar
-    ctx.fillStyle = accent;
-    ctx.beginPath(); ctx.ellipse(cx, cy + r*0.15, r*0.22, r*0.06, 0, 0, Math.PI * 2); ctx.fill();
-    // base
-    ctx.fillStyle = metalD;
-    ctx.beginPath(); ctx.ellipse(cx, cy + r*0.5, r*0.3, r*0.12, 0, 0, Math.PI * 2); ctx.fill();
-    // highlight
-    ctx.fillStyle = 'rgba(255,255,255,.4)';
-    ctx.beginPath(); ctx.arc(cx - r*0.1, cy - r*0.3, r*0.06, 0, Math.PI * 2); ctx.fill();
-  } else if (type === 'Q') {
-    // Queen: coronet with points and jewels
-    const grad = ctx.createRadialGradient(cx - r*0.1, cy - r*0.3, r*0.05, cx, cy, r*0.4);
-    grad.addColorStop(0, metalL); grad.addColorStop(0.5, metal); grad.addColorStop(1, metalD);
-    ctx.fillStyle = grad;
-    // body (tapered)
-    ctx.beginPath();
-    ctx.moveTo(cx - r*0.25, cy + r*0.4);
-    ctx.quadraticCurveTo(cx - r*0.15, cy, cx - r*0.1, cy - r*0.3);
-    ctx.lineTo(cx + r*0.1, cy - r*0.3);
-    ctx.quadraticCurveTo(cx + r*0.15, cy, cx + r*0.25, cy + r*0.4);
-    ctx.closePath(); ctx.fill();
-    // coronet band
-    ctx.fillStyle = accent;
-    ctx.beginPath(); ctx.ellipse(cx, cy - r*0.3, r*0.18, r*0.05, 0, 0, Math.PI * 2); ctx.fill();
-    // crown points
-    ctx.fillStyle = accent;
-    for (let i = 0; i < 5; i++) {
-      const px = cx - r*0.2 + i * (r*0.4/4);
-      ctx.beginPath(); ctx.moveTo(px, cy - r*0.35); ctx.lineTo(px + r*0.04, cy - r*0.5); ctx.lineTo(px + r*0.08, cy - r*0.35); ctx.fill();
-    }
-    // jewel
-    ctx.fillStyle = isW ? '#e53935' : '#4fc3f7';
-    ctx.beginPath(); ctx.arc(cx, cy - r*0.3, r*0.05, 0, Math.PI * 2); ctx.fill();
-    // base
-    ctx.fillStyle = metalD;
-    ctx.beginPath(); ctx.ellipse(cx, cy + r*0.5, r*0.3, r*0.12, 0, 0, Math.PI * 2); ctx.fill();
-    // highlight
-    ctx.fillStyle = 'rgba(255,255,255,.4)';
-    ctx.beginPath(); ctx.arc(cx - r*0.08, cy, r*0.07, 0, Math.PI * 2); ctx.fill();
-  } else if (type === 'K') {
-    // King: crown with cross
-    const grad = ctx.createRadialGradient(cx - r*0.1, cy - r*0.3, r*0.05, cx, cy, r*0.4);
-    grad.addColorStop(0, metalL); grad.addColorStop(0.5, metal); grad.addColorStop(1, metalD);
-    ctx.fillStyle = grad;
-    // body (tapered)
-    ctx.beginPath();
-    ctx.moveTo(cx - r*0.28, cy + r*0.4);
-    ctx.quadraticCurveTo(cx - r*0.18, cy, cx - r*0.12, cy - r*0.25);
-    ctx.lineTo(cx + r*0.12, cy - r*0.25);
-    ctx.quadraticCurveTo(cx + r*0.18, cy, cx + r*0.28, cy + r*0.4);
-    ctx.closePath(); ctx.fill();
-    // crown band
-    ctx.fillStyle = accent;
-    ctx.beginPath(); ctx.ellipse(cx, cy - r*0.25, r*0.2, r*0.05, 0, 0, Math.PI * 2); ctx.fill();
-    // cross on top
-    ctx.strokeStyle = accent; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(cx, cy - r*0.3); ctx.lineTo(cx, cy - r*0.55); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(cx - r*0.1, cy - r*0.42); ctx.lineTo(cx + r*0.1, cy - r*0.42); ctx.stroke();
-    // base
-    ctx.fillStyle = metalD;
-    ctx.beginPath(); ctx.ellipse(cx, cy + r*0.5, r*0.32, r*0.12, 0, 0, Math.PI * 2); ctx.fill();
-    // highlight
-    ctx.fillStyle = 'rgba(255,255,255,.4)';
-    ctx.beginPath(); ctx.arc(cx - r*0.1, cy, r*0.07, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeRect(cx - hr * 0.8, hy - hr * 0.1, hr * 1.6, hr * 0.15);
+    ctx.strokeStyle = accent; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(cx + bw + s * 0.1, cy + bh * 0.3); ctx.lineTo(cx + bw + s * 0.1, cy - s * 0.6); ctx.stroke();
   }
   ctx.restore();
+}
+
+function roundRect2(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
 }
 function startBattleAnim(mv) {
   if (!mv) return;
