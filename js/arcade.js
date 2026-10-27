@@ -254,7 +254,7 @@ function buildProps() {
     const glow = new THREE.Mesh(new THREE.BoxGeometry(.78, .03, .56), new THREE.MeshBasicMaterial({color: 0xfff0c9}));
     glow.position.y = 1.925; claw.add(glow);
     claw.traverse(o => { o.userData.midway = 'claw'; });
-    claw.position.set(-6.9, 0, -8.3); claw.rotation.y = .3; rig.add(claw); props.claw = claw;   // west flank of the HIGH SCORES board (was mid serving-side lawn) — user layout pass
+    claw.position.set(10, 0, -12); claw.rotation.y = .3; rig.add(claw); props.claw = claw;   // west flank of the HIGH SCORES board (was mid serving-side lawn) — user layout pass
   }
 
   // 🟡 Pac-Man arcade cabinet — a real upright cabinet on the east lawn (tap to play)
@@ -290,7 +290,7 @@ function buildProps() {
     const coin = new THREE.Mesh(new THREE.BoxGeometry(.3, .18, .02), new THREE.MeshStandardMaterial({color: 0x222, roughness: .7}));
     coin.position.set(0, .55, .385); pac.add(coin);
     pac.traverse(o => { o.userData.midway = 'pac'; });
-    pac.position.set(-1.5, 0, -3); pac.rotation.y = Math.PI; rig.add(pac); props.pac = pac;
+    pac.position.set(12, 0, -8); pac.rotation.y = Math.PI; rig.add(pac); props.pac = pac;
   }
   // 🃏 UNO card table — green felt table on the east lawn (tap to open the card game)
   let uno = null;
@@ -308,7 +308,7 @@ function buildProps() {
       uno.add(card);
     }
     uno.traverse(o => { o.userData.midway = 'uno'; });
-    uno.position.set(1.5, 0, -4); uno.rotation.y = -.2; rig.add(uno); props.uno = uno;
+    uno.position.set(14, 0, -12); uno.rotation.y = -.2; rig.add(uno); props.uno = uno;
   }
   // ♟️ crystal chess table — a polished table with a crystal chess set (tap to play)
   let chess = null;
@@ -327,7 +327,7 @@ function buildProps() {
       chess.add(piece);
     }
     chess.traverse(o => { o.userData.midway = 'chess'; });
-    chess.position.set(-2, 0, -5); chess.rotation.y = .2; rig.add(chess); props.chess = chess;
+    chess.position.set(10, 0, -16); chess.rotation.y = .2; rig.add(chess); props.chess = chess;
   }
   // 🎯 two bean-bag boards angled toward the toss line, west lawn (skipped when the game is off)
   if (gameOn('bbt')) for (let i = 0; i < 2; i++) {
@@ -340,7 +340,7 @@ function buildProps() {
     g.add(board);
     const leg = box(.06, .55, .3, 0x202020); leg.position.set(0, .27, -.45); g.add(leg);
     g.traverse(o => { o.userData.midway = 'bbt'; });
-    g.position.set(i ? -7.3 : -5.7, 0, i ? -4.5 : -6.4); g.rotation.y = .45 - i * .5;
+    g.position.set(i ? 13 : 11, 0, i ? -9 : -12); g.rotation.y = .45 - i * .5;
     rig.add(g); props.bbt.push(g);
   }
 
@@ -357,7 +357,7 @@ function buildProps() {
     const flag = new THREE.Mesh(new THREE.PlaneGeometry(.66, .42), new THREE.MeshStandardMaterial({color: 0xe5534a, side: THREE.DoubleSide}));
     flag.position.set(.33, 2.0, 0); tag.add(flag); flag.userData.flag = true;
     tag.traverse(o => { o.userData.midway = 'tag'; });
-    tag.position.set(7.9, 0, -6.0); rig.add(tag); props.tag = tag;
+    tag.position.set(14, 0, -9); rig.add(tag); props.tag = tag;
   }
 
   // 🏆 HIGH SCORES standing sign, out by the west lawn (the user asked "off to the side")
@@ -383,6 +383,19 @@ function buildProps() {
   board.position.set(-2.1, 2.0, 0); board.rotation.y = Math.PI - .065;
   rig.add(board); props.board = board;
 
+  // 🎪 arcade zone: paved floor + bilingual festive sign on the east side
+  const arcadeFloor = new THREE.Mesh(new THREE.PlaneGeometry(24, 18),
+    new THREE.MeshStandardMaterial({color: 0x3a3a4a, roughness: .9}));
+  arcadeFloor.rotation.x = -Math.PI / 2; arcadeFloor.position.set(12, .01, -12);
+  rig.add(arcadeFloor);
+  const arcadeSign = new THREE.Mesh(new THREE.PlaneGeometry(6, 1.4),
+    new THREE.MeshBasicMaterial({map: signTexture('🎪 ARCADE · JUEGOS', '#f2c14e'), transparent: true}));
+  arcadeSign.position.set(12, 3.2, -20); arcadeSign.rotation.y = Math.PI;
+  rig.add(arcadeSign);
+  const arcadeSignEs = new THREE.Mesh(new THREE.PlaneGeometry(6, 1.4),
+    new THREE.MeshBasicMaterial({map: signTexture('🎪 ARCADE · GAMES', '#f2c14e'), transparent: true}));
+  arcadeSignEs.position.set(12, 1.8, -20); arcadeSignEs.rotation.y = Math.PI;
+  rig.add(arcadeSignEs);
   pills = [claw, ...props.bbt, tag, board, pac, uno, chess].filter(Boolean);   // click targets for whatever got built
 }
 export function prop(id) { return props[id] || null; }   // scene.js #layout mode: movable prop groups by id
