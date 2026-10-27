@@ -290,7 +290,7 @@ function buildProps() {
     const coin = new THREE.Mesh(new THREE.BoxGeometry(.3, .18, .02), new THREE.MeshStandardMaterial({color: 0x222, roughness: .7}));
     coin.position.set(0, .55, .385); pac.add(coin);
     pac.traverse(o => { o.userData.midway = 'pac'; });
-    pac.position.set(0, 0, -5); pac.rotation.y = Math.PI; rig.add(pac); props.pac = pac;
+    pac.position.set(-1.5, 0, -3); pac.rotation.y = Math.PI; rig.add(pac); props.pac = pac;
   }
   // 🃏 UNO card table — green felt table on the east lawn (tap to open the card game)
   let uno = null;
@@ -308,7 +308,7 @@ function buildProps() {
       uno.add(card);
     }
     uno.traverse(o => { o.userData.midway = 'uno'; });
-    uno.position.set(3, 0, -4); uno.rotation.y = -.4; rig.add(uno); props.uno = uno;
+    uno.position.set(-0.5, 0, -4); uno.rotation.y = -.2; rig.add(uno); props.uno = uno;
   }
   // ♟️ crystal chess table — a polished table with a crystal chess set (tap to play)
   let chess = null;
@@ -327,7 +327,7 @@ function buildProps() {
       chess.add(piece);
     }
     chess.traverse(o => { o.userData.midway = 'chess'; });
-    chess.position.set(-4, 0, -4); chess.rotation.y = .4; rig.add(chess); props.chess = chess;
+    chess.position.set(-2.5, 0, -4); chess.rotation.y = .2; rig.add(chess); props.chess = chess;
   }
   // 🎯 two bean-bag boards angled toward the toss line, west lawn (skipped when the game is off)
   if (gameOn('bbt')) for (let i = 0; i < 2; i++) {

@@ -6,7 +6,7 @@ import {CONFIG,MENU,money,open,hooks} from './shop.js?v=6';
 import {buildTruck,WX0,WX1,WY0,WY1,BW,BL,BH,bx0,FLOOR,CL} from './truck.js?v=6';
 import * as Avatars from './avatars.js?v=9';
 import * as Account from './account.js?v=7';   // phone-number arcade profiles (language-first sign-up)
-import * as Arcade from './arcade.js?v=12';    // 🎪 The Midway props + six minigames + HIGH SCORES board + Pac-Man cabinet
+import * as Arcade from './arcade.js?v=13';    // 🎪 The Midway props + six minigames + HIGH SCORES board + Pac-Man cabinet
 
 const canvas=document.getElementById('c');
 const R=new THREE.WebGLRenderer({canvas,antialias:true});
