@@ -757,7 +757,7 @@ function reportScore() {
 function buildUI() {
   panel = document.createElement('div');
   panel.id = 'eolPac'; panel.hidden = true;
-  panel.style.cssText = 'position:fixed;inset:0;z-index:80;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.92);backdrop-filter:blur(4px)';
+  panel.style.cssText = 'position:fixed;inset:0;z-index:80;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.92);backdrop-filter:blur(4px)';
   panel.innerHTML = `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;color:#fff;font:700 14px Inter,sans-serif">
       <b>🟡 PAC-MAN</b>
@@ -812,12 +812,14 @@ function buildUI() {
 function open() {
   if (!panel) buildUI();
   panel.hidden = false;
-  if (menuOpen) { panelWasOpen = true; }   // handled below via menu events
+  panel.style.display = 'flex';
+  if (menuOpen) { panelWasOpen = true; }
   if (!running && !gameOver) startGame();
   else if (gameOver) { /* wait for tap */ }
 }
 
 function close() {
+  panel.style.display = 'none';
   panel.hidden = true;
   if (raf) { cancelAnimationFrame(raf); raf = 0; }
   running = false;
@@ -832,9 +834,9 @@ function init() {
   if (inited) return; inited = true;
   if (!CONFIG || CONFIG.gamePacmanOn === false) return;   // owner switched Pac-Man off
   buildUI();
-  addEventListener('eol:pac-open', () => { if (menuOpen) return; panel.hidden = false; if (!running && !gameOver) startGame(); });
-  addEventListener('eol:menu-open', () => { menuOpen = true; panelWasOpen = !panel.hidden; panel.hidden = true; if (raf) { cancelAnimationFrame(raf); raf = 0; running = false; } });
-  addEventListener('eol:menu-close', () => { menuOpen = false; panel.hidden = panelWasOpen; if (!panel.hidden && !running && !gameOver) { running = true; lastT = performance.now(); raf = requestAnimationFrame(loop); } });
+  addEventListener('eol:pac-open', () => { if (menuOpen) return; panel.hidden = false; panel.style.display = 'flex'; if (!running && !gameOver) startGame(); });
+  addEventListener('eol:menu-open', () => { menuOpen = true; panelWasOpen = !panel.hidden && panel.style.display !== 'none'; panel.style.display = 'none'; panel.hidden = true; if (raf) { cancelAnimationFrame(raf); raf = 0; running = false; } });
+  addEventListener('eol:menu-close', () => { menuOpen = false; panel.hidden = !panelWasOpen; panel.style.display = panelWasOpen ? 'flex' : 'none'; if (!panel.hidden && !running && !gameOver) { running = true; lastT = performance.now(); raf = requestAnimationFrame(loop); } });
   addEventListener('eol:account-updated', () => { /* points display could refresh; HUD shows score only */ });
 }
 
@@ -846,4 +848,4 @@ function ensureHighScore() {
 
 init();
 // expose open for the pill
-window.__EOL_PAC_OPEN = () => { if (!panel) buildUI(); panel.hidden = false; if (!running && !gameOver) { ensureHighScore(); startGame(); } };
+window.__EOL_PAC_OPEN = () => { if (!panel) buildUI(); panel.hidden = false; panel.style.display = 'flex'; if (!running && !gameOver) { ensureHighScore(); startGame(); } };
