@@ -14,7 +14,7 @@ const ES = () => Account.lang() === 'es';
 
 let panel, body, S, rig, MENU;                    // panel DOM + scene refs
 let pills = [];                                   // prop meshes for the click ray
-let props = {claw: null, bbt: [], tag: null, board: null, redeem: null};
+let props = {claw: null, bbt: [], tag: null, board: null, redeem: null, cards: null};
 let tab = 'lobby';
 const GAMES = [
   {id: 'claw', icon: '🦞', name: 'Claw Machine', blurb: 'Time the drop. Three grabs per game — grab a mini menu item!'},
@@ -419,7 +419,15 @@ function buildProps() {
   }
   redeem.traverse(o => { o.userData.midway = 'redeem'; });
   redeem.position.set(12, 0, -12); redeem.rotation.y = Math.PI; rig.add(redeem); props.redeem = redeem;
-  pills = [claw, ...props.bbt, tag, board, pac, uno, chess, redeem].filter(Boolean);   // click targets for whatever got built
+  // 🃏 card table
+  let cards = new THREE.Group();
+  const ct = new THREE.Mesh(new THREE.BoxGeometry(1.6, .08, 1.0), new THREE.MeshStandardMaterial({color: 0x1b5e20, roughness: .8}));
+  ct.position.y = .72; cards.add(ct);
+  const cleg = new THREE.Mesh(new THREE.CylinderGeometry(.06, .08, .7, 12), new THREE.MeshStandardMaterial({color: 0x5a3a1f, roughness: .7}));
+  cleg.position.y = .35; cards.add(cleg);
+  cards.traverse(o => { o.userData.midway = 'cards'; });
+  cards.position.set(16, 0, -16); cards.rotation.y = -.2; rig.add(cards); props.cards = cards;
+  pills = [claw, ...props.bbt, tag, board, pac, uno, chess, redeem, cards].filter(Boolean);   // click targets for whatever got built
 }
 export function prop(id) { return props[id] || null; }   // scene.js #layout mode: movable prop groups by id
 function signTexture(txt, col) {
@@ -446,6 +454,7 @@ export function walkBalls() {
   if (props.board && props.board.parent) { props.board.getWorldPosition(_bv); out.push({x: _bv.x, z: _bv.z, r: .55}); }
   if (props.pac && props.pac.parent) { props.pac.getWorldPosition(_bv); out.push({x: _bv.x, z: _bv.z, r: .6}); }
   if (props.redeem && props.redeem.parent) { props.redeem.getWorldPosition(_bv); out.push({x: _bv.x, z: _bv.z, r: 1.3}); }
+  if (props.cards && props.cards.parent) { props.cards.getWorldPosition(_bv); out.push({x: _bv.x, z: _bv.z, r: .85}); }
   if (props.uno && props.uno.parent) { props.uno.getWorldPosition(_bv); out.push({x: _bv.x, z: _bv.z, r: .85}); }
   if (props.chess && props.chess.parent) { props.chess.getWorldPosition(_bv); out.push({x: _bv.x, z: _bv.z, r: .75}); }
   return out;
@@ -456,6 +465,7 @@ export function openFrom(obj) {
   if (mw === 'board') { openScores(); return true; }
   if (mw === 'pac') { dispatchEvent(new Event('eol:pac-open')); return true; }
   if (mw === 'redeem') { dispatchEvent(new Event('eol:acct-open')); return true; }
+  if (mw === 'cards') { dispatchEvent(new Event('eol:cards-open')); return true; }
   if (mw === 'uno') { dispatchEvent(new Event('eol:uno-open')); return true; }
   if (mw === 'chess') { dispatchEvent(new Event('eol:chess-open')); return true; }
   if (mw) { openPanel(mw); return true; }
