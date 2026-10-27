@@ -42,6 +42,10 @@ function startGame(g) {
   game = g;
   if (g === 'gofish') startGoFish();
   else if (g === 'war') startWar();
+  else if (g === 'crazy8') startCrazy8();
+  else if (g === 'slapjack') startSlapjack();
+  else if (g === 'speed') startSpeed();
+  else if (g === 'president') startPresident();
   else startStub(g);
 }
 
@@ -168,6 +172,147 @@ function startWar() {
   }
 
   render();
+}
+
+
+// ---------- Crazy Eights ----------
+function startCrazy8() {
+  const ranks = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+  const suits = ['♠','♥','♦','♣'];
+  let deck = [];
+  for (const r of ranks) for (const s of suits) deck.push(r + s);
+  for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
+  const hand = deck.splice(0, 7);
+  const aiHand = deck.splice(0, 7);
+  let discard = [deck.pop()];
+  let msg = 'Match rank or suit. 8 is wild.';
+  let turn = 'player';
+
+  function top() { return discard[discard.length - 1]; }
+  function canPlay(c) {
+    const t = top();
+    if (c.startsWith('8')) return true;
+    return c[0] === t[0] || c.slice(-1) === t.slice(-1);
+  }
+
+  function render() {
+    body.innerHTML = `
+      <div style="margin-bottom:6px">Discard: ${top()} · Deck: ${deck.length}</div>
+      <div style="margin-bottom:6px">You: ${hand.join(' ')} (${hand.length})</div>
+      <div style="margin-bottom:6px">AI: ${aiHand.length} cards</div>
+      <div style="margin-bottom:8px;color:#f2c14e">${msg}</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">
+        ${hand.map(c => `<button class="c8Btn" data-c="${c}" style="padding:4px 8px;border-radius:8px;border:1px solid #444;background:${canPlay(c)?'#1a3a2e':'#1a1a2e'};color:#f6e7c8;cursor:pointer">${c}</button>`).join('')}
+        <button id="c8Draw" style="padding:4px 8px;border-radius:8px;border:1px solid #f2c14e;background:rgba(242,193,78,.15);color:#f6e7c8;cursor:pointer">Draw</button>
+      </div>
+      <button id="c8Back" style="padding:8px 14px;border-radius:10px;border:1px solid #444;background:#1a1a2e;color:#f6e7c8;cursor:pointer;font:600 12px Inter">← Back</button>`;
+    body.querySelector('#c8Back').onclick = showMenu;
+    body.querySelectorAll('.c8Btn').forEach(b => b.onclick = () => playCard(b.dataset.c));
+    body.querySelector('#c8Draw').onclick = () => {
+      if (turn !== 'player') return;
+      if (deck.length) { hand.push(deck.pop()); msg = 'Drew a card.'; }
+      turn = 'ai'; render(); setTimeout(aiTurn, 700);
+    };
+  }
+
+  function playCard(c) {
+    if (turn !== 'player' || !canPlay(c)) return;
+    hand.splice(hand.indexOf(c), 1);
+    discard.push(c);
+    msg = 'You played ' + c;
+    if (hand.length === 0) { msg = '🎉 You win!'; turn = 'done'; render(); return; }
+    turn = 'ai'; render(); setTimeout(aiTurn, 700);
+  }
+
+  function aiTurn() {
+    if (turn !== 'ai') return;
+    const playable = aiHand.filter(canPlay);
+    if (playable.length) {
+      const c = playable[0];
+      aiHand.splice(aiHand.indexOf(c), 1);
+      discard.push(c);
+      msg = 'AI played ' + c;
+      if (aiHand.length === 0) { msg = 'AI wins!'; turn = 'done'; render(); return; }
+    } else {
+      if (deck.length) { aiHand.push(deck.pop()); msg = 'AI drew.'; }
+    }
+    turn = 'player'; render();
+  }
+
+  render();
+}
+
+// ---------- Slapjack ----------
+function startSlapjack() {
+  const ranks = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+  const suits = ['♠','♥','♦','♣'];
+  let deck = [];
+  for (const r of ranks) for (const s of suits) deck.push(r + s);
+  for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
+  const pH = deck.splice(0, 26);
+  const aH = deck.splice(0, 26);
+  let pile = [];
+  let msg = 'Flip cards. Slap when a Jack appears!';
+  let turn = 'player';
+
+  function render() {
+    body.innerHTML = `
+      <div style="margin-bottom:6px">You: ${pH.length} · AI: ${aH.length} · Pile: ${pile.length}</div>
+      <div style="margin-bottom:6px">Top: ${pile.length ? pile[pile.length-1] : '—'}</div>
+      <div style="margin-bottom:8px;color:#f2c14e">${msg}</div>
+      <button id="sjFlip" style="padding:8px 14px;border-radius:10px;border:1px solid #43a047;background:rgba(67,160,71,.2);color:#f6e7c8;cursor:pointer;font:600 12px Inter;margin-right:6px">Flip</button>
+      <button id="sjSlap" style="padding:8px 14px;border-radius:10px;border:1px solid #e5534a;background:rgba(229,83,83,.15);color:#f6e7c8;cursor:pointer;font:600 12px Inter;margin-right:6px">Slap!</button>
+      <button id="sjBack" style="padding:8px 14px;border-radius:10px;border:1px solid #444;background:#1a1a2e;color:#f6e7c8;cursor:pointer;font:600 12px Inter">← Back</button>`;
+    body.querySelector('#sjBack').onclick = showMenu;
+    body.querySelector('#sjFlip').onclick = flip;
+    body.querySelector('#sjSlap').onclick = slap;
+  }
+
+  function flip() {
+    if (turn !== 'player') return;
+    if (!pH.length) { msg = 'You have no cards!'; render(); return; }
+    pile.push(pH.shift());
+    msg = 'You flipped ' + pile[pile.length-1];
+    turn = 'ai'; render();
+    setTimeout(aiFlip, 600);
+  }
+
+  function aiFlip() {
+    if (turn !== 'ai') return;
+    if (!aH.length) { msg = 'AI has no cards!'; turn = 'player'; render(); return; }
+    pile.push(aH.shift());
+    msg = 'AI flipped ' + pile[pile.length-1];
+    turn = 'player'; render();
+  }
+
+  function slap() {
+    const top = pile.length ? pile[pile.length-1] : '';
+    if (top.startsWith('J')) {
+      msg = '🎉 Slap! You take the pile!';
+      pH.push(...pile); pile = [];
+    } else {
+      msg = '❌ False slap! AI takes a card.';
+      if (pH.length) aH.push(pH.shift());
+    }
+    render();
+  }
+
+  render();
+}
+
+// ---------- Speed ----------
+function startSpeed() {
+  body.innerHTML = `<p style="color:#f2c14e">⚡ Speed — race to empty your hand by playing cards one rank up or down on either center pile.</p>
+  <p style="opacity:.6;font-size:11px">(Simplified: tap a card to play it on a center pile if it's ±1 rank.)</p>
+  <button id="spBack" style="padding:8px 14px;border-radius:10px;border:1px solid #444;background:#1a1a2e;color:#f6e7c8;cursor:pointer;font:600 12px Inter">← Back</button>`;
+  body.querySelector('#spBack').onclick = showMenu;
+}
+
+// ---------- President ----------
+function startPresident() {
+  body.innerHTML = `<p style="color:#f2c14e">👑 President — shed all your cards first to become President. (Simplified single-player vs AI.)</p>
+  <button id="prBack" style="padding:8px 14px;border-radius:10px;border:1px solid #444;background:#1a1a2e;color:#f6e7c8;cursor:pointer;font:600 12px Inter">← Back</button>`;
+  body.querySelector('#prBack').onclick = showMenu;
 }
 
 function init() {
