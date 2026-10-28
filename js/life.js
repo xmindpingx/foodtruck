@@ -18,7 +18,7 @@ const yawTo = (x0, z0, x1, z1) => Math.atan2(x1 - x0, z1 - z0);
 const lerpYaw = (a, b, k) => { let d = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; return a + d * Math.min(1, k); };
 
 export function init(o) {
-  const {S, cam, rig, tables, eaters, win, stage, truckBox, props, jukebox, lowriders, parkBounds, player, liveList, attachSprout, lite, phone: isPhone, canvas, extraObstacles, theme} = o;
+  const {S, cam, rig, tables, eaters, win, stage, truckBox, props, jukebox, lowriders, parkBounds, player, liveList, attachSprout, lite, phone: isPhone, canvas, extraObstacles, theme, menu} = o;
   // Halloween outfits for the AI crowd: fetch catalog, filter halloween wearables, apply to all actors (and staff) when theme is halloween
   let halloweenWear = [];
   if (theme === 'halloween') {
@@ -36,6 +36,21 @@ export function init(o) {
       for (const a of actors) applyOne(a);
     }).catch(() => {});
   }
+  // ---------- food from the menu: actors carry a item away from the window ----------
+  const FOOD_EMOJI = {'Street Taco':'🌮','3 Street Tacos':'🌮','Burrito':'🌯','Bean & Cheese Burrito':'🌯','Quesadilla':'🧀','Loaded Fries':'🍟','Chips & Salsa':'🫔','Chips & Guacamole':'🥑','Esquite':'🌽','Churros':'🍩','Mexican Coke':'🥤','Jarritos':'🥤','Bottled Water':'💧'};
+  const FOOD_ITEMS = [];
+  try { for (const c of (menu && menu.categories) || []) for (const it of (c.items || [])) FOOD_ITEMS.push(it.name); } catch (e) {}
+  const pickFood = () => FOOD_ITEMS.length ? FOOD_ITEMS[Math.floor(Math.random() * FOOD_ITEMS.length)] : 'Taco';
+  const foodEmoji = (name) => FOOD_EMOJI[name] || '🌮';
+  const attachFood = (a, emoji) => {
+    if (a._food) return;
+    let t = emojiTex.get(emoji);
+    if (!t) { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); g.font = '44px serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(emoji, 32, 36); t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; emojiTex.set(emoji, t); }
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({map: t, transparent: true, depthTest: false}));
+    sp.scale.set(.35, .35, 1); sp.position.set(.15, 1.15, .12); a.root.children[0].add(sp); a._food = sp; a._foodEmoji = emoji;
+  };
+  const removeFood = (a) => { if (a._food) { a._food.parent && a._food.parent.remove(a._food); a._food = null; a._foodEmoji = null; } };
+
   const num = (v, d) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
   const CM = Math.max(0, Math.min(3, num(o.castMult, 1)));      // 🎪 ambient cast multiplier (Admin → crowd settings)
   const IM = Math.max(0, Math.min(3, num(o.interactMult, 1)));  // 👋 player-greeting frequency multiplier
@@ -136,8 +151,18 @@ export function init(o) {
     return P;
   }
   function orderEat(a) {
-    const q = poi.queue(Math.floor(Math.random() * 4)), P = [go(q), wait(rnd(6, 10), 'queue', q)], s = seatStep(a);
-    if (s) P.push(...s, ...trashSteps());
+    const food = pickFood(), emoji = foodEmoji(food);
+    const q = poi.queue(Math.floor(Math.random() * 4)), P = [go(q), wait(rnd(6, 10), 'queue', q)];
+    P.push({k: 'do', fn: () => attachFood(a, emoji) });   // pick up food at the window
+    const s = seatStep(a);
+    if (s) {   // s = [go(seat), sit]; carry food during the walk, drop it when sitting
+      P.push(s[0]);
+      P.push({k: 'do', fn: () => removeFood(a) });
+      P.push(s[1]);
+      P.push(...trashSteps());
+    } else {
+      P.push({k: 'do', fn: () => removeFood(a) });
+    }
     return P;
   }
   function groupPlans(u) {   // one plan per member, same shape so they move and finish together
@@ -148,7 +173,7 @@ export function init(o) {
     else if (r < .66) { const w = poi.wander(), d = rnd(9, 16); all((m, i) => [go(off(w, i, n)), wait(d, 'dance')]); }
     else if (r < .78) {
       const q = poi.queue(Math.floor(Math.random() * 4));
-      u.members.forEach((m, i) => { plans[i].push(go(off(q, i, n)), wait(rnd(6, 9), 'chat')); const s = seatStep(m); if (s) plans[i].push(...s, ...trashSteps()); });
+      u.members.forEach((m, i) => { const food = pickFood(), emoji = foodEmoji(food); plans[i].push(go(off(q, i, n)), wait(rnd(6, 9), 'chat')); plans[i].push({k: 'do', fn: () => attachFood(m, emoji) }); const s = seatStep(m); if (s) { plans[i].push(s[0]); plans[i].push({k: 'do', fn: () => removeFood(m) }); plans[i].push(s[1]); plans[i].push(...trashSteps()); } else { plans[i].push({k: 'do', fn: () => removeFood(m) }); } });
     } else if (r < .9) { const w = poi.wander(); all((m, i) => [go(off(w, i, n)), wait(5, i === 0 ? 'photo' : 'pose'), wait(2, 'cheer')]); }
     else { const g = poi.game(); u.members.forEach((m, i) => { plans[i].push(go(off(g, i, n)), wait(rnd(12, 24), m.kid ? 'play' : 'chat', g)); const s = m.kid ? seatStep(m) : null; if (s) plans[i].push(...s, ...trashSteps()); }); }
     return plans;
