@@ -7,7 +7,7 @@
 // Cost model: plans are a handful of numbers (no per-frame allocation); limbs are only posed while the
 // actor is within CROWD range of the camera, everyone else just advances along their path.
 import * as THREE from 'three';
-import * as People from './people.js?v=9';
+import * as People from './people.js?v=11';
 import * as Wear from './wear.js?v=4';
 let _rng = Math.random;   // seeded PRNG (set in init); shared clock drives determinism
 function makeRng(seed) { let a = (seed || 1) >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }

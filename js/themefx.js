@@ -5,6 +5,8 @@
 // Truck exclusion: scene.js hands in every object that existed when the truck finished building (`skip`);
 // those objects - and any material they use - are never touched.
 import * as THREE from 'three';
+let _rng = Math.random;
+function makeRng(seed) { let a = (seed || 1) >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 
 const hsl = {h: 0, s: 0, l: 0};
 const DONE = new WeakSet(), PROTECT = new WeakSet();
@@ -87,6 +89,7 @@ function softDot() {   // round soft sprite for falling particles
 }
 
 export function init(S, o) {
+  _rng = makeRng(o.seed || 1);
   const {skip, lite, theme: T} = o;
   const _n = (v, d) => { const n = Number(v); return v === '' || v == null || !Number.isFinite(n) ? d : n; };   // 0 must mean off, not 'default'
   const FM = Math.max(0, Math.min(3, _n(o.fallMult, 1))), FT = Math.max(0, Math.min(3, _n(o.floatMult, 1)));   // Admin → Environment multipliers
@@ -157,9 +160,9 @@ export function init(S, o) {
     const F = T.fall, N = FM > 0 ? Math.round((lite ? 130 : 280) * FM) : 0, pts = N ? new Float32Array(N * 3) : null, col = N ? new Float32Array(N * 3) : null, ph = new Float32Array(N), sp = new Float32Array(N);
     let fall = null, pg = null;
     if (N) for (let i = 0; i < N; i++) {
-      pts.set([-40 + Math.random() * 90, Math.random() * 16, -75 + Math.random() * 105], i * 3);
+      pts.set([-40 + _rng() * 90, _rng() * 16, -75 + _rng() * 105], i * 3);
       C.setHex(F.colors[i % F.colors.length]); col.set([C.r, C.g, C.b], i * 3);
-      ph[i] = Math.random() * 6.28; sp[i] = .6 + Math.random() * .8;
+      ph[i] = _rng() * 6.28; sp[i] = .6 + _rng() * .8;
     }
     if (N) {
       pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(pts, 3)); pg.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -168,14 +171,14 @@ export function init(S, o) {
     }
     // floating lanterns / balloons
     const FL = T.floats, NF = FT > 0 ? Math.round((lite ? 8 : 16) * FT) : 0, fm = new THREE.InstancedMesh(new THREE.SphereGeometry(FL.shape === 'lantern' ? .32 : .4, 10, 8), new THREE.MeshBasicMaterial(), Math.max(1, NF)), fs = [];
-    for (let i = 0; i < NF; i++) { fs.push({x: -30 + Math.random() * 70, z: -70 + Math.random() * 90, y: 4 + Math.random() * 18, s: .4 + Math.random() * .5, p: Math.random() * 6}); fm.setColorAt(i, C.setHex(FL.colors[i % FL.colors.length])); }
+    for (let i = 0; i < NF; i++) { fs.push({x: -30 + _rng() * 70, z: -70 + _rng() * 90, y: 4 + _rng() * 18, s: .4 + _rng() * .5, p: _rng() * 6}); fm.setColorAt(i, C.setHex(FL.colors[i % FL.colors.length])); }
     if (NF) { fm.frustumCulled = false; S.add(fm); }
     ticks.push((t, dt) => {
       if (fall) {
         const a = pg.attributes.position.array;
         for (let i = 0; i < N; i++) {
           a[i * 3 + 1] -= F.speed * sp[i] * dt; a[i * 3] += Math.sin(t * .9 + ph[i]) * F.sway * dt * .5;
-          if (a[i * 3 + 1] < 0) { a[i * 3 + 1] = 14 + Math.random() * 3; a[i * 3] = -40 + Math.random() * 90; a[i * 3 + 2] = -75 + Math.random() * 105; }
+          if (a[i * 3 + 1] < 0) { a[i * 3 + 1] = 14 + _rng() * 3; a[i * 3] = -40 + _rng() * 90; a[i * 3 + 2] = -75 + _rng() * 105; }
         }
         pg.attributes.position.needsUpdate = true;
       }

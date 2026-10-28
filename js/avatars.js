@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import {WX0, WX1, BW, FLOOR} from './truck.js?v=13';
 import {CONFIG} from './shop.js?v=8';
 import * as Account from './account.js?v=8';   // language picked at sign-up drives chips + docks
-import * as People from './people.js?v=9';     // realistic shared-geometry bodies (painted faces, swinging limbs)
+import * as People from './people.js?v=11';     // realistic shared-geometry bodies (painted faces, swinging limbs)
 import * as Wear from './wear.js?v=4';     // 3D wearable props on the avatar sockets
 
 const ID_KEY = 'eol-visitor-id', NAME_KEY = 'eol-visitor-name', PROFILE_KEY = 'eol-visitor-profile';

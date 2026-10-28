@@ -5,6 +5,8 @@
 //  - buildAvatar(): the same parts grouped into ~15 meshes on shoulder/hip pivots so arms and legs swing.
 // Body origin is at the FEET (y=0), +z is forward, height ≈ 1.72 m × look.scale.
 import * as THREE from 'three';
+let _rng = Math.random;
+export function setSeed(seed) { let a = (seed || 1) >>> 0; _rng = () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 
 const V2 = (a, b) => new THREE.Vector2(a, b);
 const lathe = (pts, seg) => new THREE.LatheGeometry(pts.map(p => V2(p[0], p[1])), seg);
@@ -173,15 +175,15 @@ const SHIRTS = [0xe3d5b5, 0xd6cdb8, 0x7a2e2e, 0x2f6f6a, 0xb8893a, 0x9a4a2a, 0x3a
 const PANTS = [0x2b2926, 0x4a3322, 0x4c4a2e, 0x232a3d, 0x6b5436, 0x3a2f28];
 const LEATHER = [0x5a3a22, 0x3a2a1e, 0x6b2e2e, 0x4a3a1e];
 const BRASS = 0xb8893a, DARK = 0x1c1816;
-const pick = a => a[Math.floor(Math.random() * a.length)];
+const pick = a => a[Math.floor(_rng() * a.length)];
 // kids: ~.62-.74 of adult height, bigger head, no beard/vest/top hat, hair or goggles only
-function kidify() { return {kid: true, scale: .62 + Math.random() * .12, beard: false, vest: 0, dress: Math.random() < .4, hat: null, hair: pick(['short', 'long', 'bun', 'short']), sleeve: 'short'}; }
+function kidify() { return {kid: true, scale: .62 + _rng() * .12, beard: false, vest: 0, dress: _rng() < .4, hat: null, hair: pick(['short', 'long', 'bun', 'short']), sleeve: 'short'}; }
 export function randomLook(skin) {
   const L = {skin: skin ?? pick(SKINS), shirt: pick(SHIRTS), pants: pick(PANTS), shoe: pick([0x1c1816, 0x3a2418, 0x2a1d14]),
-    hair: pick(HAIRS), hairC: pick(HAIRC), expr: Math.random() < .5 ? '' : pick(EXPRS), eye: Math.floor(Math.random() * 4),
-    sleeve: Math.random() < .55 ? 'short' : 'long', vest: Math.random() < .4 ? pick(LEATHER) : 0, dress: Math.random() < .22,
-    hat: pick([null, null, null, 'top', 'bowler']), goggles: Math.random() < .28, beard: Math.random() < .14, scale: .94 + Math.random() * .12};
-  if (Math.random() < .2) Object.assign(L, kidify());   // ~1 in 5 of the crowd are kids
+    hair: pick(HAIRS), hairC: pick(HAIRC), expr: _rng() < .5 ? '' : pick(EXPRS), eye: Math.floor(_rng() * 4),
+    sleeve: _rng() < .55 ? 'short' : 'long', vest: _rng() < .4 ? pick(LEATHER) : 0, dress: _rng() < .22,
+    hat: pick([null, null, null, 'top', 'bowler']), goggles: _rng() < .28, beard: _rng() < .14, scale: .94 + _rng() * .12};
+  if (_rng() < .2) Object.assign(L, kidify());   // ~1 in 5 of the crowd are kids
   return L;
 }
 
@@ -270,8 +272,8 @@ function rig(L) {
 const SUITS = [0xe8425f, 0x2f9ad8, 0xf2c14e, 0x3fbf7a, 0xff8a3c, 0x8a5ad8, 0xffffff, 0x1fb8b0];
 export function crowdPerson(skin, opts) {
   const L = randomLook(skin);
-  if (opts && opts.swim) Object.assign(L, {swim: Math.random() < .5 ? 'f' : 'm', suit: pick(SUITS), hat: Math.random() < .3 ? 'sun' : null, goggles: false, vest: 0, dress: false, sleeve: 'short', shoe: 0xe8e0d0});
-  const R = rig(L), swing = () => (Math.random() - .5) * .5;
+  if (opts && opts.swim) Object.assign(L, {swim: _rng() < .5 ? 'f' : 'm', suit: pick(SUITS), hat: _rng() < .3 ? 'sun' : null, goggles: false, vest: 0, dress: false, sleeve: 'short', shoe: 0xe8e0d0});
+  const R = rig(L), swing = () => (_rng() - .5) * .5;
   const bodyParts = [], headParts = [];
   const add = (list, group, rot) => {
     const pv = group.pivot, pm = pv ? new THREE.Matrix4().compose(_v.set(...pv), _q.setFromEuler(_e.set(rot, 0, 0)), _s.set(1, 1, 1)) : new THREE.Matrix4();
@@ -284,7 +286,7 @@ export function crowdPerson(skin, opts) {
       for (const p of group.sub.parts) list.push({g: p.g, m: new THREE.Matrix4().multiplyMatrices(sm, p.m), col: p.col});
     }
   };
-  const a = swing(), l = (Math.random() - .5) * .3;
+  const a = swing(), l = (_rng() - .5) * .3;
   add(bodyParts, R.torso, 0); add(bodyParts, R.hair, 0); add(bodyParts, R.hat, 0); add(headParts, R.head, 0);
   add(bodyParts, R.armL, a); add(bodyParts, R.armR, -a); add(bodyParts, R.legL, l); add(bodyParts, R.legR, -l);
   const root = new THREE.Group();

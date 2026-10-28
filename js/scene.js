@@ -5,17 +5,17 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {CONFIG,MENU,money,open,hooks} from './shop.js?v=8';
 import {buildTruck,WX0,WX1,WY0,WY1,BW,BL,BH,bx0,FLOOR,CL} from './truck.js?v=13';
 import * as Avatars from './avatars.js?v=21';
-import * as People from './people.js?v=9';
+import * as People from './people.js?v=11';
 const mergeStatic=People.mergeStatic;   // one mesh per material for static props (see people.js)
 import * as Themes from './themes.js?v=2';   // steampunk by default, a theme per big holiday around its date
-import * as FX from './themefx.js?v=5';       // re-skins everything but the truck + gears/lamps/airships or lights/bunting/confetti
+import * as FX from './themefx.js?v=6';       // re-skins everything but the truck + gears/lamps/airships or lights/bunting/confetti
 import * as Life from './life.js?v=36';        // ambient crowd life: eat, queue, play, wander, greet the player
-import * as Waterpark from './waterpark.js?v=5';
+import * as Waterpark from './waterpark.js?v=6';
 import * as Gfx from './gfx.js?v=4';
 import * as Model from './model.js?v=3';   // ComfyUI-generated meshes (tools/model_gen.py -> models/)   // ComfyUI photo textures (gfx/*.jpg) on tagged materials
 import * as Rep from './rep.js?v=1';
-import * as Stuff from './stuff.js?v=5';
-import * as Quests from './quests.js?v=5';   // pun vendors, flash sales/dances, quests that earn Rep   // litter, lost items and micro-clutter, LOD'd by distance
+import * as Stuff from './stuff.js?v=6';
+import * as Quests from './quests.js?v=6';   // pun vendors, flash sales/dances, quests that earn Rep   // litter, lost items and micro-clutter, LOD'd by distance
 import * as Account from './account.js?v=8';   // phone-number arcade profiles (language-first sign-up)
 import * as Arcade from './arcade.js?v=24';    // 🎪 The Midway props + six minigames + HIGH SCORES board + Pac-Man cabinet
 
@@ -1364,12 +1364,13 @@ const clock=new THREE.Clock();
 if(TH&&LITE_MODE)panoDome.material.color.setHex(TH.tint);   // tint the painted fallback sky
 const fx=TH?(()=>{
   for(const p of ALL_PERFORMERS)p.userData.steamSkip=true;for(const e of eaters)e.userData.steamSkip=true;   // people keep their own colours
-  return FX.init(S,{skip:TRUCK_ORIG,lite:LITE_MODE,theme:TH,fallMult:CONFIG.sceneFallMult,floatMult:CONFIG.sceneFloatMult});})():null;
+  return FX.init(S,{skip:TRUCK_ORIG,lite:LITE_MODE,theme:TH,seed:window.__EOL_SEED||1,fallMult:CONFIG.sceneFallMult,floatMult:CONFIG.sceneFloatMult});})():null;
 window.__EOL_FX=fx;
 // 🌊 Sir Splash-a-Lot Water Park on the west side (Admin → Settings → Games switches it to a "closed for repairs" sign)
 // shared server clock + seed for deterministic AI simulation (Phase 2)
 try { const _tr = await fetch('/api/time'); const _tj = await _tr.json(); window.__EOL_SEED = _tj.seed || 1; window.__EOL_TIME_OFFSET = (_tj.now || 0) - (performance.now() / 1000); } catch (e) { window.__EOL_SEED = 1; window.__EOL_TIME_OFFSET = 0; }
-const wp=Waterpark.init(S,{open:CONFIG.waterparkOn!==false,message:CONFIG.waterparkClosedMsg||'',lite:LITE_MODE,phone:IS_PHONE,cam,
+People.setSeed(window.__EOL_SEED || 1);
+const wp=Waterpark.init(S,{open:CONFIG.waterparkOn!==false,message:CONFIG.waterparkClosedMsg||'',lite:LITE_MODE,phone:IS_PHONE,cam,seed:window.__EOL_SEED||1,
   player:()=>{if(walk.on&&walk.grp)return {obj:walk.grp,x:walk.x,z:walk.z};
     const me=Avatars.liveAvatars().find(v=>v.self);if(me&&me.group){me.group.getWorldPosition(_wv);return {obj:me.group,x:_wv.x,z:_wv.z};}return null;},
   onUse:(name)=>{Rep.add('react',1).then(()=>{if(life)life.toast('💦 '+name+'! +1 Rep');});}});

@@ -4,9 +4,11 @@
 // merged people (2 draw calls each); the whole park is hidden until the camera is within range, and water
 // animation (wave vertices, droplets, boats, riders) only runs while it is visible.
 import * as THREE from 'three';
-import * as People from './people.js?v=9';
+import * as People from './people.js?v=11';
+let _rng = Math.random;
+function makeRng(seed) { let a = (seed || 1) >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 
-const rnd = (a, b) => a + Math.random() * (b - a), pick = a => a[Math.floor(Math.random() * a.length)];
+const rnd = (a, b) => a + _rng() * (b - a), pick = a => a[Math.floor(_rng() * a.length)];
 const CX = -53;   // park centre line
 export const PARK = {x0: -72, x1: -36, z0: -28, z1: 22, gate: {x: -36, z: -3}};
 
@@ -19,7 +21,7 @@ function tileTex() {
 function waterTex() {   // soft caustic ripples
   const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
   g.fillStyle = '#7fd8ee'; g.fillRect(0, 0, 128, 128);
-  for (let i = 0; i < 46; i++) { const x = Math.random() * 128, y = Math.random() * 128, r = 5 + Math.random() * 14; g.strokeStyle = `rgba(255,255,255,${.1 + Math.random() * .18})`; g.lineWidth = 1.4; g.beginPath(); g.ellipse(x, y, r, r * .5, Math.random() * 3, 0, 6.3); g.stroke(); }
+  for (let i = 0; i < 46; i++) { const x = _rng() * 128, y = _rng() * 128, r = 5 + _rng() * 14; g.strokeStyle = `rgba(255,255,255,${.1 + _rng() * .18})`; g.lineWidth = 1.4; g.beginPath(); g.ellipse(x, y, r, r * .5, _rng() * 3, 0, 6.3); g.stroke(); }
   const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 }
 function signTex(text, sub) {
@@ -37,6 +39,7 @@ const PUNS = ['CLOSED FOR REPAIRS|The lazy river got lazy and quit.', 'CLOSED FO
 
 // "closed for repairs": a fenced gate, caution tape, cones, tarped slides and a sign that cycles water puns (or the admin's own line)
 function closedPark(S, o) {
+  _rng = makeRng(o.seed || 1);
   const {cam, lite, phone: isPhone, message} = o, G = new THREE.Group(); G.userData.steamSkip = true; S.add(G);
   const std = (c, r = .7, m = 0, e) => new THREE.MeshStandardMaterial({color: c, roughness: r, metalness: m, ...e});
   const add = (m, x, y, z) => { m.position.set(x, y, z); G.add(m); return m; };
@@ -49,7 +52,7 @@ function closedPark(S, o) {
   const mound = add(new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), std(0x9a7a4a, .95)), -52, .3, -19); mound.scale.set(8, .6, 5);
   add(new THREE.Mesh(new THREE.BoxGeometry(.9, 1.1, .08), std(0xffd23a, .5)), PARK.x1 + 2.8, .6, gz + 2.2).rotation.set(0, 1.1, 0);   // wet-floor A-frame
   const cv = document.createElement('canvas'); cv.width = 768; cv.height = 360; const g = cv.getContext('2d'), tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
-  let n = Math.floor(Math.random() * PUNS.length);
+  let n = Math.floor(_rng() * PUNS.length);
   const paint = () => {
     const [h, sub] = (message ? 'CLOSED FOR REPAIRS|' + message : PUNS[n % PUNS.length]).split('|');
     g.fillStyle = '#ffd23a'; g.fillRect(0, 0, 768, 360); g.fillStyle = '#1c1816'; for (let i = -2; i < 12; i++) { g.beginPath(); g.moveTo(i * 80, 0); g.lineTo(i * 80 + 40, 0); g.lineTo(i * 80 - 40, 60); g.lineTo(i * 80 - 80, 60); g.fill(); g.beginPath(); g.moveTo(i * 80, 360); g.lineTo(i * 80 + 40, 360); g.lineTo(i * 80 - 40, 300); g.lineTo(i * 80 - 80, 300); g.fill(); }
@@ -68,6 +71,7 @@ function closedPark(S, o) {
 }
 
 export function init(S, o) {
+  _rng = makeRng(o.seed || 1);
   if (o.open === false) return closedPark(S, o);
   const {lite, phone: isPhone, cam, player, onUse} = o, small = lite || isPhone;
   const G = new THREE.Group(); G.userData.steamSkip = true; S.add(G);   // keeps its own bright colours under any theme
