@@ -245,8 +245,8 @@ export function init(o) {
     const out = [];
     const tb = o.truckBox; if (tb) out.push({x:(tb.x0+tb.x1)/2, z:(tb.z0+tb.z1)/2, r: Math.max((tb.x1-tb.x0)/2,(tb.z1-tb.z0)/2)});
     for (const t of (o.tables||[])) { if (t && t.parent) { V.set(0,0,0); t.getWorldPosition(V); out.push({x:V.x,z:V.z,r:.95}); } }
-    const ps = o.props ? o.props() : []; for (const p of ps) { if (p && p.parent) { V.set(0,0,0); p.getWorldPosition(V); out.push({x:V.x,z:V.z,r:1.1}); } }
-    const vs = o.vendors ? o.vendors() : []; for (const v of vs) { if (v && v.spot) out.push({x:v.spot[0],z:v.spot[1],r:1.6}); }
+    const ps = (o.props ? (o.props() || []) : []); for (const p of (Array.isArray(ps) ? ps : [])) { if (p && p.parent) { V.set(0,0,0); p.getWorldPosition(V); out.push({x:V.x,z:V.z,r:1.1}); } }
+    const vs = (o.vendors ? (o.vendors() || []) : []); for (const v of (Array.isArray(vs) ? vs : [])) { if (v && v.spot) out.push({x:v.spot[0],z:v.spot[1],r:1.6}); }
     const wp = o.waterpark ? o.waterpark() : null;
     if (wp && wp.group) { wp.group.getWorldPosition(V); out.push({x:V.x,z:V.z,r:8}); }
     return out;
