@@ -890,6 +890,7 @@ function spawnCrowd(cx,cz,n,faceStage){
     person.position.set(cx+(Math.random()-.5)*2.6,0.56,cz+(Math.random()-.5)*2.6);
     person.rotation.y=faceStage?Math.atan2(8-person.position.x,-70-person.position.z)+(Math.random()-.5)*.3:Math.random()*Math.PI*2;   // stage-front rows watch the band
     S.add(person);
+    if(Math.random()<.35) lightPipe(person);
     cullable(person);
   }
 }
@@ -959,6 +960,7 @@ for(let i=0;i<10;i++){
   const person=buildPerformer(0xd9a978,0xd42a2a,0x1a1a1a,'civilian');
   person.position.set(cx,.4,cz); person.rotation.y=chair.rotation.y; person.rotation.x=-Math.PI/8;
   S.add(person);
+    if (Math.random() < .3) lightPipe(person);
   if (Math.random()<0.5) {
     const umbrella=new THREE.Mesh(new THREE.ConeGeometry(1.1,.6,12),new THREE.MeshStandardMaterial({color:0xe8578a,roughness:.6,side:THREE.DoubleSide}));
     umbrella.position.set(cx,.9,cz); S.add(umbrella);
@@ -989,6 +991,7 @@ for(let i=0;i<8;i++){
       person.rotation.x=-Math.PI/6;
     }
     S.add(person);
+    if (Math.random() < .3) lightPipe(person);
   }
 }
 
