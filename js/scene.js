@@ -2,10 +2,18 @@
 // handling and the animation loop. Imports the truck from truck.js and the ordering UI from shop.js.
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
-import {CONFIG,MENU,money,open,hooks} from './shop.js?v=7';
+import {CONFIG,MENU,money,open,hooks} from './shop.js?v=8';
 import {buildTruck,WX0,WX1,WY0,WY1,BW,BL,BH,bx0,FLOOR,CL} from './truck.js?v=6';
-import * as Avatars from './avatars.js?v=12';
-import * as Account from './account.js?v=7';   // phone-number arcade profiles (language-first sign-up)
+import * as Avatars from './avatars.js?v=13';
+import * as People from './people.js?v=4';
+import * as Themes from './themes.js?v=1';   // steampunk by default, a theme per big holiday around its date
+import * as FX from './themefx.js?v=1';       // re-skins everything but the truck + gears/lamps/airships or lights/bunting/confetti
+import * as Life from './life.js?v=7';        // ambient crowd life: eat, queue, play, wander, greet the player
+import * as Waterpark from './waterpark.js?v=1';
+import * as Rep from './rep.js?v=1';
+import * as Stuff from './stuff.js?v=2';
+import * as Quests from './quests.js?v=3';   // pun vendors, flash sales/dances, quests that earn Rep   // litter, lost items and micro-clutter, LOD'd by distance
+import * as Account from './account.js?v=8';   // phone-number arcade profiles (language-first sign-up)
 import * as Arcade from './arcade.js?v=24';    // 🎪 The Midway props + six minigames + HIGH SCORES board + Pac-Man cabinet
 
 const canvas=document.getElementById('c');
@@ -16,6 +24,7 @@ R.toneMapping=THREE.ACESFilmicToneMapping;R.toneMappingExposure=1.05;R.outputCol
 const S=new THREE.Scene();   // S.environment gets a panorama-buffered env map once it's painted (below)
 // ---------- lite mode for limited/older devices ----------
 function detectLite(){
+  if (location.pathname.replace(/\/+$/, '') === '/3d') return false;   // /3d is the full site by definition (the lite page links here)
   try { if (localStorage.getItem('eol-lite') === '1') return true; if (localStorage.getItem('eol-lite') === '0') return false; } catch(e){}
   const ua = navigator.userAgent || '';
   const mobile = /Mobi|Android|iPhone|iPad/i.test(ua);
@@ -28,7 +37,9 @@ function detectLite(){
 }
 const LITE_MODE = detectLite();
 window.__EOL_LITE = LITE_MODE;
+dispatchEvent(new Event('eol:lite'));   // the lite chip in index.html mirrors this
 try { localStorage.setItem('eol-lite', LITE_MODE ? '1' : '0'); } catch(e){}
+const IS_PHONE=/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent||'');   // phone-tier budgets (crowd range, shadow map) apply even with lite mode off
 const ALL_HYDRAULICS=[];   // lowriders "on switches" - cars that get a random hydraulic hop in the main render loop below
 export const cam=new THREE.PerspectiveCamera(50,innerWidth/innerHeight,0.1,400);
 // distance needed so a span of 2*halfW meters fits across the screen (phones in portrait need to stand back)
@@ -167,24 +178,27 @@ const panoC=document.createElement('canvas');panoC.width=2048;panoC.height=1024;
       g.beginPath();g.arc(fx,HOR-8.4*s,2.1*s,0,7);g.fill();          // head
       g.fillRect(fx-1.5*s,HOR-6.6*s,3*s,6.8*s);}}}                   // body/legs stub
 const panoT=new THREE.CanvasTexture(panoC);panoT.colorSpace=THREE.SRGBColorSpace;panoT.anisotropy=8;
-const panoDome=new THREE.Mesh(new THREE.SphereGeometry(180,48,24),new THREE.MeshBasicMaterial({map:panoT,side:THREE.BackSide,fog:false}));
+var panoDome=new THREE.Mesh(new THREE.SphereGeometry(180,48,24),new THREE.MeshBasicMaterial({map:panoT,side:THREE.BackSide,fog:false}));
 S.add(panoDome);
 S.environment=new THREE.PMREMGenerator(R).fromEquirectangular(panoT).texture;   // panorama lights every material
-const SCENE_THEME = (() => { try { return localStorage.getItem('eol-scene-theme') || 'default'; } catch (e) { return 'default'; } })();
-const THEME_FOG = {default: 0xe7dcc4, steampunk: 0x8a7a5a, retro: 0xd8c8a0, hyper: 0xd0e0f0};
-S.fog=new THREE.FogExp2(THEME_FOG[SCENE_THEME] || 0xe7dcc4,0.0042);   // themed haze
+// steampunk is the default look; /?theme=classic (or ?theme=steampunk) switches and is remembered
+var SCENE_THEME = Themes.resolve();   // theme id, or 'default' for the untouched classic look
+var TH = Themes.THEMES[SCENE_THEME] || null; window.__EOL_THEME = SCENE_THEME;
+S.fog=new THREE.FogExp2((TH&&TH.fog)||0xe7dcc4,0.0042);   // themed haze
 if (!LITE_MODE) {
 const panoFile = (SCENE_THEME === 'steampunk') ? 'tex/panorama-steampunk.jpg' : 'tex/panorama.jpg';
 TL.load(panoFile,t=>{   // themed equirect; owner can drop a real one later
   t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;
-  panoDome.material.map=t;panoDome.material.needsUpdate=true;
-  S.environment=new THREE.PMREMGenerator(R).fromEquirectangular(t).texture;},undefined,()=>{});}
+  panoDome.material.map=t;panoDome.material.color.setHex(SCENE_THEME==='steampunk'?0xffffff:(TH?TH.tint:0xffffff));panoDome.material.needsUpdate=true;
+  if(SCENE_THEME!=='steampunk')S.environment=new THREE.PMREMGenerator(R).fromEquirectangular(t).texture;},undefined,()=>{});
+// steampunk repaints only the backdrop: lighting/reflections (what the truck sees) keep the original panorama
+if(SCENE_THEME==='steampunk')TL.load('tex/panorama.jpg',t=>{t.colorSpace=THREE.SRGBColorSpace;S.environment=new THREE.PMREMGenerator(R).fromEquirectangular(t).texture;},undefined,()=>{});}
 }
 
 // lights (Arizona midday sun — harsh overhead with warm bounce)
 S.add(new THREE.HemisphereLight(0xb8d4f0,0x8b9c55,1.1));   // green ground-bounce for the grassy field
 const sun=new THREE.DirectionalLight(0xfff5e0,3.2);sun.position.set(6,18,8);sun.castShadow=true;
-sun.shadow.mapSize.set(4096,4096);Object.assign(sun.shadow.camera,{left:-14,right:14,top:14,bottom:-14});sun.shadow.bias=-0.0003;sun.shadow.normalBias=0.02;S.add(sun);
+sun.shadow.mapSize.set(IS_PHONE?2048:4096,IS_PHONE?2048:4096);Object.assign(sun.shadow.camera,{left:-14,right:14,top:14,bottom:-14});sun.shadow.bias=-0.0003;sun.shadow.normalBias=0.02;S.add(sun);
 // soft fill from the service-window side (reflected off the ground/lot)
 const fill=new THREE.DirectionalLight(0xf0e8d8,0.55);fill.position.set(-4,3,9);S.add(fill);
 // warm ambient bounce from street heat
@@ -220,6 +234,7 @@ ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;S.add(ground);
 
 await document.fonts.ready.catch(()=>{});
 const T=await buildTruck(S,{img,done,MENU,money});
+const TRUCK_ORIG=new Set();S.traverse(o=>TRUCK_ORIG.add(o));   // everything that exists now (truck, sky, ground, lights) stays original under the steampunk pass
 const CLICK=T.click;
 Avatars.init(S);   // live "other visitors" avatars - safe to start before load finishes
 
@@ -850,13 +865,35 @@ const CROWD_LOOKS=[[0xd9a978,0xd42a2a,0x1a1a1a],[0xa8714a,0xf2c14e,0x2e8b3d],[0x
   [0xb07a4e,0xf2a33c,0x1a1a1a],[0x7a4a2a,0x9b4de8,0x2e8b3d],[0xd9a978,0xf2c14e,0xd42a2a],
   [0xa8714a,0x2e8b3d,0xe85fa0],[0xf0c7a0,0xd42a2a,0x2e8b3d],[0x8a5a35,0xf2c14e,0x1a1a1a]];
 const pick=arr=>arr[Math.floor(Math.random()*arr.length)];
+// ---------- crowd draw distance. A performer body is ~9.5k triangles and ~31 draw calls, and
+// most of the crowd stands 50-60 m away at the stage pit. Each one stays invisible (no draw, no
+// shadow pass) until the camera comes within CROWD_RANGE - 16 m on phones / lite mode, 40 m on
+// desktops - with 3 m of hysteresis so nobody flickers at the boundary. The 200-body instanced
+// audience is two draw calls and is never culled, so the stage front still reads as packed.
+const CROWD_RANGE=(LITE_MODE||IS_PHONE)?16:40;
+const CULLED=[];   // {obj, p: world position}
+window.__EOL_CROWD={range:CROWD_RANGE,list:CULLED};   // console check: __EOL_CROWD.list.filter(e=>e.obj.visible).length
+function cullable(obj){
+  obj.updateWorldMatrix(true,false);
+  const p=new THREE.Vector3();obj.getWorldPosition(p);
+  obj.visible=false;
+  CULLED.push({obj,p});
+}
+const _camP=new THREE.Vector3();
+function cullCrowd(){
+  cam.getWorldPosition(_camP);
+  const near=CROWD_RANGE*CROWD_RANGE,far=(CROWD_RANGE+3)*(CROWD_RANGE+3);
+  for(const e of CULLED){const d=e.p.distanceToSquared(_camP);
+    if(e.obj.visible){if(d>far)e.obj.visible=false;}else if(d<near)e.obj.visible=true;}
+}
 function spawnCrowd(cx,cz,n,faceStage){
   for(let i=0;i<n;i++){
-    const person=buildPerformer(...pick(CROWD_LOOKS), 'civilian');
-    person.position.set(cx+(Math.random()-.5)*2.6,.24,cz+(Math.random()-.5)*2.6);
+    const person=People.crowdPerson();
+    person.position.set(cx+(Math.random()-.5)*2.6,0,cz+(Math.random()-.5)*2.6);
     person.rotation.y=faceStage?Math.atan2(8-person.position.x,-70-person.position.z)+(Math.random()-.5)*.3:Math.random()*Math.PI*2;   // stage-front rows watch the band
     S.add(person);
     if(Math.random()<.45) lightPipe(person);   // festival-goers puffing hand pipes
+    cullable(person);
   }
 }
 // ----------
@@ -881,8 +918,8 @@ function lightPipe(person){
   _pd.set(-.16,.05,-.09).normalize();                 // bowl -> mouth direction, angled down-back
   stem.quaternion.setFromUnitVectors(_pu,_pd);
   stem.position.copy(_pd.clone().multiplyScalar(.1));pipe.add(stem);
-  pipe.position.set(.16,.85,.14);pipe.rotation.y=.5;person.add(pipe);   // hand-held at head height
-  const puffA=new THREE.Vector3(.2,.94,.17);
+  pipe.position.set(.12,1.47,.13);pipe.rotation.y=.5;person.add(pipe);   // hand-held at mouth height
+  const puffA=new THREE.Vector3(.16,1.62,.17);
   for(let j=0;j<3;j++){   // three staggered puffs per smoker so the drift reads continuous
     const spr=new THREE.Sprite(new THREE.SpriteMaterial({map:window.__EOL_PUFF_TEX,transparent:true,depthWrite:false,opacity:0}));
     spr.visible=false;spr.position.copy(puffA);person.add(spr);
@@ -892,13 +929,13 @@ function lightPipe(person){
 function tickPuff(p,dt){
   if(p.life>0){                                       // rising, drifting, fading puff
     p.age+=dt;const k=p.age/p.life;
-    p.spr.position.y=.95+k*.62;p.spr.position.x=.2+k*.15;
+    p.spr.position.y=1.62+k*.62;p.spr.position.x=.16+k*.15;
     const s=.2+k*.6;p.spr.scale.set(s,s,1);
     p.spr.material.opacity=Math.sin(Math.min(1,k)*Math.PI)*.55;
     if(k>=1){p.life=0;p.spr.visible=false;p.t=2+Math.random()*5;}   // then wait between puffs
   }else{
     p.t-=dt;
-    if(p.t<=0){p.life=2.7;p.age=0;p.spr.visible=true;p.spr.material.opacity=0;p.spr.position.set(.2,.95,.17);}
+    if(p.t<=0){p.life=2.7;p.age=0;p.spr.visible=true;p.spr.material.opacity=0;p.spr.position.set(.16,1.62,.17);}
   }
 }
 // south ground (toward the stage pit) and pass-around packs, clear of the house/fence
@@ -1002,10 +1039,11 @@ function buildBooth(name,hue){
     // a short line of 2-4 people queued up at the table, standing single-file facing the booth
     const lineLen=2+Math.floor(Math.random()*3), dz=faceSouth?-1:1;
     for(let li=0;li<lineLen;li++){
-      const p=buildPerformer(...pick(CROWD_LOOKS), 'civilian');
-      p.position.set(bx+(Math.random()-.5)*.5, .24, bz+dz*(1.6+li*.75));
+      const p=People.crowdPerson();
+      p.position.set(bx+(Math.random()-.5)*.5, 0, bz+dz*(1.6+li*.75));
       p.rotation.y=(faceSouth?0:Math.PI)+(Math.random()-.5)*.3;
       S.add(p);
+      cullable(p);
     }
     ni++;
   }
@@ -1111,7 +1149,7 @@ function walkCollide(){
     else{_wv.x=_wv.x<bx0+BL/2?bx0-.55:bx0+BL+.55;back();}
   }
   walkPushEdge(-8,24,-76.5,-63.5);            // stage deck box (world: 32x13 at 8,0,-70)
-  walk.x=Math.max(-62,Math.min(62,walk.x));     // stay inside the painted lot
+  walk.x=Math.max(-76,Math.min(62,walk.x));     // stay inside the painted lot
   walk.z=Math.max(-60,Math.min(34,walk.z));
 }
 function walkStart(){
@@ -1122,8 +1160,8 @@ function walkStart(){
   // your avatar steps in on the ground between the camera and where it was looking
   walk.x=cam.position.x+fwd.x*4.4;walk.z=cam.position.z+fwd.z*4.4;
   walk.yaw=Math.atan2(fwd.x,fwd.z);walk.py=0;walk.vy=0;walk.hold=0;
-  walk.grp=buildPerformer(0xd9a978,new THREE.Color().setHSL((hue??(Math.abs(Date.now())%360))/360,.55,.48),0x1a1a1a,'civilian');
-  walk.grp.traverse(o=>{o.castShadow=true;});
+  let prof={};try{prof=JSON.parse(localStorage.getItem('eol-visitor-profile')||'{}')||{};}catch(e){}
+  walk.grp=Avatars.makeBody(hue??(Math.abs(Date.now())%360),prof);Avatars.applyBling(walk.grp,prof.bling);
   // little nameplate: same white-on-dark pill style as the presence avatars
   let name='You';try{name=localStorage.getItem('eol-visitor-name')||'You';}catch(e){}
   const nc=document.createElement('canvas');nc.width=220;nc.height=56;const ng=nc.getContext('2d');
@@ -1157,6 +1195,8 @@ function walkTick(dt,t){
   const moving=Math.abs(spd)>0||turn!==0,bob=moving&&walk.py<=0?Math.abs(Math.sin(t*8.5))*.05:0;
   walk.grp.position.set(walk.x,FLOOR+walk.py+bob,walk.z);
   walk.grp.rotation.y=walk.yaw;
+  {const ua=walk.grp.userData.arms,lg=walk.grp.userData.legs;   // same gait as the other visitors' avatars
+   if(ua&&lg){const sw=moving&&walk.py<=0?Math.sin(t*8.5)*.6*(spd<0?-1:1):0;ua[0].rotation.x=sw;ua[1].rotation.x=-sw;lg[0].rotation.x=-sw*.55;lg[1].rotation.x=sw*.55;}}
   // camera trails behind; mouse-drag offsets fade back to dead-rear while you move
   if(fwd)walk.hold*=Math.exp(-dt*1.1);
   const eye=walk.yaw+Math.PI+walk.hold;
@@ -1285,7 +1325,51 @@ function goWindow(){   // frame the service window + menu board, wherever the tr
 let tour=false;
 addEventListener('resize',()=>{cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();R.setSize(innerWidth,innerHeight);});
 const clock=new THREE.Clock();
+if(TH&&LITE_MODE)panoDome.material.color.setHex(TH.tint);   // tint the painted fallback sky
+const fx=TH?(()=>{
+  for(const p of ALL_PERFORMERS)p.userData.steamSkip=true;for(const e of eaters)e.userData.steamSkip=true;   // people keep their own colours
+  return FX.init(S,{skip:TRUCK_ORIG,lite:LITE_MODE,theme:TH});})():null;
+window.__EOL_FX=fx;
+// 🌊 Sir Splash-a-Lot Water Park on the west side (Admin → Settings → Games switches it to a "closed for repairs" sign)
+const wp=Waterpark.init(S,{open:CONFIG.waterparkOn!==false,message:CONFIG.waterparkClosedMsg||'',lite:LITE_MODE,phone:IS_PHONE,cam});
+// 🚶 ambient crowd life + the two-way interactions with the player (Admin → Settings → Games can switch it off)
+let life=null,quests=null;
+const stuff=CONFIG.ambientLifeOn!==false?Stuff.init({S,cam,rig:truckRig,truckBox:{x0:TRUCK_CX-BL/2-.3,x1:TRUCK_CX+BL/2+.3,z0:-BW/2-.3,z1:BW/2+.3},crate:{x:WX1+1.4,z:BW/2+1.8},
+  player:()=>{if(walk.on&&walk.grp)return {obj:walk.grp,x:walk.x,z:walk.z};
+    const me=Avatars.liveAvatars().find(v=>v.self);if(me&&me.group){me.group.getWorldPosition(_wv);return {obj:me.group,x:_wv.x,z:_wv.z};}return null;},
+  canvas,lite:LITE_MODE,phone:IS_PHONE,rep:Rep,getLife:()=>life}):null;
+window.__EOL_STUFF=stuff;
+if(CONFIG.ambientLifeOn!==false){
+  life=Life.init({S,cam,rig:truckRig,tables:TABLE_HIT,eaters,win:{x1:WX1,z:BW/2},
+    truckBox:{x0:TRUCK_CX-BL/2-.3,x1:TRUCK_CX+BL/2+.3,z0:-BW/2-.3,z1:BW/2+.3},
+    props:()=>['claw','bbt','tag','pin','c4','ttt'].map(id=>Arcade.prop(id)),
+    vendors:()=> (typeof quests!=='undefined' && quests) ? (quests.vendors||[]) : [],
+    waterpark:()=>wp,
+    player:()=>{if(walk.on&&walk.grp)return {obj:walk.grp,x:walk.x,z:walk.z};
+      const me=Avatars.liveAvatars().find(v=>v.self);if(me&&me.group){me.group.getWorldPosition(_wv);return {obj:me.group,x:_wv.x,z:_wv.z};}return null;},
+    liveList:Avatars.liveAvatars,attachSprout:Avatars.attachSprout,lite:LITE_MODE,phone:IS_PHONE,canvas,
+    onLitter:(x,z)=>{if(stuff)stuff.drop(x,z);},onQuestTap:a=>quests?quests.onTap(a):false,openGift:id=>Avatars.openGiftPanel(id),acctPhone:()=>Account.phone,refresh:()=>Account.refresh(),
+    repLevel:()=>Rep.level(),onReact:name=>{Rep.add('react').then(()=>life.toast('⭐ +1 Rep — '+name+' loves the vibes!  ('+Rep.title()+', '+Rep.points()+')'));}});
+  Avatars.setNpcLister(()=>life.roster());
+  if(!wp.closed)['Lou','Dee','Mac'].forEach((nm,i)=>{const g=wp.guards[i];if(g){const a=life.createStaff({x:g[0]+1.5,z:g[1]+.3,yaw:-1.57,name:'Lifeguard '+nm});a.anim='queue';}});
+}
+if(life&&stuff&&CONFIG.questsOn!==false){
+  const playerFn=()=>{if(walk.on&&walk.grp)return {obj:walk.grp,x:walk.x,z:walk.z};
+    const me=Avatars.liveAvatars().find(v=>v.self);if(me&&me.group){me.group.getWorldPosition(_wv);return {obj:me.group,x:_wv.x,z:_wv.z};}return null;};
+  quests=Quests.init({S,cam,rig:truckRig,life,stuff,rep:Rep,player:playerFn,buildBooth,lite:LITE_MODE,phone:IS_PHONE,createStaff:life.createStaff,win:{x1:WX1,z:BW/2},park:wp,tables:TABLE_HIT,
+    props:()=>['claw','bbt','tag','pin','c4','ttt'].map(id=>Arcade.prop(id))});
+}
+window.__EOL_LIFE=life;window.__EOL_QUESTS=quests;
+{ // theme chip: tap to cycle auto → steampunk → each holiday → classic
+  const b=document.createElement('button');b.id='themeChip';
+  b.style.cssText='position:fixed;bottom:84px;right:10px;z-index:99999;font:600 12px Inter,sans-serif;color:#fff;background:rgba(0,0,0,.5);padding:6px 10px;border-radius:8px;cursor:pointer;border:1px solid rgba(255,255,255,.3)';
+  const cur=Themes.stored();
+  b.textContent='Theme: '+(TH?TH.emoji+' '+TH.label:'Classic')+(cur==='auto'?' (auto)':'');
+  b.onclick=()=>{const i=Themes.CYCLE.indexOf(cur),next=Themes.CYCLE[(i+1)%Themes.CYCLE.length];try{localStorage.setItem('eol-scene-theme',next);}catch(e){}location.reload();};
+  document.body.appendChild(b);}
 R.setAnimationLoop(()=>{const dt=Math.min(clock.getDelta(),0.1),t=clock.elapsedTime;
+  cullCrowd();
+  if(fx)fx.tick(t,dt);if(wp)wp.tick(t,dt);if(life)life.tick(t,dt);if(stuff)stuff.tick(t,dt);if(quests)quests.tick(t,dt);
   if(fly){const k=Math.min(1,(performance.now()-fly.s)/fly.ms),e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;cam.position.lerpVectors(fly.p0,fly.p,e);ctl.target.lerpVectors(fly.t0,fly.t,e);if(k>=1)fly=null;}
   {const w=T.worker;w.children[1].rotation.y=Math.sin(t*.7)*.25;w.position.y=WY0-.12+Math.sin(t*1.6)*.006;}
   for(const e of eaters){e.userData.head.rotation.x=Math.sin(t*1.2+e.userData.ph)*.07;e.position.y=e.userData.by+Math.sin(t*.9+e.userData.ph)*.004;}
