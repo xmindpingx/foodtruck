@@ -1,27 +1,110 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>El Otro Lado — Mobile Order</title>
-<link rel="stylesheet" href="css/site.css?v=24">
-<style>
-  body{margin:0;background:#0d0a26;color:#fff;font-family:Inter,system-ui,sans-serif;overflow:auto}
-  .mwrap{padding:16px;max-width:480px;margin:0 auto}
-  .mtitle{font-family:'UnifrakturMaguntia',serif;font-size:28px;margin:8px 0}
-  .panel{position:static!important;width:100%!important;max-height:none!important;display:block!important}
-</style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1b1546">
+<title>El Otro Lado — Order · Mesa, AZ</title>
+<meta name="description" content="El Otro Lado — “The Other Side.” Family owned, signature choices. Mesa, Arizona food truck owned and operated by Summer and Jesse, Sole Proprietor. Order online; optional order-ready text alerts.">
+<link rel="canonical" href="https://food.signaturediversified.com/">
+<link rel="icon" href="data:,">
+<link rel="apple-touch-icon" href="/tex/logo.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=Great+Vibes&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/mobile.css?v=1">
 </head>
-<body>
-<div class="mwrap">
-  <h1 class="mtitle">el Otro Lado</h1>
-  <p style="opacity:.8">Mobile ordering — tap Menu to order.</p>
-  <div id="menuHost"></div>
-</div>
-<script>
-  // Load the menu panel content by fetching index.html? Simpler: redirect to /#menu with lite mode forced.
-  try { localStorage.setItem('eol-lite','1'); } catch(e){}
-  location.replace('/#menu');
+<body id="mobileApp">
+<header>
+ <div class="brand">el Otro Lado<small>“The Other Side”</small></div>
+ <button class="chip" data-lite-off title="Loads the full site: the 3D truck, the midway games and chat">Lite mode: on <span>· tap for the 3D truck &amp; games</span></button>
+</header>
+<nav>
+ <button data-p="menu" class="on">Menu</button>
+ <button data-p="find">Find Us</button>
+ <button data-p="contact">Contact</button>
+</nav>
+<main>
+<section class="panel open" id="menu">
+ <h2>Menú</h2><p class="script">Family Owned, Signature Choices</p>
+ <div class="tiles"></div>
+ <div id="menuItems"></div>
+ <div id="cart">
+  <h3 style="margin:18px 0 6px">Your Order</h3>
+  <div id="cartLines"><p class="muted">Tap + to add items.</p></div>
+  <div class="row"><span>Subtotal</span><b id="sub">$0.00</b></div>
+  <div class="row" id="discRow" hidden><span id="discLabel" style="color:var(--gold)">Reward</span><b id="disc" style="color:var(--gold)">-$0.00</b></div>
+  <div class="row"><span id="taxLabel">Tax</span><b id="tax">$0.00</b></div>
+  <div class="row" style="font-size:18px"><span>Total</span><b id="tot">$0.00</b></div>
+  <form id="oform">
+   <input name="name" placeholder="Name for the order" required maxlength="40">
+   <input name="phone" placeholder="Phone number" required maxlength="20" inputmode="tel">
+   <!-- SMS opt-in: OPTIONAL and unchecked by default. Consent is not a condition of purchase.
+        Wording version 2026-10-20 - registered verbatim with Twilio/TCR (A2P 10DLC campaign
+        message_flow) and quoted on poc.signaturediversified.com. Identical to index.html; if it
+        changes: change both, bump SMS_CONSENT_VERSION in server.py, update poc.*, and edit/resubmit the campaign. -->
+   <div id="smsOptIn" style="margin:8px 0;padding:10px 12px;border:1px solid rgba(255,255,255,.35);border-radius:10px">
+    <div style="font-size:10.5px;font-weight:800;letter-spacing:.5px;color:var(--gold);margin-bottom:6px">OPTIONAL &mdash; TEXT ME WHEN MY ORDER IS READY</div>
+    <label style="display:flex;gap:8px;align-items:flex-start;font-size:12.5px;line-height:1.35;color:inherit;cursor:pointer" for="smsConsent">
+     <input type="checkbox" id="smsConsent" name="smsConsent" style="width:18px;height:18px;margin:2px 0 0;padding:0;flex:none;accent-color:var(--gold)">
+     <span style="flex:1;min-width:0">I agree to receive one (1) text message per order from El Otro Lado (Summer and Jesse, Sole Proprietor) at the number provided when my order is ready for pickup. Msg &amp; data rates may apply. Reply STOP to opt out, HELP for help. View our <a href="https://privacy.signaturediversified.com" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">Privacy Policy</a> and <a href="https://terms.signaturediversified.com" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">Terms &amp; Conditions</a>.</span>
+    </label>
+    <div style="font-size:11px;line-height:1.35;opacity:.8;margin-top:6px;padding-left:25px">Message frequency: 1 message per order. Consent is not a condition of purchase &mdash; this box is unchecked by default and is not required; you can place your order without checking it and your order status will show on this page. Texts are sent by Summer and Jesse, Sole Proprietor, doing business as El Otro Lado, Mesa, AZ.</div>
+   </div>
+   <textarea name="notes" rows="2" placeholder="Notes: no onions, extra salsa…" maxlength="200"></textarea>
+   <!-- payments · promo code · rewards — populated by js/shop.js from /api/settings -->
+   <div id="payBox" style="margin:8px 0"></div>
+   <div id="promoBox" style="display:flex;gap:8px;align-items:center;margin:8px 0">
+     <input id="promoCode" placeholder="Promo code (optional)" maxlength="24" style="flex:1;text-transform:uppercase">
+     <small style="opacity:.7;white-space:nowrap">applied at checkout</small>
+   </div>
+   <div id="rewardBox" style="margin:8px 0"></div>
+   <p class="muted" id="payNote">Pickup at the window. Pay when you pick up — card (Square) or cash.</p>
+   <button class="cta" style="width:100%" id="placeBtn">Place Order</button>
+  </form>
+  <div id="ordDone" style="display:none"></div>
+ </div>
+ <button id="cartBar" class="cta" hidden>View order</button>
+</section>
+<section class="panel" id="find">
+ <h2>Find Us</h2><p class="script">See You On The Other Side!</p>
+ <div class="tiles"></div>
+ <div class="row"><span>City</span><b>Mesa, Arizona</b></div>
+ <div class="row"><span>Location</span><b id="cfgLoc"></b></div>
+ <div class="row"><span>Hours</span><b id="cfgHours"></b></div>
+</section>
+<section class="panel" id="contact">
+ <h2>Contact Us</h2><p class="script">Catering · Events · Questions</p>
+ <div class="tiles"></div>
+ <div class="row"><span>Phone</span><b id="cfgPhone"></b></div>
+ <div class="row"><span>Email</span><b id="cfgEmail"></b></div>
+ <div class="row"><span>Social</span><b id="cfgSocial"></b></div>
+ <form id="cform"><input name="name" placeholder="Your name" required><input name="from" placeholder="Phone or email" required><textarea name="msg" rows="3" placeholder="Event date, headcount, question…" required></textarea><button class="cta" style="width:100%">Send</button></form>
+</section>
+</main>
+<footer id="foot"><span id="copyLine">© 2026 Summer and Jesse, Sole Proprietor, DBA El Otro Lado &middot; Mesa, AZ</span> &middot; <a href="https://privacy.signaturediversified.com">Privacy Policy</a> &middot; <a href="https://terms.signaturediversified.com">Terms &amp; Conditions</a> &middot; <a href="https://poc.signaturediversified.com">SMS program &amp; opt-in</a></footer>
+<p class="alt"><button class="chip" data-lite-off>Lite mode: on <span>· open the 3D truck &amp; games</span></button></p>
+<noscript><p class="muted" style="text-align:center">Online ordering needs JavaScript — come order at the window!</p></noscript>
+<script type="module">
+// Lite page for phones: the same menu / cart / checkout as index.html (js/shop.js) with no
+// three.js, games or chat. Tabs switch which panel shows; deep links work like the 3D page:
+//   /#menu /#find /#contact, and /#order (#checkout, #sms-optin or the real paths) -> checkout form
+const tabs=[...document.querySelectorAll('nav [data-p]')];
+const show=id=>{document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('open',p.id===id));
+  tabs.forEach(b=>b.classList.toggle('on',b.dataset.p===id));};
+const go=()=>{const h=(location.hash.slice(1)||location.pathname.replace(/^\/+|\/+$/g,'')).toLowerCase();
+  show(['find','contact'].includes(h)?h:'menu');
+  if(['order','checkout','sms-optin'].includes(h)&&window.__menuReady)requestAnimationFrame(()=>document.getElementById('smsOptIn')?.scrollIntoView({block:'center'}));};
+tabs.forEach(b=>b.addEventListener('click',()=>{show(b.dataset.p);scrollTo({top:0});}));
+addEventListener('hashchange',go);go();
+// "Lite mode: on" -> off: remember it (scene.js reads eol-lite) and load the 3D page, which this
+// host serves at /3d. Its own lite chip brings you back here.
+document.querySelectorAll('[data-lite-off]').forEach(b=>b.addEventListener('click',()=>{
+  try{localStorage.setItem('eol-lite','0');}catch(err){}
+  location.href='/3d';}));
+try{await import('./js/shop.js?v=8');}   // renders the menu and wires the cart, checkout, status polling and contact form
+catch(err){document.getElementById('menuItems').innerHTML='<p class="muted">The menu could not load. Pull down to refresh, or come order at the window!</p>';}
+window.__menuReady=true;go();   // deep links (/order, /#checkout, /sms-optin) scroll only once the menu exists
 </script>
 </body>
 </html>

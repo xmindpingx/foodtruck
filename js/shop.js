@@ -5,7 +5,7 @@ export const hooks={goWindow:()=>{}};
 
 const getJ=u=>fetch(u).then(r=>r.ok?r.json():null).catch(()=>null);
 export const [CONFIG,MENU]=await Promise.all([getJ('/api/settings'),getJ('/api/menu')]).then(([s,m])=>[s||{},m||{categories:[],proteins:[]}]);
-import * as Account from './account.js?v=7';   // language chosen first at sign-up → localized order copy + stage events
+import * as Account from './account.js?v=8';   // language chosen first at sign-up → localized order copy + stage events
 export const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const money=n=>'$'+Number(n).toFixed(2);const soon = '<span class="muted">Coming soon</span>';
 // business rows: show the value, or hide the whole row when it is not set (no "Coming soon" placeholders on the public site)
@@ -125,7 +125,7 @@ document.getElementById('oform').onsubmit=async e=>{e.preventDefault();if(!cart.
     window.__poll=setInterval(async()=>{const s=await getJ('/api/order/'+j.id);if(!s)return;stage(s.status);
       const el=document.getElementById('ostat');if(el)el.innerHTML=(es?'Estado':'Status')+': <b>'+((ST[s.status]||['',''])[es?1:0]||s.status)+'</b>';if(['done','cancelled'].includes(s.status))clearInterval(window.__poll);},5000);
     document.getElementById('newOrder').onclick=()=>{clearInterval(window.__poll);d.style.display='none';d.innerHTML='';e.target.style.display='';
-      e.target.querySelector('[name=notes]').value='';document.getElementById('menu').scrollTo({top:0,behavior:'smooth'});
+      e.target.querySelector('[name=notes]').value='';{const mp=document.getElementById('menu');mp.scrollTo({top:0,behavior:'smooth'});mp.scrollIntoView({behavior:'smooth',block:'start'});}
       try{localStorage.removeItem('eol-last-order')}catch(err){}
       stage('none');};
   }catch(err){alert(err.message);}finally{btn.disabled=false;btn.textContent='Place Order';}};

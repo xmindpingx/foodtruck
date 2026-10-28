@@ -1,6 +1,6 @@
 // cards.js — 🃏 Card Games table on the lot. Multiple classic card games with themed animations.
-import {CONFIG} from './shop.js?v=7';
-import * as Account from './account.js?v=7';
+import {CONFIG} from './shop.js?v=8';
+import * as Account from './account.js?v=8';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 

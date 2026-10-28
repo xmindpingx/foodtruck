@@ -15,6 +15,7 @@ export let phone = '';          // '' = not signed in
 export let profile = null;      // last /api/account/who payload
 let pill, panel, shop = [];
 let LANG = 'en';                // last language picked on this browser (sign-up asks FIRST)
+try { if (localStorage.getItem(LANG_KEY) === 'es') LANG = 'es'; } catch (e) {}   // read at load so pages that never mount the pill (the lite page) still follow it
 
 const T = {
   en: {
@@ -145,7 +146,7 @@ const maskPhone = p => ('' + (p || '')).replace(/^.*(\d{4})$/, '••••$1')
 function paint() {
   if (!pill) return;
   const p = points();
-  pill.textContent = signed() ? '👤 ' + Math.round(p) + ' pts' : '👤 ' + (LANG === 'es' ? 'Ingresar / Crear cuenta' : 'Sign in / Sign up');
+  pill.textContent = signed() ? '👤 ' + Math.round(p) + ' pts · ⭐' + ((profile && profile.rep) || 0) : '👤 ' + (LANG === 'es' ? 'Ingresar / Crear cuenta' : 'Sign in / Sign up');
   pill.title = signed() ? (t().head + ' — ' + esc(name()) + ' (' + esc(maskPhone(phone)) + ')')
                         : t().info.replace(/<[^>]+>/g, '');
   if (panel && !panel.hidden) render();
@@ -191,20 +192,28 @@ function render() {
     const TROPH = {claw: '🦞', bbt: '🎯', tag: '🚩', c4: '🔴', ttt: '⭕', pin: '🪅', trivia: '🤖', hotdog: '🌭'};
     const trophy = Object.entries(wins).filter(([, n]) => n > 0)
       .map(([k, n]) => `<span class="eolAcctTroph">${TROPH[k] || '🏅'} ${esc(k)} ×${n}</span>`).join('');
+    const REPL = [0, 5, 15, 35, 70, 120], REPT = ['Newcomer', 'Regular', 'Local', 'Favorite', 'Celebrity', 'Legend'], rp = (profile && profile.rep) || 0;
+    const rl = REPL.reduce((l, t, i) => rp >= t ? i : l, 0);
+    const AV = window.Avatars || {}, blingAll = (AV.blingCatalog && AV.blingCatalog().items) || [], worn = (AV.wornBling && AV.wornBling()) || [];
+    const mine = blingAll.filter(b => pr.some(r => r.item === b.id));
+    const wear = mine.length ? mine.map(b => `<button class="eolAcctChip wear${worn.includes(b.id) ? ' on' : ''}" data-wear="${esc(b.id)}">${esc(b.label)}${worn.includes(b.id) ? ' ✓' : ''}</button>`).join('')
+      : `<div class="eolAcctEmpty">No bling yet — redeem collectibles with trivia points!</div>`;
     const coll = pr.length ? pr.map(r => `<div class="eolAcctChip"><span class="eolAcctMini">${esc((r.name || '').slice(0, 18))}</span>${r.count > 1 ? `<i>×${r.count}</i>` : ''}</div>`).join('')
       : `<div class="eolAcctEmpty">${esc(t().collEmpty)}</div>`;
-    const shopGrid = shop.length ? shop.map(e => {
+    const th = window.__EOL_THEME, rank = e => e.bling ? (e.theme === th ? 1 : 2) : 0;   // everyday items, then this season's collectibles, then the rest
+    const shopGrid = shop.length ? [...shop].sort((a, b) => rank(a) - rank(b)).map(e => {
       const can = points() >= e.cost;
       const owned = pr.find(r => r.item === e.item);
       return `<button class="eolAcctShop${can ? ' can' : ''}" ${can ? '' : 'disabled'} data-item="${esc(e.item)}">
         <b>${esc(e.label)}</b><span>🪙 ${e.cost}</span><i>${owned ? '×' + owned.count : ''}</i></button>`;
     }).join('') : '<div class="eolAcctEmpty">…</div>';
     panel.innerHTML = `
-      <div class="eolAcctHead"><b>👤 ${esc(name())}</b><span class="eolAcctPts">🪙 ${Math.round(points())} pts</span><button class="eolAcctX" aria-label="Close">✕</button></div>
+      <div class="eolAcctHead"><b>👤 ${esc(name())}</b><span class="eolAcctPts">🪙 ${Math.round(points())} pts</span><span class="eolAcctPts" title="The more Rep, the more the crowd comes over to say hi">⭐ ${rp} · ${REPT[rl]}</span><button class="eolAcctX" aria-label="Close">✕</button></div>
       <div class="eolAcctBody eolAcctScroll">
         ${langLinks()}
         <div class="eolAcctTrophies">${trophy || `<span class="eolAcctEmpty">—</span>`}</div>
         <div class="eolAcctCap">${esc(t().collCap)}</div><div class="eolAcctColl">${coll}</div>
+        <div class="eolAcctCap">✨ Wear on your avatar</div><div class="eolAcctColl">${wear}</div>
         <div class="eolAcctCap">${esc(t().shopCap)}</div><div class="eolAcctShopGrid">${shopGrid}</div>
         <button id="eolGiftBtn" class="eolAcctShop can" style="width:100%;margin-top:6px">🌱 Gift a Sprout to a visitor</button>
         <button id="eolAcctOut" class="eolAcctOut">${esc(t().out)}</button>
@@ -213,6 +222,7 @@ function render() {
     panel.querySelector('#eolAcctOut').onclick = () => { phone = ''; profile = null; try { localStorage.removeItem(KEY); localStorage.removeItem(QUEUE); } catch (e) {} paint(); announceUpdate(); };
     const gfBtn = panel.querySelector('#eolGiftBtn');
     if (gfBtn) gfBtn.onclick = () => { if (window.Avatars && window.Avatars.openGiftPanel) window.Avatars.openGiftPanel(); };
+    panel.querySelectorAll('[data-wear]').forEach(b => b.onclick = () => { if (AV.toggleBling) AV.toggleBling(b.dataset.wear); render(); });
     panel.querySelectorAll('.eolAcctShop.can').forEach(b => b.onclick = async () => {
       b.disabled = true;
       try { await redeem(b.dataset.item); } catch (e) { toast(e.message || 'Redeem failed.'); paint(); }

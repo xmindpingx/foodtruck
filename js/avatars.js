@@ -9,13 +9,14 @@
 // is an after-the-fact audit log, and Settings has an on/off switch if it's ever misused.
 import * as THREE from 'three';
 import {WX0, WX1, BW, FLOOR} from './truck.js';
-import {CONFIG} from './shop.js?v=7';
-import * as Account from './account.js?v=7';   // language picked at sign-up drives chips + docks
+import {CONFIG} from './shop.js?v=8';
+import * as Account from './account.js?v=8';   // language picked at sign-up drives chips + docks
+import * as People from './people.js?v=4';     // realistic shared-geometry bodies (painted faces, swinging limbs)
 
 const ID_KEY = 'eol-visitor-id', NAME_KEY = 'eol-visitor-name', PROFILE_KEY = 'eol-visitor-profile';
 const CAP_STYLES = ['', 'ball', 'cowboy', 'beret', 'cone', 'marge', 'bart', 'lisa', 'homer', 'duff', 'krusty', 'moes', 'flanders'];
 const FACE_STYLES = ['', 'smile', 'neutral', 'surprised', 'wink', 'grumpy'];
-const SKIN_TONES = [0xe8b98c, 0xd9a978, 0xc78f5e, 0xa8714a, 0x8a5a35, 0x6b4626];
+const SKIN_TONES = [0xd9a978, 0xc78f5e, 0xb07a4e, 0xa8714a, 0x8a5a35, 0x6b4626];
 let myId = localStorage.getItem(ID_KEY);
 if (!myId) {
   myId = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)) + Date.now().toString(36);
@@ -29,7 +30,8 @@ let myProfile = (() => {
     hue: Number.isFinite(+p.hue) ? Math.max(0, Math.min(359, +p.hue | 0)) : null,
     sk: Number.isFinite(+p.sk) ? Math.max(0, Math.min(5, +p.sk | 0)) : null,
     cap: CAP_STYLES.includes(p.cap) ? p.cap : '',
-    face: FACE_STYLES.includes(p.face) ? p.face : ''}; } catch (e) { return {hue: null, sk: null, cap: '', face: ''}; }
+    face: FACE_STYLES.includes(p.face) ? p.face : '',
+    bling: Array.isArray(p.bling) ? p.bling.filter(x => typeof x === 'string').slice(0, 6) : []}; } catch (e) { return {hue: null, sk: null, cap: '', face: '', bling: []}; }
 })();
 function saveProfile() {
   try { localStorage.setItem(PROFILE_KEY, JSON.stringify(myProfile)); } catch (e) {}
@@ -45,7 +47,10 @@ function reskinLive() {
   a.group.traverse(o => {
     if (!o.material || !o.userData || !o.userData.custom) return;
     if (o.userData.custom === 'shirt') o.material.color.setHSL(hue / 360, .55, .48);
-    else if (o.userData.custom === 'skin') o.material.color.setHex(SKIN_TONES[(myProfile.sk != null ? myProfile.sk : hue) % SKIN_TONES.length]);
+    else if (o.userData.custom === 'skin') {
+      const hex = SKIN_TONES[(myProfile.sk != null ? myProfile.sk : hue) % SKIN_TONES.length];
+      if (o.userData.skinFace != null) People.skinHead(o, hex); else o.material.color.setHex(hex);
+    }
     else if (o.userData.custom === 'cap') o.material.color.setHSL(hue / 360, .6, .3);
   });
 }
@@ -60,7 +65,56 @@ function rebuildSelf() {
 }
 
 const live = new Map();   // visitor id -> avatar state
-export function liveAvatars() { return [...live.entries()].map(([id, a]) => ({id, group: a.group, name: a.name})); }
+export function liveAvatars() { return [...live.entries()].map(([id, a]) => ({id, group: a.group, name: a.name, self: !!a.self})); }
+
+// ---------- ✨ bling + themed collectibles worn on the avatar (catalog /bling/catalog.json, art /bling/<id>.webp) ----------
+let BLING = {items: [], themes: {}}, BLING_BY = {}, npcLister = () => [];
+export const setNpcLister = f => { npcLister = f; };
+const BLING_SIZE = {hat: .62, collar: .36, chest: .42, shoulderL: .32, shoulderR: .32, shoeL: .28, shoeR: .28};
+const BLING_POS = {hat: [0, 1.86, .02], collar: [0, 1.4, .13], chest: [0, 1.2, .19], shoulderL: [-.26, 1.36, .12], shoulderR: [.26, 1.36, .12], shoeL: [-.09, .1, .17], shoeR: [.09, .1, .17]};
+const blingMats = new Map(), blingLoader = new THREE.TextureLoader();
+function blingMat(id) {
+  let m = blingMats.get(id);
+  if (!m) {
+    const t = blingLoader.load('/bling/' + id + '.webp'); t.colorSpace = THREE.SRGBColorSpace;
+    m = new THREE.SpriteMaterial({map: t, transparent: true, depthWrite: false, alphaTest: .02}); blingMats.set(id, m);
+  }
+  return m;
+}
+export function applyBling(group, ids) {
+  const body = group && group.children[0]; if (!body) return;
+  for (const sp of group.userData.bling || []) body.remove(sp);
+  group.userData.bling = [];
+  for (const id of ids || []) {
+    const it = BLING_BY[id]; if (!it || !BLING_POS[it.slot]) continue;
+    const sp = new THREE.Sprite(blingMat(id)), sz = (BLING_SIZE[it.slot] || .3) * (it.size || 1);
+    sp.position.set(...BLING_POS[it.slot]); sp.scale.set(sz, sz, 1); sp.userData.sz = sz;
+    body.add(sp); group.userData.bling.push(sp);
+  }
+}
+fetch('/bling/catalog.json').then(r => r.ok ? r.json() : null).then(j => {
+  if (!j) return; BLING = j; BLING_BY = Object.fromEntries((j.items || []).map(i => [i.id, i]));
+  for (const a of live.values()) applyBling(a.group, a.blingIds);
+  dispatchEvent(new Event('eol:bling-ready'));
+}).catch(() => {});
+export const blingCatalog = () => BLING;
+export const wornBling = () => (myProfile.bling || []).filter(id => BLING_BY[id]);
+export function toggleBling(id) {   // one piece per slot; saved in the profile so every browser sees it on your avatar
+  const it = BLING_BY[id]; if (!it) return false;
+  let cur = (myProfile.bling || []).filter(x => BLING_BY[x]);
+  if (cur.includes(id)) cur = cur.filter(x => x !== id);
+  else cur = [...cur.filter(x => BLING_BY[x].slot !== it.slot), id].slice(-6);
+  myProfile.bling = cur; saveProfile();
+  const me = live.get(myId); if (me) { me.blingIds = cur; applyBling(me.group, cur); }
+  dispatchEvent(new Event('eol:bling-changed'));
+  return cur.includes(id);
+}
+// a sprout that is only visual and fades on its own (crowd members sharing one)
+export function attachSprout(group, slot, ms = 120000) {
+  const body = group && group.children[0], pos = SPROUT_SLOTS[slot]; if (!body || !pos) return;
+  const m = buildSprout(slot); m.position.set(pos.x, pos.y, pos.z); body.add(m);
+  setTimeout(() => { body.remove(m); }, ms);
+}
 let S = null;
 let since = Date.now() / 1000;   // only show chat sent after this page load, not a replay of old messages
 const MAX_SHOWN = 14;             // cap render count - the lot should feel alive, not crowded
@@ -96,7 +150,8 @@ function renderGiftPanel(targetId) {
   if (!giftBody) return;
   const signed = Account.signed();
   const sprouts = (Account.profile && Account.profile.prizes || []).filter(p => p.item && p.item.startsWith('sprout-'));
-  const visitors = [...live.entries()].filter(([id]) => id !== myId).map(([id, a]) => ({id, name: a.name}));
+  const visitors = [...live.entries()].filter(([id]) => id !== myId).map(([id, a]) => ({id, name: a.name})).concat(npcLister());
+  if (targetId && String(targetId).startsWith('npc:') && !visitors.some(v => v.id === targetId)) visitors.push({id: targetId, name: 'Festival-goer'});
   if (!signed) {
     giftBody.innerHTML = '<p style="opacity:.7">Sign in at the 🎪 Midway first — sprouts live in your collection.</p>';
     return;
@@ -136,6 +191,18 @@ function renderGiftPanel(targetId) {
     const to = toSel ? toSel.value : '';
     if (!item || !to) { msg.textContent = 'Pick a sprout and a recipient.'; return; }
     msg.textContent = 'Gifting…';
+    if (to.startsWith('npc:')) {   // a festival-goer: they hug you, tell their friends, and a friend may bring one back (+Rep)
+      try {
+        const r = await fetch('/api/gift-npc', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({phone: Account.phone, item, slot})});
+        const j = await r.json();
+        if (!r.ok) { msg.textContent = j.error || 'Gift failed.'; return; }
+        msg.textContent = '🌱 ' + (j.gifted || item) + ' given — +3 Rep! Watch for a hug.';
+        dispatchEvent(new CustomEvent('eol:npc-gift', {detail: {npc: +to.slice(4), slot, cost: 0}}));
+        Account.refresh().then(() => renderGiftPanel(targetId)).catch(() => {});
+        setTimeout(() => { if (giftPanel) giftPanel.hidden = true; }, 1600);
+      } catch (e) { msg.textContent = 'Network hiccup — try again.'; }
+      return;
+    }
     try {
       const r = await fetch('/api/gift', {method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({fromPhone: Account.phone, toVisitor: to, item, slot})});
@@ -326,6 +393,8 @@ async function poll() {
     let a = live.get(o.id);
     if (!a) { a = spawn(o.id, o.hue, o.name, o.profile); live.set(o.id, a); }
     setStatus(a, o.status, o.name);
+    const bk = JSON.stringify((o.profile && o.profile.bling) || []);
+    if (bk !== JSON.stringify(a.blingIds || [])) { a.blingIds = (o.profile && o.profile.bling) || []; applyBling(a.group, a.blingIds); }
   }
   for (const [id, a] of live) { if (!seen.has(id) && id !== myId) { despawn(a); live.delete(id); } }
 
@@ -367,32 +436,16 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
 }
 
-function makeBody(hue, prof = {}) {
-  const g = new THREE.Group();
+// The cartoon hats/hair below were authored for a 1.06 m body with the head centre at y .92; ACC_S maps them onto
+// the 1.72 m person (head centre y 1.6) so every existing cap style, recolour and sprout keeps working.
+const ACC_S = .86;
+export function makeBody(hue, prof = {}) {
   const skIdx = prof.sk != null ? (+prof.sk % SKIN_TONES.length) : hue % SKIN_TONES.length;
-  const skin = new THREE.MeshStandardMaterial({color: SKIN_TONES[skIdx], roughness: .8});
-  const shirt = new THREE.MeshStandardMaterial({color: new THREE.Color().setHSL((prof.hue ?? hue) / 360, .55, .48), roughness: .75});
+  const root = People.buildAvatar(hue, {...prof, skinHex: SKIN_TONES[skIdx], face: prof.face === 'neutral' ? '' : prof.face}, -FLOOR);   // feet on the lawn
+  const body = root.children[0];
   const cap = new THREE.MeshStandardMaterial({color: new THREE.Color().setHSL((prof.hue ?? hue) / 360, .6, .3), roughness: .7});
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(.17, .5, 4, 8), shirt);
-  body.position.y = .5; body.castShadow = true; body.userData.custom = 'shirt'; g.add(body);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(.14, 16, 12), skin);
-  head.position.y = .92; head.castShadow = true; head.userData.custom = 'skin'; g.add(head);
-  // arms + legs (swinging groups)
-  const arms = [], legs = [];
-  for (const sx of [-1, 1]) {
-    const arm = new THREE.Group(); arm.position.set(sx * .22, .62, 0);
-    const ua = new THREE.Mesh(new THREE.CapsuleGeometry(.05, .34, 6, 10), shirt);
-    ua.position.y = -.17; ua.rotation.z = sx * .15; arm.add(ua);
-    g.add(arm); arms.push(arm);
-  }
-  for (const sx of [-1, 1]) {
-    const leg = new THREE.Group(); leg.position.set(sx * .08, .28, 0);
-    const la = new THREE.Mesh(new THREE.CapsuleGeometry(.06, .3, 6, 10), shirt);
-    la.position.y = -.15; leg.add(la);
-    g.add(leg); legs.push(leg);
-  }
-  g.userData.arms = arms; g.userData.legs = legs;
-  const style = prof.cap || 'ball';
+  const g = new THREE.Group(); g.scale.setScalar(ACC_S); g.position.y = 1.6 - .92 * ACC_S; body.add(g);   // g = cartoon accessories
+  const style = prof.cap || '';
   const hatY = 1.12;
   if (style === 'ball') {
     const hat = new THREE.Mesh(new THREE.ConeGeometry(.15, .12, 16), cap);
@@ -468,25 +521,6 @@ function makeBody(hue, prof = {}) {
     const hat = new THREE.Mesh(new THREE.ConeGeometry(.12, .1, 12), new THREE.MeshStandardMaterial({color: 0x2a6b35}));
     hat.position.y = hatY + .05; hat.userData.custom = 'cap'; g.add(hat);
   }
-  // face: eyes + mouth (customizable expression)
-  const face = prof.face || '';
-  const eyeM = new THREE.MeshStandardMaterial({color: 0x1a1a1a, roughness: .4});
-  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(.025, 8, 6), eyeM);
-  eyeL.position.set(-.05, .94, .12); eyeL.userData.custom = 'face'; g.add(eyeL);
-  const eyeR = new THREE.Mesh(new THREE.SphereGeometry(.025, 8, 6), eyeM);
-  eyeR.position.set(.05, .94, .12); eyeR.userData.custom = 'face'; g.add(eyeR);
-  const mouthM = new THREE.MeshStandardMaterial({color: 0xb05050, roughness: .5});
-  let mouth;
-  if (face === 'smile') mouth = new THREE.Mesh(new THREE.TorusGeometry(.04, .012, 6, 12, Math.PI), mouthM);
-  else if (face === 'grumpy') mouth = new THREE.Mesh(new THREE.TorusGeometry(.04, .012, 6, 12, Math.PI), mouthM);
-  else if (face === 'surprised') mouth = new THREE.Mesh(new THREE.SphereGeometry(.025, 8, 6), mouthM);
-  else if (face === 'wink') mouth = new THREE.Mesh(new THREE.TorusGeometry(.04, .012, 6, 12, Math.PI), mouthM);
-  else mouth = new THREE.Mesh(new THREE.BoxGeometry(.06, .012, .01), mouthM);
-  mouth.position.set(0, .88, .12);
-  if (face === 'grumpy') mouth.rotation.z = Math.PI;
-  if (face === 'wink') { eyeR.scale.set(1, .3, 1); }
-  if (face === 'surprised') { eyeL.scale.set(1.3, 1.3, 1.3); eyeR.scale.set(1.3, 1.3, 1.3); }
-  mouth.userData.custom = 'face'; g.add(mouth);
   // 🌱 render any sprouts clipped to this avatar (gifted by other visitors)
   const sprouts = (prof && Array.isArray(prof.sprouts)) ? prof.sprouts : [];
   for (const sp of sprouts) {
@@ -497,9 +531,9 @@ function makeBody(hue, prof = {}) {
     sproutMesh.position.set(pos.x, pos.y, pos.z);
     sproutMesh.userData.sprout = sp.item;
     sproutMesh.userData.sproutFrom = sp.from;
-    g.add(sproutMesh);
+    body.add(sproutMesh);
   }
-  return g;
+  return root;
 }
 
 // 🌱 highly detailed festival sprout meshes, one per attachment slot on an avatar.
@@ -536,13 +570,13 @@ function buildSprout(slot) {
 
 // attachment point offsets in avatar local space
 const SPROUT_SLOTS = {
-  hat:       {x: 0,    y: 1.05, z: 0},
-  collar:    {x: 0,    y: 0.75, z: 0.12},
-  chest:     {x: 0,    y: 0.5,  z: 0.18},
-  shoulderL: {x: -0.2, y: 0.6,  z: 0},
-  shoulderR: {x: 0.2,  y: 0.6,  z: 0},
-  shoeL:     {x: -0.1, y: 0.02, z: 0.05},
-  shoeR:     {x: 0.1,  y: 0.02, z: 0.05},
+  hat:       {x: 0,     y: 1.8,  z: 0},
+  collar:    {x: 0,     y: 1.46, z: 0.1},
+  chest:     {x: 0,     y: 1.2,  z: 0.17},
+  shoulderL: {x: -0.23, y: 1.4,  z: 0},
+  shoulderR: {x: 0.23,  y: 1.4,  z: 0},
+  shoeL:     {x: -0.088, y: 0.05, z: 0.09},
+  shoeR:     {x: 0.088,  y: 0.05, z: 0.09},
 };
 
 // one text->sprite helper, reused for both the nameplate (small, always on) and the chat/order
@@ -599,9 +633,9 @@ function spawn(id, hue, name, prof) {
   const bubbleAnchor = new THREE.Group(); bubbleAnchor.position.y = 1.55; group.add(bubbleAnchor);
   const glow = new THREE.PointLight(new THREE.Color().setHSL(hue / 360, .8, .6), 0, 2.4, 2);
   glow.position.y = .6; group.add(glow);
-  S.add(group);
+  S.add(group); applyBling(group, (prof && prof.bling) || []);
   return {id, group, nameSpr, bubbleAnchor, bubble: null, bubbleUntil: 0, glow, name,
-    target: randSpot(), wait: 1 + Math.random() * 3, status: 'browsing', phase: Math.random() * 10};
+    target: randSpot(), wait: 1 + Math.random() * 3, status: 'browsing', phase: Math.random() * 10, blingIds: (prof && prof.bling) || []};
 }
 
 function despawn(a) { S.remove(a.group); }
@@ -635,6 +669,7 @@ export function tick(t, dt) {
   const now = performance.now();
   for (const a of live.values()) {
     const g = a.group;
+    if (g.userData.bling) for (let i = 0; i < g.userData.bling.length; i++) { const sp = g.userData.bling[i], k = sp.userData.sz * (1 + Math.sin(t * 3 + i * 1.7) * .07); sp.scale.set(k, k, 1); }
     const d = a.target.clone().sub(g.position); d.y = 0;
     const dist = d.length();
     const moving = dist > 0.08;
@@ -838,4 +873,4 @@ function buildDock() {
 }
 
 // expose for cross-module use (account.js gift button, scene.js avatar clicks)
-window.Avatars = { openGiftPanel, liveAvatars };
+window.Avatars = { openGiftPanel, liveAvatars, toggleBling, wornBling, blingCatalog, applyBling, attachSprout, setNpcLister };

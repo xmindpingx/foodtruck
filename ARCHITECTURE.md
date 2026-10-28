@@ -14,6 +14,13 @@ js/truck.js      three.js geometry only: 1990 GMC step van, painted canvas textu
 js/scene.js      Renderer, camera (portrait-aware fitDist), sky dome, Arizona sun + shadows,
                  asphalt lot, trees, raycast clicks on the board/worker/sign → open('menu'),
                  "Walk Around" auto-rotate, animation loop. Entry point (<script type=module>).
+mobile.html      Lite phone ordering page (no three.js); served at / on the m. host (MOBILE_HOSTS) and at /mobile. css/mobile.css.
+js/people.js     Shared-geometry people: crowdPerson() (2 draw calls), buildAvatar() (swinging limbs, elbows/knees), kids, swimwear.
+js/life.js       Ambient crowd life + greetings/2-way sprout chain. js/stuff.js litter/lost items (LOD). js/quests.js vendors+quests.
+js/themes.js     Steampunk + holiday themes by date. js/themefx.js re-skins everything except the truck; lamps/gears/confetti.
+js/waterpark.js  West-side water park (per-section culling; closed placeholder). js/rep.js Rep score.
+bling/           ComfyUI collectible sprites + catalog.json (shared by server.py shop and avatars.js).
+ROADMAP.md       Features still needed + known bugs (read this first when continuing).
 admin.html       Admin SPA (Orders / Menu / Settings tabs). Bearer token from /api/admin/login.
 menu.json        Seed menu (copied to data/menu.json on first run).
 data/            RUNTIME, not in git: menu.json settings.json orders.json admin.json.
