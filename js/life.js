@@ -307,6 +307,16 @@ export function init(o) {
     const [wx, wz] = detour(a, tx, tz), dx = wx - a.x, dz = wz - a.z, d = Math.hypot(dx, dz);
     a.moving = d > .05;
     if (a.moving) { const st = Math.min(d, spd * dt); a.x += dx / d * st; a.z += dz / d * st; pushOut(a); a.yaw = lerpYaw(a.yaw, Math.atan2(dx, dz), dt * 8); a.gait += st * (a.kid ? 5.2 : 4.2); }
+    // actor-actor: if bumping into another actor, interact instead of clipping
+    for (const o of actors) {
+      if (o === a || !o.root || !o.root.visible) continue;
+      const dd = Math.hypot(o.x - a.x, o.z - a.z);
+      if (dd < 0.7 && dd > 1e-4) {
+        a.moving = false; a.anim = 'chat'; a.idle = true; a._stuck = 0;
+        a.yaw = Math.atan2(o.x - a.x, o.z - a.z);
+        return true;
+      }
+    }
     const distToTarget = Math.hypot(tx - a.x, tz - a.z);
     const key = tx.toFixed(1) + ',' + tz.toFixed(1);
     if (a._lastTarget === key) {
