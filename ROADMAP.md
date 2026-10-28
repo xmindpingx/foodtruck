@@ -52,5 +52,5 @@ Restart needed after pulling: `pm2 restart foodtruck-site`.
 - Quest log history, daily streaks, leaderboards for Rep; admin editor for quests/vendors/pun text.
 - Water park: collision, swim animation for the player, working slide ride, sounds.
 - Sounds: splash, trash, hug, flash-sale bell.
-- Admin: theme override (force a holiday for everyone), clutter amount, actor count.
+- Admin: theme override (force a holiday for everyone). Done in this round: clutter amount + actor count + interaction rate (`crowdAmount`/`actorsAmount`/`interactAmount`/`clutterAmount` in Settings → Games).
 - Tests: headless render test for each theme; unit tests for `themes.autoTheme` across a year.

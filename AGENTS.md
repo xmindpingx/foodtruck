@@ -101,7 +101,9 @@ ROADMAP.md       Known bugs + needed features. .claude/launch.json: a local prev
   add a control in admin.html (`<input data-s="key">` or `<input type="checkbox" data-s="key">`).
 - Switches added recently (all in the admin Games card): `waterparkOn` (false → "closed for repairs" sign),
   `waterparkClosedMsg` (custom sign line), `ambientLifeOn` (crowd life + litter + quests off when false),
-  `questsOn`. Older: `midwayOn`, `hotdogOn`, `triviaBotOn`, `gamePacmanOn`, `gameUnoOn`, `gameChessOn`, `geocacheOn`.
+  `questsOn`, plus bounded multipliers `crowdAmount` (static dressing), `actorsAmount` (ambient AI cast),
+  `interactAmount` (greeting rate), `clutterAmount` (litter spawns) — all clamped 0–3 server-side.
+  Older: `midwayOn`, `hotdogOn`, `triviaBotOn`, `gamePacmanOn`, `gameUnoOn`, `gameChessOn`, `geocacheOn`.
 - Env vars: `PORT`, `FOODTRUCK_DATA` (data dir; tests point it at a temp dir), `FOODTRUCK_NO_PREWARM=1`
   (skip the startup thumbnail pass), `FOODTRUCK_MOBILE_HOSTS` (comma list of Host headers that get the lite
   page at `/`; default `mfood.signaturediversified.com`). SMS/Twilio/NotifyHub vars exist too — do not touch.

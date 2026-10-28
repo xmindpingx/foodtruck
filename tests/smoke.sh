@@ -119,6 +119,12 @@ PY
 
 echo "== public settings must not leak internal config"
 curl -s "http://127.0.0.1:$PORT/api/settings" | grep -qE 'ollama|comfy|imageService' && bad "/api/settings leaks internal keys" || ok "/api/settings is clean"
+# crowd knobs must be public so scene.js can size the lot without an admin call
+curl -s "http://127.0.0.1:$PORT/api/settings" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+ok = all(isinstance(d.get(k), (int, float)) and 0 <= d[k] <= 3 for k in ('crowdAmount', 'actorsAmount', 'interactAmount', 'clutterAmount'))
+sys.exit(0 if ok else 1)" && ok "crowd knobs are public numbers" || bad "crowd knobs missing/non-numeric in /api/settings"
 
 echo "== order + cart math (whole cents, half-up tax)"
 python3 - "$PORT" <<'PY' && ok "order total matches independent cents math" || bad "order total mismatch"

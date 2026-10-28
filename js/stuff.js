@@ -43,6 +43,8 @@ const K = {
 
 export function init(o) {
   const {S, cam, rig, truckBox, player, canvas, lite, phone: isPhone, rep, getLife} = o, small = lite || isPhone;
+  const num = (v, d) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
+  const CL = Math.max(0, Math.min(3, num(o.clutterMult, 1)));   // 🥤 clutter multiplier (Admin → crowd settings)
   const NEAR = small ? 9 : 16, MID = small ? 20 : 38, CAP = 260;
   const mat = new THREE.MeshStandardMaterial({vertexColors: true, roughness: .75, metalness: .03});
   const kinds = Object.keys(K), pools = {};
@@ -61,7 +63,7 @@ export function init(o) {
   function add(k, x, z, owner, id) { const it = {id: id || uid++, k, x, z, ry: rnd(0, 6.28), ts: Date.now(), owner: owner || null, gone: false}; items.push(it); return it; }
   const ownerName = () => { const L = getLife && getLife(); const a = L && L.actors.filter(q => !q.staff && !q.kid).sort(() => Math.random() - .5)[0]; return a ? a.name : null; };
   function populate() {
-    const nTrash = small ? 34 : 80, nDecor = small ? 14 : 34;
+    const nTrash = Math.round((small ? 34 : 80) * CL), nDecor = Math.round((small ? 14 : 34) * CL);
     for (let i = 0; i < nTrash + nDecor; i++) { const k = pick(weights); if (K[k].t === 'lost') continue; const p = spot(); add(k, p.x, p.z); }
     topUpLost();
   }
@@ -160,7 +162,7 @@ export function init(o) {
     spawnLost(kind, x, z, owner) { return add(K[kind] ? kind : 'teddy', x, z, owner); },
     tick(t, dt) {
       acc += dt; if (acc > .35) { acc = 0; lod(); deliver(); }
-      dropT -= dt; if (dropT <= 0) { dropT = rnd(14, 30); const p = spot(); add(pick(weights.filter(k => K[k].t === 'trash')), p.x, p.z); if (items.filter(i => !i.gone && K[i.k].t === 'trash').length > (small ? 60 : 130)) { const old = items.find(i => !i.gone && K[i.k].t === 'trash'); if (old) old.gone = true; } }
+      dropT -= dt; if (CL > 0 && dropT <= 0) { dropT = rnd(14, 30) / CL; const p = spot(); add(pick(weights.filter(k => K[k].t === 'trash')), p.x, p.z); if (items.filter(i => !i.gone && K[i.k].t === 'trash').length > (small ? 60 : 130)) { const old = items.find(i => !i.gone && K[i.k].t === 'trash'); if (old) old.gone = true; } }
       if ((nextSave -= dt) <= 0) { nextSave = 20; save(); }
     },
     items, carrying: () => carry, crate: () => crate,

@@ -324,6 +324,10 @@ DEFAULT_SETTINGS = {
     "waterparkClosedMsg": "",    # custom "closed" sign line (blank = rotating puns)
     "ambientLifeOn": True,       # 🚶 crowd members who eat, queue, play and wander (off = static crowd only)
     "questsOn": True,            # ❗ pun quests / flash sales / flash dances
+    "crowdAmount": 1.0,          # 🎪 static scene-crowd multiplier (0 = empty lot, 1 = default, 2 = double)
+    "actorsAmount": 1.0,         # 🚶 ambient AI cast multiplier — walkers/eaters/players (0 = none)
+    "interactAmount": 1.0,       # 👋 how often the AI greets/interacts with the player (0 = never)
+    "clutterAmount": 1.0,        # 🥤 litter + clutter spawn multiplier (0 = nothing new drops)
     "triviaBotOn": True,
     # --- 3D scene: truck position, set by dragging it in layout mode (see scene.js) ---
     "truckOffsetX": 0.0,
@@ -399,6 +403,7 @@ PUBLIC_SETTINGS = ('businessName', 'tagline', 'brandLogo', 'copyrightLine', 'pho
                    'midwayOn', 'gameClawOn', 'gameBbtOn', 'gameTagOn', 'gameC4On', 'gameTttOn', 'gamePinOn',
                    'gamePacmanOn', 'gameUnoOn', 'gameChessOn',
                    'hotdogOn', 'triviaBotOn', 'waterparkOn', 'waterparkClosedMsg', 'ambientLifeOn', 'questsOn',
+                   'crowdAmount', 'actorsAmount', 'interactAmount', 'clutterAmount',
                    # jukebox (public: catalog + on/off) + geocaching switch + saved #layout defaults for the lot props
                    'jukeboxOn', 'jukeboxSongs', 'geocacheOn', 'layoutProps')
 
@@ -3683,6 +3688,10 @@ class H(SimpleHTTPRequestHandler):
             for k in DEFAULT_SETTINGS:
                 if k in data: s[k] = data[k]
             s['taxRate'] = float(s['taxRate']); s['orderingOpen'] = bool(s['orderingOpen']); s['imageGenEnabled'] = bool(s['imageGenEnabled'])
+            # 🎪 crowd knobs: bounded multipliers so a typo can't flood (or empty) the lot
+            for _ck in ('crowdAmount', 'actorsAmount', 'interactAmount', 'clutterAmount'):
+                try: s[_ck] = round(min(3, max(0, float(s.get(_ck, DEFAULT_SETTINGS[_ck])))), 2)
+                except (TypeError, ValueError): s[_ck] = DEFAULT_SETTINGS[_ck]
             # 🎵 jukebox catalog rows + #layout's saved prop layout get the same care as the rest:
             # known-shape fields only, bounded, nothing executable ever lands in settings.json
             if not isinstance(s.get('jukeboxSongs'), list): s['jukeboxSongs'] = []

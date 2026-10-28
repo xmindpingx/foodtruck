@@ -18,6 +18,9 @@ const lerpYaw = (a, b, k) => { let d = ((b - a + Math.PI) % (Math.PI * 2) + Math
 
 export function init(o) {
   const {S, cam, rig, tables, eaters, win, stage, truckBox, props, player, liveList, attachSprout, lite, phone: isPhone, canvas} = o;
+  const num = (v, d) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
+  const CM = Math.max(0, Math.min(3, num(o.castMult, 1)));      // 🎪 ambient cast multiplier (Admin → crowd settings)
+  const IM = Math.max(0, Math.min(3, num(o.interactMult, 1)));  // 👋 player-greeting frequency multiplier
   const repLv = () => Math.max(0, Math.min(5, o.repLevel ? o.repLevel() : 0));
   const RANGE = (lite || isPhone) ? 22 : 48;
   const actors = [], units = [], taken = new Map(), pops = [];
@@ -83,11 +86,12 @@ export function init(o) {
     for (let i = 0; i < n; i++) u.members.push(makeActor(hasKid && i === n - 1, u));
     units.push(u); return u;
   }
-  const solos = lite || isPhone ? 2 : 5;
+  const U = n => Math.round(n * CM);   // scale the ambient cast; 0 = none of that unit kind
+  const solos = U(lite || isPhone ? 2 : 5);
   for (let i = 0; i < solos; i++) makeUnit('solo', 1, false);
-  makeUnit('solo', 1, true); if (!(lite || isPhone)) makeUnit('solo', 1, true);
-  makeUnit('couple', 2, false); if (!(lite || isPhone)) { makeUnit('couple', 2, false); makeUnit('trio', 3, false); }
-  makeUnit('family', 2, true);
+  if (U(1)) makeUnit('solo', 1, true); if (!(lite || isPhone) && U(1)) makeUnit('solo', 1, true);
+  if (U(1)) makeUnit('couple', 2, false); if (!(lite || isPhone)) { if (U(1)) makeUnit('couple', 2, false); if (U(1)) makeUnit('trio', 3, false); }
+  if (U(1)) makeUnit('family', 2, true);
   // spread the opening scene: some already seated mid-meal, some at the show
 
 
@@ -383,7 +387,7 @@ export function init(o) {
       const q = pops[i]; q.life -= dt; q.sp.position.y += dt * .5; q.sp.material.opacity = Math.min(1, q.life * 1.5); q.sp.scale.setScalar(.5 + (1.8 - q.life) * .12);
       if (q.life <= 0) { q.obj.remove(q.sp); q.sp.material.dispose(); pops.splice(i, 1); }
     }
-    nextAct -= dt; if (nextAct <= 0) { const lv = repLv(); nextAct = rnd(9, 18) / (1 + lv * .5); for (let k = 0; k < 1 + (lv >= 3) + (lv >= 5); k++) interact(); }
+    nextAct -= dt; if (IM > 0 && nextAct <= 0) { const lv = repLv(); nextAct = rnd(9, 18) / (1 + lv * .5) / IM; for (let k = 0; k < Math.ceil((1 + (lv >= 3) + (lv >= 5)) * IM); k++) interact(); }
     nextMosh -= dt; if (nextMosh <= 0) { nextMosh = rnd(90, 180); moshPit(8 + rnd(-4,4), -62 + rnd(-3,3), 8, 10); }
     // units whose interaction plan finished return to normal life (handled by the empty-plan replan above)
   }

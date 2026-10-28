@@ -8,10 +8,10 @@ import * as Avatars from './avatars.js?v=13';
 import * as People from './people.js?v=4';
 import * as Themes from './themes.js?v=1';   // steampunk by default, a theme per big holiday around its date
 import * as FX from './themefx.js?v=1';       // re-skins everything but the truck + gears/lamps/airships or lights/bunting/confetti
-import * as Life from './life.js?v=15';        // ambient crowd life: eat, queue, play, wander, greet the player
+import * as Life from './life.js?v=16';        // ambient crowd life: eat, queue, play, wander, greet the player
 import * as Waterpark from './waterpark.js?v=1';
 import * as Rep from './rep.js?v=1';
-import * as Stuff from './stuff.js?v=2';
+import * as Stuff from './stuff.js?v=3';
 import * as Quests from './quests.js?v=3';   // pun vendors, flash sales/dances, quests that earn Rep   // litter, lost items and micro-clutter, LOD'd by distance
 import * as Account from './account.js?v=8';   // phone-number arcade profiles (language-first sign-up)
 import * as Arcade from './arcade.js?v=24';    // 🎪 The Midway props + six minigames + HIGH SCORES board + Pac-Man cabinet
@@ -938,10 +938,13 @@ function tickPuff(p,dt){
 }
 // crowd: a wide pit band across the full stage deck width plus a flank pack at either end.
 // Everyone faces the stage; the pipe smokers get their puffs from spawnCrowd().
-for(let i=0;i<3;i++) spawnCrowd(-28+Math.random()*72, -4+Math.random()*24, 1);
-for(let i=0;i<60;i++) spawnCrowd(-8+Math.random()*32, -61.5+Math.random()*8, 1, true);    // pit at the stage front
-for(let i=0;i<12;i++) spawnCrowd(-14.5+Math.random()*5, -61+Math.random()*7, 1, true);     // west flank
-for(let i=0;i<12;i++) spawnCrowd(26.5+Math.random()*5, -61+Math.random()*7, 1, true);      // east flank
+// Admin → Settings → Games sets crowdAmount (0 = empty lot, 1 = default, 2 = double).
+const _ca=Number(CONFIG.crowdAmount); const CROWD_MULT=Number.isFinite(_ca)?Math.max(0,Math.min(3,_ca)):1;
+const cn=n=>Math.round(n*CROWD_MULT);
+for(let i=0;i<cn(3);i++) spawnCrowd(-28+Math.random()*72, -4+Math.random()*24, 1);
+for(let i=0;i<cn(60);i++) spawnCrowd(-8+Math.random()*32, -61.5+Math.random()*8, 1, true);    // pit at the stage front
+for(let i=0;i<cn(12);i++) spawnCrowd(-14.5+Math.random()*5, -61+Math.random()*7, 1, true);     // west flank
+for(let i=0;i<cn(12);i++) spawnCrowd(26.5+Math.random()*5, -61+Math.random()*7, 1, true);      // east flank
 // ---------- vendor booths: little canopy stalls with punny signs, scattered in the same two
 // ground areas as the crowd. Fictional stall names for scene flavor, not real businesses.
 const BOOTH_NAMES=['Lettuce Turnip the Beet','Thai Tanic','Nacho Average Churro','Kiln It',
@@ -1298,13 +1301,13 @@ window.__EOL_FX=fx;
 const wp=Waterpark.init(S,{open:CONFIG.waterparkOn!==false,message:CONFIG.waterparkClosedMsg||'',lite:LITE_MODE,phone:IS_PHONE,cam});
 // 🚶 ambient crowd life + the two-way interactions with the player (Admin → Settings → Games can switch it off)
 let life=null,quests=null;
-const stuff=CONFIG.ambientLifeOn!==false?Stuff.init({S,cam,rig:truckRig,truckBox:{x0:TRUCK_CX-BL/2-.3,x1:TRUCK_CX+BL/2+.3,z0:-BW/2-.3,z1:BW/2+.3},crate:{x:WX1+1.4,z:BW/2+1.8},
+const stuff=CONFIG.ambientLifeOn!==false?Stuff.init({S,cam,rig:truckRig,truckBox:{x0:TRUCK_CX-BL/2-.3,x1:TRUCK_CX+BL/2+.3,z0:-BW/2-.3,z1:BW/2+.3},crate:{x:WX1+1.4,z:BW/2+1.8},clutterMult:CONFIG.clutterAmount,
   player:()=>{if(walk.on&&walk.grp)return {obj:walk.grp,x:walk.x,z:walk.z};
     const me=Avatars.liveAvatars().find(v=>v.self);if(me&&me.group){me.group.getWorldPosition(_wv);return {obj:me.group,x:_wv.x,z:_wv.z};}return null;},
   canvas,lite:LITE_MODE,phone:IS_PHONE,rep:Rep,getLife:()=>life}):null;
 window.__EOL_STUFF=stuff;
 if(CONFIG.ambientLifeOn!==false){
-  life=Life.init({S,cam,rig:truckRig,tables:TABLE_HIT,eaters,win:{x1:WX1,z:BW/2},
+  life=Life.init({S,cam,rig:truckRig,tables:TABLE_HIT,eaters,win:{x1:WX1,z:BW/2},castMult:CONFIG.actorsAmount,interactMult:CONFIG.interactAmount,
     truckBox:{x0:TRUCK_CX-BL/2-.3,x1:TRUCK_CX+BL/2+.3,z0:-BW/2-.3,z1:BW/2+.3},
     props:()=>['claw','bbt','tag','pin','c4','ttt'].map(id=>Arcade.prop(id)),
     vendors:()=> (typeof quests!=='undefined' && quests) ? (quests.vendors||[]) : [],
