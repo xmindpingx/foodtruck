@@ -2,7 +2,7 @@
 """El Otro Lado site server: static files + menu/settings/order API + admin API.
 Run: python3 server.py  (listens on 127.0.0.1:8095; Cloudflare tunnel fronts it)
 """
-import json, os, secrets, hashlib, hmac, time, threading, re, base64, zipfile, io, shutil
+import random, json, os, secrets, hashlib, hmac, time, threading, re, base64, zipfile, io, shutil, subprocess
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, urlencode
 import urllib.request, urllib.error
@@ -10,6 +10,9 @@ import urllib.request, urllib.error
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA = os.environ.get('FOODTRUCK_DATA') or os.path.join(ROOT, 'data')   # tests point this at a temp dir
 MEDIA = os.path.join(ROOT, 'media')   # admin-uploaded truck boombox music / TV monitor video (static, served publicly)
+MOBILE_HOSTS = tuple(h.strip().lower() for h in os.environ.get('FOODTRUCK_MOBILE_HOSTS', 'mfood.signaturediversified.com').split(',') if h.strip())
+MAGICK = shutil.which('magick') or shutil.which('convert')   # ImageMagick 7/6 for the photo downsizer; optional (without it photos are served as uploaded)
+THUMB_PX = 192   # menu photos show at 56 css px; 192 stays sharp on 3x phone screens
 PORT = int(os.environ.get('PORT', 8095))
 LOCK = threading.Lock()
 SESSIONS = {}            # token -> expiry
@@ -25,6 +28,7 @@ PRESENCE_LOCK = threading.Lock()
 PRESENCE_TTL = 20         # seconds of no heartbeat before a visitor is considered gone
 ORDER_GLOW_TTL = 25       # seconds an avatar shows its "just ordered" state
 CAPS = ('', 'ball', 'cowboy', 'beret', 'cone')   # whitelisted avatar hat styles
+FACES = ('', 'smile', 'neutral', 'surprised', 'wink', 'grumpy')   # whitelisted avatar face expressions
 
 # ---------- inbound SMS (Twilio webhook) ----------
 # Public URL Twilio is configured to POST to (must match the Messaging Service's
@@ -316,6 +320,10 @@ DEFAULT_SETTINGS = {
 "gameUnoOn": True,         # 🃏 the UNO card table on the lot
 "gameChessOn": True,        # ♟️ the crystal chess table on the lot
     "hotdogOn": True,
+    "waterparkOn": True,         # 🌊 Sir Splash-a-Lot Water Park on the west side (off = "closed for repairs" placeholder)
+    "waterparkClosedMsg": "",    # custom "closed" sign line (blank = rotating puns)
+    "ambientLifeOn": True,       # 🚶 crowd members who eat, queue, play and wander (off = static crowd only)
+    "questsOn": True,            # ❗ pun quests / flash sales / flash dances
     "triviaBotOn": True,
     # --- 3D scene: truck position, set by dragging it in layout mode (see scene.js) ---
     "truckOffsetX": 0.0,
@@ -390,7 +398,7 @@ PUBLIC_SETTINGS = ('businessName', 'tagline', 'brandLogo', 'copyrightLine', 'pho
                    # games on/off switches — the 3D lot, the contest and the chat trivia gate on these
                    'midwayOn', 'gameClawOn', 'gameBbtOn', 'gameTagOn', 'gameC4On', 'gameTttOn', 'gamePinOn',
                    'gamePacmanOn', 'gameUnoOn', 'gameChessOn',
-                   'hotdogOn', 'triviaBotOn',
+                   'hotdogOn', 'triviaBotOn', 'waterparkOn', 'waterparkClosedMsg', 'ambientLifeOn', 'questsOn',
                    # jukebox (public: catalog + on/off) + geocaching switch + saved #layout defaults for the lot props
                    'jukeboxOn', 'jukeboxSongs', 'geocacheOn', 'layoutProps')
 
@@ -486,6 +494,90 @@ def ollama_keep_alive(s):
         pass
     return 0   # not loaded by anyone else -> unload right after so ComfyUI gets the GPU
 
+# ---------- photo downsizing (ImageMagick, optional) ----------
+# The generator writes 768px PNGs (~800KB each) and the ordering panel shows them at 56px, so a
+# phone used to pull ~10MB of photos for one menu. Each photo gets a square JPEG thumbnail next
+# to it (<stem>.t192.jpg) and the public /api/menu points at that. Originals stay for admin.
+def thumb_path(src): return os.path.splitext(src)[0] + f'.t{THUMB_PX}.jpg'
+def is_thumb(name): return name.endswith(f'.t{THUMB_PX}.jpg')
+
+_CODERS = {'.png': 'png', '.jpg': 'jpeg', '.jpeg': 'jpeg', '.webp': 'webp'}
+_MAGIC = {'png': lambda h: h[:8] == b'\x89PNG\r\n\x1a\n', 'jpeg': lambda h: h[:3] == b'\xff\xd8\xff', 'webp': lambda h: h[:4] == b'RIFF' and h[8:12] == b'WEBP'}
+THUMB_STATE = {'failed': {}, 'busy': set()}   # src -> mtime of a failed conversion (tried once, not per request); photos being converted now
+THUMB_LOCK = threading.Lock()
+
+def _coder(path):
+    """ImageMagick decoder for this file, from its extension AND its magic bytes (never let IM sniff SVG/PS/MVG)."""
+    c = _CODERS.get(os.path.splitext(path)[1].lower())
+    try:
+        with open(path, 'rb') as f: head = f.read(16)
+    except OSError: return None
+    return c if c and _MAGIC[c](head) else None
+
+def _magick(src, ops, out):
+    """Convert src -> out through a hidden temp file (static_allowed() refuses dotfiles) and move it into place only on success."""
+    c = _coder(src)
+    if not MAGICK or not c: return False
+    tmp = os.path.join(os.path.dirname(out), f'.{os.path.basename(out)}.{secrets.token_hex(4)}.tmp')
+    try:
+        subprocess.run([MAGICK, '-limit', 'memory', '256MiB', '-limit', 'map', '512MiB', '-limit', 'time', '20', f'{c}:{src}[0]', *ops,
+                        f'{_CODERS.get(os.path.splitext(out)[1].lower(), "jpeg")}:{tmp}'], check=True, capture_output=True, timeout=30)
+        os.replace(tmp, out); return True
+    except Exception:
+        try: os.remove(tmp)
+        except OSError: pass
+        return False
+
+def _fresh(dst, src):
+    try: return os.path.getmtime(dst) >= os.path.getmtime(src)
+    except OSError: return False
+
+def make_thumb(src):
+    """Thumbnail for one menu photo (idempotent by mtime; a photo that fails is retried only after it changes). Returns its path or None."""
+    if not MAGICK or is_thumb(src) or not os.path.isfile(src): return None
+    dst = thumb_path(src)
+    if _fresh(dst, src): return dst
+    mt = os.path.getmtime(src)
+    with THUMB_LOCK:
+        if THUMB_STATE['failed'].get(src) == mt or src in THUMB_STATE['busy']: return None
+        THUMB_STATE['busy'].add(src)
+    try:
+        ok = _magick(src, ['-auto-orient', '-thumbnail', f'{THUMB_PX}x{THUMB_PX}^', '-gravity', 'center', '-extent', f'{THUMB_PX}x{THUMB_PX}', '-strip', '-quality', '82'], dst)
+    finally:
+        with THUMB_LOCK:
+            THUMB_STATE['busy'].discard(src)
+            if not _fresh(dst, src): THUMB_STATE['failed'][src] = mt
+    return dst if ok else None
+
+def shrink_image(path, px):
+    """Downsize an uploaded image in place to fit px×px (never enlarges; keeps its format and transparency)."""
+    _magick(path, ['-auto-orient', '-resize', f'{px}x{px}>', '-strip'], path)
+
+def public_image(url):
+    """What the public menu shows for a photo: its thumbnail when one is ready, else the photo itself
+    (a missing thumbnail is built in the background - ImageMagick never runs inside a public request)."""
+    if not isinstance(url, str) or not url.startswith('/img/menu/'): return url
+    name = url[len('/img/menu/'):]
+    if not name or '/' in name or name.startswith('.') or is_thumb(name) or not MAGICK: return url
+    src = os.path.join(ROOT, 'img', 'menu', name); dst = thumb_path(src)
+    if _fresh(dst, src): return f'/img/menu/{os.path.basename(dst)}'
+    if os.path.isfile(src) and src not in THUMB_STATE['busy']:
+        threading.Thread(target=make_thumb, args=(src,), daemon=True).start()
+    return url
+
+def prewarm_thumbs():
+    """Startup pass over img/menu: build every missing thumbnail and sweep temp files an earlier stop left behind."""
+    d = os.path.join(ROOT, 'img', 'menu')
+    try: names = sorted(os.listdir(d))
+    except OSError: return
+    for n in names:
+        p = os.path.join(d, n)
+        if n.endswith('.tmp') and n.startswith('.'):
+            try:
+                if time.time() - os.path.getmtime(p) > 60: os.remove(p)
+            except OSError: pass
+        elif n.lower().endswith(tuple(_CODERS)) and not is_thumb(n): make_thumb(p)
+
 def run_image_job(jid, item, s):
     j = JOBS[jid]
     try:
@@ -514,6 +606,7 @@ def run_image_job(jid, item, s):
         d = os.path.join(ROOT, 'img', 'menu'); os.makedirs(d, exist_ok=True)
         fn = f"{item['id']}-{int(time.time())}.png"
         with open(os.path.join(d, fn), 'wb') as f: f.write(png)
+        make_thumb(os.path.join(d, fn))
         j['image'] = f'/img/menu/{fn}'; j['status'] = 'done'
     except Exception as e:
         j['status'] = 'error'; j['error'] = f'{type(e).__name__}: {e}'
@@ -686,7 +779,17 @@ SHOP_ITEMS = [                                       # redeem catalog: item id, 
     {'item': 'sprout-charm', 'label': '🍀 Four-Leaf Charm (clip to chest)', 'cost': 100, 'sprout': True, 'slot': 'chest'},
     {'item': 'sprout-sunflower', 'label': '🌻 Sunflower Pin (clip to shoulder)', 'cost': 120, 'sprout': True, 'slot': 'shoulderL'},
 ]
+def _load_bling():
+    try:
+        with open(os.path.join(ROOT, 'bling', 'catalog.json'), encoding='utf-8') as f: return json.load(f)
+    except (OSError, ValueError): return {'items': [], 'themes': {}}
+BLING = _load_bling()                                # bling/catalog.json: id, label, theme, slot, cost - the client reads the same file
+BLING_SLOTS = ('hat', 'collar', 'chest', 'shoulderL', 'shoulderR', 'shoeL', 'shoeR')
+BLING_MAP = {i['id']: i for i in BLING.get('items', []) if i.get('slot') in BLING_SLOTS}
+SHOP_ITEMS += [{'item': i['id'], 'label': i['label'], 'cost': int(i['cost']), 'bling': True, 'slot': i['slot'], 'theme': i.get('theme', '')} for i in BLING_MAP.values()]
 SHOP_MAP = {e['item']: e for e in SHOP_ITEMS}
+REP_LEVELS = (0, 5, 15, 35, 70, 120)                 # Rep needed for level 0..5 (Newcomer, Regular, Local, Favorite, Celebrity, Legend)
+def rep_level(n): return max(i for i, t in enumerate(REP_LEVELS) if int(n or 0) >= t)
 TQ = {'i': 0, 'q': None}                             # next row index / open question {'a','cat','at','scored','nudged'}
 TQ_LOCK = threading.Lock()
 
@@ -2261,10 +2364,23 @@ def assistant_reply(s, vid, user_text, ip, lang_hint=None):
 class H(SimpleHTTPRequestHandler):
     def __init__(self, *a, **k): super().__init__(*a, directory=ROOT, **k)
     def log_message(self, fmt, *a): pass
+    # ---------- cache headers ----------
+    # Without an origin policy Cloudflare gives .js/.css a 4-hour edge TTL and browsers cache the
+    # HTML heuristically, so a deploy kept serving the previous scene.js even after a ?v= bump.
+    # Default every response to no-cache (cheap Last-Modified revalidation); handlers that pick
+    # their own policy (send_json -> no-store) win because their header is already sent.
+    def send_header(self, keyword, value):
+        if keyword.lower() == 'cache-control': self._sent_cc = True
+        super().send_header(keyword, value)
+    def end_headers(self):
+        if not getattr(self, '_sent_cc', False):
+            super().send_header('Cache-Control', 'no-cache')
+        self._sent_cc = False
+        super().end_headers()
 
     # ---------- static-file safety ----------
-    PUBLIC_DIRS = ('lib', 'tex', 'img', 'js', 'css', 'media')
-    PUBLIC_FILES = ('index.html', 'admin.html', 'favicon.ico', 'robots.txt')
+    PUBLIC_DIRS = ('lib', 'tex', 'img', 'js', 'css', 'media', 'bling')
+    PUBLIC_FILES = ('index.html', 'admin.html', 'mobile.html', 'favicon.ico', 'robots.txt')
     def static_allowed(self):
         """Decide on the DECODED filesystem path (the raw URL can hide '/data' as '/%64ata')."""
         real = os.path.realpath(self.translate_path(self.path))
@@ -2280,6 +2396,18 @@ class H(SimpleHTTPRequestHandler):
 
     # ---------- helpers ----------
     def ip(self): return self.headers.get('CF-Connecting-IP') or self.client_address[0]
+    LITE_PATHS = ('/', '/index.html', '/order', '/checkout', '/sms-optin', '/menu')
+    def page_for(self, p):
+        """The HTML file a page-like path maps to (GET and HEAD share this): the lite page on /mobile and, on the m. host, on every
+        index alias; /admin; and the 3D index for its deep-link aliases and /3d."""
+        if p == '/mobile' or (p in self.LITE_PATHS and self.mobile_host()): return '/mobile.html'
+        if p == '/admin': return '/admin.html'
+        if p in ('/order', '/checkout', '/sms-optin', '/menu', '/3d'): return '/index.html'
+        return None
+    def mobile_host(self):
+        """True on the m. hostname: same server and API, but / serves the lite page (no three.js)."""
+        h = (self.headers.get('Host') or '').strip().lower()
+        return h in MOBILE_HOSTS or h.split(':')[0] in MOBILE_HOSTS
     def send_json(self, obj, code=200):
         b = json.dumps(obj).encode()
         self.send_response(code)
@@ -2511,6 +2639,7 @@ class H(SimpleHTTPRequestHandler):
         os.makedirs(MEDIA, exist_ok=True)
         with open(os.path.join(MEDIA, fname), 'wb') as f:
             f.write(raw)
+        if kind == 'image': shrink_image(os.path.join(MEDIA, fname), 512)   # the logo shows at ~1.5em; nobody needs the 3MB original
         if kind == 'song':
             # jukebox catalog track: just land in media/ — the Settings → Jukebox row points at
             # it, so unlike audio/video/image there's no single settings slot to replace
@@ -2530,8 +2659,8 @@ class H(SimpleHTTPRequestHandler):
     def do_GET(self):
         p = urlparse(self.path).path
         if self.site_gated(p): return
-        if p == '/mobile':
-            p = '/mobile.html'
+        pg = self.page_for(p)
+        if pg == '/mobile.html': p = self.path = pg   # lite ordering page: no three.js, no games
         if p.startswith('/data') or p.endswith('.py') or '/.' in p:
             return self.send_error(404)
         if p == '/api/presence':
@@ -2597,7 +2726,7 @@ class H(SimpleHTTPRequestHandler):
             return self.send_json({'phone': phone, 'name': rec.get('name', 'Guest'),
                                    'prizes': rec.get('prizes', []), 'wins': rec.get('wins', {}),
                                    'points': rec.get('points', 0), 'created': rec.get('created'),
-                                   'lang': rec.get('lang', 'en'),
+                                   'lang': rec.get('lang', 'en'), 'rep': int(rec.get('rep', 0)),
                                    'sprouts': rec.get('sprouts', [])})
         if p == '/api/account/shop':                # redeem catalog for trivia points
             return self.send_json({'items': SHOP_ITEMS, 'race': {'window': TRIVIA_OPEN_S, 'pts': [5, 3, 2, 1]}})
@@ -2625,6 +2754,9 @@ class H(SimpleHTTPRequestHandler):
                     for i in c['items']:
                         row = sp.get(i['id'])
                         if row: i['specialCents'] = int(row['priceCents'])
+            for c in m['categories']:   # the panel shows photos at 56px: send the downsized copies
+                for i in c['items']:
+                    if i.get('image'): i['image'] = public_image(i['image'])
             return self.send_json(m)
         if p == '/api/settings':   # public: business info only, never internal service config
             s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
@@ -2691,12 +2823,15 @@ class H(SimpleHTTPRequestHandler):
         if p == '/admin': self.path = '/admin.html'
         # Real paths for the ordering panel / SMS opt-in (index.html's deep-link script reads the pathname):
         # reviewers and link tools often drop URL fragments, so /order must work without '#'.
-        if p in ('/order', '/checkout', '/sms-optin', '/menu'): self.path = '/index.html'
+        if p in ('/order', '/checkout', '/sms-optin', '/menu', '/3d'): self.path = '/index.html'   # /3d = the full 3D site on the m. host (its lite chip links back to /)
         if not self.static_allowed(): return self.send_error(404)
         return super().do_GET()
 
     def do_HEAD(self):
-        if self.site_gated(urlparse(self.path).path): return
+        p = urlparse(self.path).path
+        if self.site_gated(p): return
+        pg = self.page_for(p)
+        if pg: self.path = pg
         if not self.static_allowed(): return self.send_error(404)
         return super().do_HEAD()
 
@@ -2764,6 +2899,13 @@ class H(SimpleHTTPRequestHandler):
                     try: prof['sk'] = max(0, min(5, int(prf.get('sk', e.get('profile', {}).get('sk', 0)))))
                     except (TypeError, ValueError): pass
                     if prf.get('cap') in CAPS: prof['cap'] = prf.get('cap')
+                    if prf.get('face') in FACES: prof['face'] = prf.get('face')
+                    if isinstance(prf.get('bling'), list):   # worn collectibles (cosmetic): known ids only, one per slot
+                        seen, wb = set(), []
+                        for b in prf['bling'][:6]:
+                            it = BLING_MAP.get(str(b))
+                            if it and it['slot'] not in seen: seen.add(it['slot']); wb.append(it['id'])
+                        prof['bling'] = wb
                     # 🌱 sprouts clipped to this avatar ride along in the profile so everyone sees them
                     if isinstance(prf.get('sprouts'), list):
                         prof['sprouts'] = [s for s in prf['sprouts'] if isinstance(s, dict)
@@ -2820,7 +2962,7 @@ class H(SimpleHTTPRequestHandler):
             rec.setdefault('sprouts', [])   # 🌱 festival sprouts currently clipped to this avatar
             with ACCOUNTS_LOCK: save('accounts.json', a)
             return self.send_json({'ok': True, 'phone': phone, 'name': rec['name'], 'lang': lang,
-                                   'prizes': rec['prizes'], 'wins': rec['wins'], 'points': rec['points']})
+                                   'prizes': rec['prizes'], 'wins': rec['wins'], 'points': rec['points'], 'rep': int(rec.get('rep', 0))})
         if p == '/api/account/lang':                # the language picked FIRST at sign-up is updatable later
             a = load('accounts.json', {})
             phone = ''.join(re.findall(r'\d', str(data.get('phone', ''))))[-10:]
@@ -3016,6 +3158,57 @@ class H(SimpleHTTPRequestHandler):
             return self.send_json({'ok': True, 'points': pts, 'prize': won,
                                    'balance': rec['points'], 'first': first})
 
+        if p in ('/api/gift-npc', '/api/npc-friend-gift', '/api/rep'):   # 🤝 crowd members: gifts, their friends' thanks, Rep
+            phone = ''.join(re.findall(r'\d', str(data.get('phone', data.get('fromPhone', '')))))[-10:]
+            if len(phone) != 10: return self.send_json({'error': 'bad request'}, 400)
+            now = time.time(); today = time.strftime('%Y-%m-%d')
+            with ACCOUNTS_LOCK:
+                a = load('accounts.json', {}); rec = a.get(phone)
+                if not rec: return self.send_json({'error': 'Sign in at the \U0001F3AA Midway first.'}, 401)
+                if p == '/api/gift-npc':      # a sprout from your collection to a festival-goer: -1 sprout, +3 Rep, their friends may thank you
+                    item = re.sub(r'[^\w\-]', '', str(data.get('item', '')))[:40]; row = SHOP_MAP.get(item)
+                    if not row or not row.get('sprout'): return self.send_json({'error': 'That item is not a giftable sprout.'}, 400)
+                    prow = next((e for e in (rec.get('prizes') or []) if e.get('item') == item and e.get('count', 1) > 0), None)
+                    if not prow: return self.send_json({'error': "You don't have one of those to gift!"}, 400)
+                    prow['count'] -= 1
+                    if prow['count'] <= 0: rec['prizes'].remove(prow)
+                    rec['rep'] = int(rec.get('rep', 0)) + 3
+                    rec['npc_gift'] = {'until': now + 300, 'cost': int(row['cost'])}
+                    out = {'ok': True, 'gifted': row['label'], 'rep': rec['rep'], 'level': rep_level(rec['rep'])}
+                elif p == '/api/npc-friend-gift':   # one friend's thank-you per gift: a cheaper-or-equal sprout (never a profit), max 3/day
+                    g = rec.get('npc_gift') or {}
+                    if now > g.get('until', 0): return self.send_json({'ok': True, 'gift': None, 'rep': int(rec.get('rep', 0))})
+                    rec['npc_gift'] = {}
+                    day = rec.setdefault('thanks_day', {'d': today, 'n': 0})
+                    if day.get('d') != today: day['d'], day['n'] = today, 0
+                    gift = None
+                    if day['n'] < 3 and random.random() < .6:
+                        pool = [r for r in SHOP_ITEMS if r.get('sprout') and r['cost'] <= g.get('cost', 0)]
+                        if pool:
+                            r = random.choice(pool); day['n'] += 1; gift = r['label']
+                            ex = next((e for e in rec.setdefault('prizes', []) if e.get('item') == r['item']), None)
+                            if ex: ex['count'] = ex.get('count', 1) + 1
+                            else: rec['prizes'].append({'item': r['item'], 'name': r['label'], 'src': 'friend', 'count': 1, 'got': int(now)})
+                    rec['rep'] = int(rec.get('rep', 0)) + 1
+                    out = {'ok': True, 'gift': gift, 'rep': rec['rep'], 'level': rep_level(rec['rep'])}
+                else:                          # '/api/rep': kind=react (answered a greeting, +1) or quest (+1..5); >=8 s apart, react 40/day, quests 60 Rep/day
+                    kind = 'quest' if data.get('kind') == 'quest' else 'react'
+                    rr = rec.setdefault('rep_react', {'d': today, 'n': 0, 'last': 0, 'q': 0})
+                    if rr.get('d') != today: rr['d'], rr['n'], rr['q'] = today, 0, 0
+                    amt = 1
+                    if kind == 'quest':
+                        try: amt = max(1, min(5, int(data.get('amount', 1))))
+                        except (TypeError, ValueError): amt = 1
+                        if rr.get('q', 0) + amt > 60: return self.send_json({'ok': True, 'rep': int(rec.get('rep', 0)), 'limited': True})
+                    elif rr['n'] >= 40: return self.send_json({'ok': True, 'rep': int(rec.get('rep', 0)), 'limited': True})
+                    if now - rr.get('last', 0) < (8 if kind == 'quest' else 15): return self.send_json({'ok': True, 'rep': int(rec.get('rep', 0)), 'limited': True})
+                    rr['last'] = now
+                    if kind == 'quest': rr['q'] = rr.get('q', 0) + amt
+                    else: rr['n'] += 1
+                    rec['rep'] = int(rec.get('rep', 0)) + amt
+                    out = {'ok': True, 'rep': rec['rep'], 'level': rep_level(rec['rep'])}
+                save('accounts.json', a)
+            return self.send_json(out)
         if p == '/api/gift':               # 🌱 gift a sprout from your collection onto another visitor's avatar
             s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
             from_phone = ''.join(re.findall(r'\d', str(data.get('fromPhone', ''))))[-10:]
@@ -3662,5 +3855,6 @@ class H(SimpleHTTPRequestHandler):
 if __name__ == '__main__':
     init()
     threading.Thread(target=_trivia_loop, daemon=True).start()   # 🤖 periodic Mesa/AZ trivia into chat
+    if not os.environ.get('FOODTRUCK_NO_PREWARM'): threading.Thread(target=prewarm_thumbs, daemon=True).start()   # downsized copies of the menu photos for /api/menu
     print(f'Serving {ROOT} on 127.0.0.1:{PORT}')
     ThreadingHTTPServer(('127.0.0.1', PORT), H).serve_forever()

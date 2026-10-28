@@ -936,39 +936,12 @@ function tickPuff(p,dt){
     if(p.t<=0){p.life=2.7;p.age=0;p.spr.visible=true;p.spr.material.opacity=0;p.spr.position.set(.16,1.62,.17);}
   }
 }
-// south ground (toward the stage pit) and pass-around packs, clear of the house/fence
-// (x:[-17,17] z:[-45,-8]), the truck's current spot and the lawn table ring. Thinned to one
-// figure per cluster - the dense mass of the festival lives in the panorama. Everyone fronts
-// the stage's truck-facing side now: a wide pit band across the full deck width plus flank
-// packs at either end - nobody hangs behind the deck.
+// crowd: a wide pit band across the full stage deck width plus a flank pack at either end.
+// Everyone faces the stage; the pipe smokers get their puffs from spawnCrowd().
 for(let i=0;i<3;i++) spawnCrowd(-28+Math.random()*72, -4+Math.random()*24, 1);
-for(let i=0;i<60;i++) spawnCrowd(-8+Math.random()*32, -61.5+Math.random()*8, 1, true);    // pit, at the stage front, watching the band
-for(let i=0;i<12;i++) spawnCrowd(-14.5+Math.random()*5, -61+Math.random()*7, 1, true);     // west flank pack, facing the stage
-for(let i=0;i<12;i++) spawnCrowd(26.5+Math.random()*5, -61+Math.random()*7, 1, true);      // east flank pack, facing the stage
-
-// ---------- crowd: random loose clusters of festival-goers filling the open ground between
-// the house/truck cluster and the two stages. Same low-poly figure as the truck's queue, just
-// recolored per person and scattered - not a factual record of attendance, pure scene dressing.
-// reggae/cannabis-fest palette: Rasta-leaning reds/golds/greens/black plus a few bright
-// tie-dye-ish accents, instead of generic streetwear colors.
-// ---------- crowd draw distance. A performer body is ~9.5k triangles and ~31 draw calls, and
-// most of the crowd stands 50-60 m away at the stage pit. Each one stays invisible (no draw, no
-// shadow pass) until the camera comes within CROWD_RANGE - 16 m on phones / lite mode, 40 m on
-// desktops - with 3 m of hysteresis so nobody flickers at the boundary. The 200-body instanced
-// audience is two draw calls and is never culled, so the stage front still reads as packed.
-// pipe smokers: a bowl-and-stem pipe held to the mouth, plus two staggered smoke puffs that
-// rise off the bowl and fade instead of one shared fog-machine plume. Per-puff sprite
-// material so each puff fades on its own; the shared texture keeps it cheap.
- const pg=pc.getContext('2d');const pgr=pg.createRadialGradient(32,32,0,32,32,32);
- pgr.addColorStop(0,'rgba(235,235,238,.85)');pgr.addColorStop(.45,'rgba(230,230,235,.4)');pgr.addColorStop(1,'rgba(230,230,235,0)');
- pg.fillStyle=pgr;pg.fillRect(0,0,64,64);
-// figure per cluster - the dense mass of the festival lives in the panorama. Everyone fronts
-// the stage's truck-facing side now: a wide pit band across the full deck width plus flank
-// packs at either end - nobody hangs behind the deck.
-for(let i=0;i<3;i++) spawnCrowd(-28+Math.random()*72, -4+Math.random()*24, 1);
-for(let i=0;i<60;i++) spawnCrowd(-8+Math.random()*32, -61.5+Math.random()*8, 1, true);    // pit, at the stage front, watching the band
-for(let i=0;i<12;i++) spawnCrowd(-14.5+Math.random()*5, -61+Math.random()*7, 1, true);     // west flank pack, facing the stage
-for(let i=0;i<12;i++) spawnCrowd(26.5+Math.random()*5, -61+Math.random()*7, 1, true);      // east flank pack, facing the stage
+for(let i=0;i<60;i++) spawnCrowd(-8+Math.random()*32, -61.5+Math.random()*8, 1, true);    // pit at the stage front
+for(let i=0;i<12;i++) spawnCrowd(-14.5+Math.random()*5, -61+Math.random()*7, 1, true);     // west flank
+for(let i=0;i<12;i++) spawnCrowd(26.5+Math.random()*5, -61+Math.random()*7, 1, true);      // east flank
 // ---------- vendor booths: little canopy stalls with punny signs, scattered in the same two
 // ground areas as the crowd. Fictional stall names for scene flavor, not real businesses.
 const BOOTH_NAMES=['Lettuce Turnip the Beet','Thai Tanic','Nacho Average Churro','Kiln It',
