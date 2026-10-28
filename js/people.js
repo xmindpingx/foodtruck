@@ -237,10 +237,10 @@ function rig(L) {
   }
   if (L.goggles) {   // brass goggles pushed up on the forehead + a leather strap round the head
     for (const sx of [-1, 1]) {
-      out.hat.push({g: g.torus, m: M(sx * .034, L.hat ? 1.66 : 1.67, .1, -.35, 0, 0, .027, .027, .05), col: BRASS});
-      out.hat.push({g: g.cyl, m: M(sx * .034, L.hat ? 1.66 : 1.67, .098, Math.PI / 2 - .35, 0, 0, .02, .006, .02), col: 0x6aa8a0});
+      out.hat.push({g: g.torus, m: M(sx * .034, L.hat ? 1.72 : 1.73, .1, -.35, 0, 0, .027, .027, .05), col: BRASS});
+      out.hat.push({g: g.cyl, m: M(sx * .034, L.hat ? 1.72 : 1.73, .098, Math.PI / 2 - .35, 0, 0, .02, .006, .02), col: 0x6aa8a0});
     }
-    out.hat.push({g: g.cylOpen, m: M(0, L.hat ? 1.66 : 1.67, 0, 0, 0, 0, .103, .024, .114), col: 0x3a2418});
+    out.hat.push({g: g.cylOpen, m: M(0, L.hat ? 1.72 : 1.73, 0, 0, 0, 0, .103, .024, .114), col: 0x3a2418});
   }
   // arms: pivot at the shoulder, elbow bend baked into the forearm
   const short = L.sleeve === 'short';
@@ -353,7 +353,7 @@ export function buildAvatar(hue, prof = {}, foot = 0, over = null) {
   const sock = (parent, x, y, z) => { const g = new THREE.Group(); g.position.set(x, y, z); parent.add(g); return g; };
   root.userData.sock = {
     crown: sock(headRig, 0, 1.712, 0),     // top of the skull: hats, hair pieces
-    face: sock(headRig, 0, 1.602, .098),   // brow line: glasses, goggles, monocle
+    face: sock(headRig, 0, 1.56, .098),   // eye line: glasses, goggles, monocle
     chin: sock(headRig, 0, 1.545, .055),   // jaw: beards, moustaches
     ear: sock(headRig, 0, 1.598, 0),       // ear line: headphones, earrings (prop straddles both ears)
     collar: sock(body, 0, 1.46, .05),      // neck: scarves, ties, chains

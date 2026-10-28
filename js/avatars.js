@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import {WX0, WX1, BW, FLOOR} from './truck.js?v=13';
 import {CONFIG} from './shop.js?v=8';
 import * as Account from './account.js?v=8';   // language picked at sign-up drives chips + docks
-import * as People from './people.js?v=11';     // realistic shared-geometry bodies (painted faces, swinging limbs)
+import * as People from './people.js?v=12';     // realistic shared-geometry bodies (painted faces, swinging limbs)
 import * as Wear from './wear.js?v=4';     // 3D wearable props on the avatar sockets
 
 const ID_KEY = 'eol-visitor-id', NAME_KEY = 'eol-visitor-name', PROFILE_KEY = 'eol-visitor-profile';
@@ -72,7 +72,7 @@ export function liveAvatars() { return [...live.entries()].map(([id, a]) => ({id
 let BLING = {items: [], themes: {}}, BLING_BY = {}, npcLister = () => [];
 export const setNpcLister = f => { npcLister = f; };
 const BLING_SIZE = {hat: .62, collar: .36, chest: .42, shoulderL: .32, shoulderR: .32, shoeL: .28, shoeR: .28};
-const BLING_POS = {hat: [0, 1.86, .02], collar: [0, 1.4, .13], chest: [0, 1.2, .19], shoulderL: [-.26, 1.36, .12], shoulderR: [.26, 1.36, .12], shoeL: [-.09, .1, .17], shoeR: [.09, .1, .17]};
+const BLING_POS = {hat: [0, 1.86, .02], glasses: [0, 1.56, .12], collar: [0, 1.4, .13], chest: [0, 1.2, .19], shoulderL: [-.26, 1.36, .12], shoulderR: [.26, 1.36, .12], shoeL: [-.09, .1, .17], shoeR: [.09, .1, .17]};
 const BLING_SPRITE = new WeakSet(), blingMats = new Map(), blingLoader = new THREE.TextureLoader();
 function blingMat(id) {
   let m = blingMats.get(id);
