@@ -311,19 +311,29 @@ export function init(o) {
     }
   }
   function walk(a, tx, tz, spd, dt) {
-    const [wx, wz] = detour(a, tx, tz), dx = wx - a.x, dz = wz - a.z, d = Math.hypot(dx, dz);
+    // cache the detour waypoint so it doesn't jump every frame (which caused jitter + false stuck detection)
+    const _key = tx.toFixed(1) + ',' + tz.toFixed(1);
+    if (a._detourKey !== _key || !a._detourWp || (a._detourFrames || 0) > 12) {
+      a._detourWp = detour(a, tx, tz); a._detourKey = _key; a._detourFrames = 0;
+    }
+    a._detourFrames = (a._detourFrames || 0) + 1;
+    const [wx, wz] = a._detourWp, dx = wx - a.x, dz = wz - a.z, d = Math.hypot(dx, dz);
     a.moving = d > .05;
-    if (a.moving) { const st = Math.min(d, spd * dt); a.x += dx / d * st; a.z += dz / d * st; pushOut(a); a.yaw = lerpYaw(a.yaw, Math.atan2(dx, dz), dt * 8); a.gait += st * (a.kid ? 5.2 : 4.2); }
-    // actor-actor: if bumping into another actor, interact instead of clipping
-    for (const o of actors) {
-      if (o === a || !o.root || !o.root.visible) continue;
-      const dd = Math.hypot(o.x - a.x, o.z - a.z);
-      if (dd < 0.7 && dd > 1e-4) {
-        a.moving = false; a.anim = 'chat'; a.idle = true; a._stuck = 0;
-        a.yaw = Math.atan2(o.x - a.x, o.z - a.z);
-        return true;
+    if (a.moving) { const st = Math.min(d, spd * dt); a.x += dx / d * st; a.z += dz / d * st; pushOut(a); const _t = Math.atan2(dx, dz); const _dd = (((( _t - a.yaw + Math.PI) % (Math.PI*2)) + Math.PI*2) % (Math.PI*2)) - Math.PI; a.yaw += Math.sign(_dd) * Math.min(Math.abs(_dd), 0.15); a.gait += st * (a.kid ? 5.2 : 4.2); }
+    // actor-actor: if bumping into another actor, interact instead of clipping (with a cooldown so they don't freeze mid-walk)
+    if (!a._greetCd || a._greetCd <= 0) {
+      for (const o of actors) {
+        if (o === a || !o.root || !o.root.visible) continue;
+        const dd = Math.hypot(o.x - a.x, o.z - a.z);
+        if (dd < 0.5 && dd > 1e-4 && (!o._greetCd || o._greetCd <= 0)) {
+          a.moving = false; a.anim = 'chat'; a.idle = true; a._stuck = 0; a._greetCd = 4;
+          o._greetCd = 4;
+          a.face = Math.atan2(o.x - a.x, o.z - a.z);
+          return true;
+        }
       }
     }
+    if (a._greetCd) a._greetCd--;
     const distToTarget = Math.hypot(tx - a.x, tz - a.z);
     const key = tx.toFixed(1) + ',' + tz.toFixed(1);
     if (a._lastTarget === key) {
@@ -331,11 +341,11 @@ export function init(o) {
       else a._stuck = 0;
     } else { a._lastTarget = key; a._stuck = 0; }
     a._lastDist = distToTarget;
-    if ((a._stuck || 0) > 20) { a._stuck = 0; return true; }   // unstuck: force replan
+    if ((a._stuck || 0) > 30) { a._stuck = 0; return true; }   // unstuck: force replan
     return distToTarget < .12;
   }
   function begin(a, s) {
-    a.t = 0; a.anim = 'idle';
+    a.t = 0; a.anim = 'idle'; a._detourKey = null; a._detourWp = null; a._detourFrames = 0; a._lastTarget = null; a._stuck = 0;
     if (s.k === 'wait') a.anim = s.anim || 'idle';
     else if (s.k === 'sit') { a.seat = s; a.x = s.x; a.z = s.z; a.yaw = s.yaw; a.anim = 'eat'; }
     else if (s.k === 'do') { try { s.fn(); } catch (e) {} }
@@ -370,7 +380,7 @@ export function init(o) {
           if (a.t >= (s.t || 1)) { if (s.k === 'sit') release(a); a.step = null; }
         }
         else a.step = null;   // 'do' handled in begin
-        if (a.step === null && a.face != null && !a.moving) { a.yaw = a.face; a.face = null; }
+        if (a.step === null && a.face != null && !a.moving) { const _d = ((((a.face - a.yaw + Math.PI) % (Math.PI*2)) + Math.PI*2) % (Math.PI*2)) - Math.PI; a.yaw += Math.sign(_d) * Math.min(Math.abs(_d), 0.12); if (Math.abs(_d) < 0.13) a.face = null; }
       }
       a.root.position.x = a.x; a.root.position.z = a.z; a.root.rotation.y = a.yaw;
       // if animated walking but not actually moving, stop and interact instead of sliding
