@@ -2714,6 +2714,8 @@ class H(SimpleHTTPRequestHandler):
                 chat = [m for m in CHAT if m['ts'] > since]
             return self.send_json({'others': others, 'chat': chat, 'now': now,
                                    'gifts': pending})
+        if p == '/api/time':           # ⏱ shared server clock for deterministic AI simulation (Phase 2)
+            return self.send_json({'now': time.time(), 'seed': int(time.time() // 86400)})
         if p == '/api/jukebox':        # 🎵 public: what's playing for EVERYONE (+ catalog) — the client poll that syncs the lot
             s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
             with LOCK:

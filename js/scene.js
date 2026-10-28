@@ -9,7 +9,7 @@ import * as People from './people.js?v=9';
 const mergeStatic=People.mergeStatic;   // one mesh per material for static props (see people.js)
 import * as Themes from './themes.js?v=2';   // steampunk by default, a theme per big holiday around its date
 import * as FX from './themefx.js?v=5';       // re-skins everything but the truck + gears/lamps/airships or lights/bunting/confetti
-import * as Life from './life.js?v=35';        // ambient crowd life: eat, queue, play, wander, greet the player
+import * as Life from './life.js?v=36';        // ambient crowd life: eat, queue, play, wander, greet the player
 import * as Waterpark from './waterpark.js?v=5';
 import * as Gfx from './gfx.js?v=4';
 import * as Model from './model.js?v=3';   // ComfyUI-generated meshes (tools/model_gen.py -> models/)   // ComfyUI photo textures (gfx/*.jpg) on tagged materials
@@ -1367,19 +1367,21 @@ const fx=TH?(()=>{
   return FX.init(S,{skip:TRUCK_ORIG,lite:LITE_MODE,theme:TH,fallMult:CONFIG.sceneFallMult,floatMult:CONFIG.sceneFloatMult});})():null;
 window.__EOL_FX=fx;
 // 🌊 Sir Splash-a-Lot Water Park on the west side (Admin → Settings → Games switches it to a "closed for repairs" sign)
+// shared server clock + seed for deterministic AI simulation (Phase 2)
+try { const _tr = await fetch('/api/time'); const _tj = await _tr.json(); window.__EOL_SEED = _tj.seed || 1; window.__EOL_TIME_OFFSET = (_tj.now || 0) - (performance.now() / 1000); } catch (e) { window.__EOL_SEED = 1; window.__EOL_TIME_OFFSET = 0; }
 const wp=Waterpark.init(S,{open:CONFIG.waterparkOn!==false,message:CONFIG.waterparkClosedMsg||'',lite:LITE_MODE,phone:IS_PHONE,cam,
   player:()=>{if(walk.on&&walk.grp)return {obj:walk.grp,x:walk.x,z:walk.z};
     const me=Avatars.liveAvatars().find(v=>v.self);if(me&&me.group){me.group.getWorldPosition(_wv);return {obj:me.group,x:_wv.x,z:_wv.z};}return null;},
   onUse:(name)=>{Rep.add('react',1).then(()=>{if(life)life.toast('💦 '+name+'! +1 Rep');});}});
 // 🚶 ambient crowd life + the two-way interactions with the player (Admin → Settings → Games can switch it off)
 let life=null,quests=null;
-const stuff=CONFIG.ambientLifeOn!==false?Stuff.init({S,cam,rig:truckRig,truckBox:{x0:TRUCK_CX-BL/2-.3,x1:TRUCK_CX+BL/2+.3,z0:-BW/2-.3,z1:BW/2+.3},crate:{x:WX1+1.4,z:BW/2+1.8},clutterMult:CONFIG.clutterAmount,near:CONFIG.sceneClutterNear,mid:CONFIG.sceneClutterMid,
+const stuff=CONFIG.ambientLifeOn!==false?Stuff.init({S,cam,rig:truckRig,seed:window.__EOL_SEED||1,truckBox:{x0:TRUCK_CX-BL/2-.3,x1:TRUCK_CX+BL/2+.3,z0:-BW/2-.3,z1:BW/2+.3},crate:{x:WX1+1.4,z:BW/2+1.8},clutterMult:CONFIG.clutterAmount,near:CONFIG.sceneClutterNear,mid:CONFIG.sceneClutterMid,
   player:()=>{if(walk.on&&walk.grp)return {obj:walk.grp,x:walk.x,z:walk.z};
     const me=Avatars.liveAvatars().find(v=>v.self);if(me&&me.group){me.group.getWorldPosition(_wv);return {obj:me.group,x:_wv.x,z:_wv.z};}return null;},
   canvas,lite:LITE_MODE,phone:IS_PHONE,rep:Rep,getLife:()=>life}):null;
 window.__EOL_STUFF=stuff;
 if(CONFIG.ambientLifeOn!==false){
-  life=Life.init({S,cam,rig:truckRig,tables:TABLE_HIT,eaters,win:{x1:WX1,z:BW/2},castMult:CONFIG.actorsAmount,interactMult:CONFIG.interactAmount,range:CONFIG.sceneLifeRange,theme:SCENE_THEME,menu:MENU,
+  life=Life.init({S,cam,rig:truckRig,tables:TABLE_HIT,eaters,win:{x1:WX1,z:BW/2},castMult:CONFIG.actorsAmount,interactMult:CONFIG.interactAmount,range:CONFIG.sceneLifeRange,theme:SCENE_THEME,menu:MENU,seed:window.__EOL_SEED||1,
     truckBox:{x0:TRUCK_CX-BL/2-.3,x1:TRUCK_CX+BL/2+.3,z0:-BW/2-.3,z1:BW/2+.3},
     props:()=>['claw','bbt','tag','pin','c4','ttt'].map(id=>Arcade.prop(id)),
     jukebox:jukebox, lowriders:ALL_HYDRAULICS, stage:stageBack,
@@ -1396,7 +1398,7 @@ if(CONFIG.ambientLifeOn!==false){
 if(life&&stuff&&CONFIG.questsOn!==false){
   const playerFn=()=>{if(walk.on&&walk.grp)return {obj:walk.grp,x:walk.x,z:walk.z};
     const me=Avatars.liveAvatars().find(v=>v.self);if(me&&me.group){me.group.getWorldPosition(_wv);return {obj:me.group,x:_wv.x,z:_wv.z};}return null;};
-  quests=Quests.init({S,cam,rig:truckRig,life,stuff,rep:Rep,player:playerFn,buildBooth,lite:LITE_MODE,phone:IS_PHONE,createStaff:life.createStaff,win:{x1:WX1,z:BW/2},park:wp,tables:TABLE_HIT,
+  quests=Quests.init({S,cam,rig:truckRig,life,stuff,rep:Rep,player:playerFn,buildBooth,lite:LITE_MODE,phone:IS_PHONE,createStaff:life.createStaff,win:{x1:WX1,z:BW/2},park:wp,tables:TABLE_HIT,seed:window.__EOL_SEED||1,
     props:()=>['claw','bbt','tag','pin','c4','ttt'].map(id=>Arcade.prop(id))});
 }
 window.__EOL_LIFE=life;window.__EOL_QUESTS=quests;
@@ -1409,7 +1411,7 @@ const gfx=Gfx.init({R,small:LITE_MODE||IS_PHONE,enabled:CONFIG.sceneTextures!==f
   b.textContent='Theme: '+(TH?TH.emoji+' '+TH.label:'Classic')+(cur==='auto'?' (auto)':'');
   b.onclick=()=>{const i=Themes.CYCLE.indexOf(cur),next=Themes.CYCLE[(i+1)%Themes.CYCLE.length];try{localStorage.setItem('eol-scene-theme',next);}catch(e){}location.reload();};
   document.body.appendChild(b);}
-R.setAnimationLoop(()=>{const dt=Math.min(clock.getDelta(),0.1),t=clock.elapsedTime;
+R.setAnimationLoop(()=>{const dt=Math.min(clock.getDelta(),0.1),t=(window.__EOL_TIME_OFFSET? (performance.now()/1000 + window.__EOL_TIME_OFFSET) : clock.elapsedTime);
   if(!fly&&innerWidth<=640&&document.body.classList.contains('panel-open'))return;   // 📱 the menu/checkout panel covers the whole screen: don't simulate or draw behind it
   cullCrowd();
   if(fx)fx.tick(t,dt);if(wp)wp.tick(t,dt);if(life){life.tick(t,dt);let n=0;   // AI cast contact shadows (outside the sun's shadow box only)

@@ -33,6 +33,7 @@ want /js/truck.js       200
 want /lib/three.module.js 200
 want /api/menu          200
 want /api/settings      200
+want /api/time           200
 want /data/orders.json  404
 want /%64ata/orders.json 404
 want /server.py         404

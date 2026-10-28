@@ -9,8 +9,10 @@
 import * as THREE from 'three';
 import * as People from './people.js?v=9';
 import * as Wear from './wear.js?v=4';
+let _rng = Math.random;   // seeded PRNG (set in init); shared clock drives determinism
+function makeRng(seed) { let a = (seed || 1) >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 
-const rnd = (a, b) => a + Math.random() * (b - a), pick = a => a[Math.floor(Math.random() * a.length)];
+const rnd = (a, b) => a + _rng() * (b - a), pick = a => a[Math.floor(_rng() * a.length)];
 const NAMES = ['Rosa', 'Mateo', 'Luz', 'Diego', 'Camila', 'Santi', 'Abby', 'Jun', 'Priya', 'Omar', 'Lena', 'Tomás', 'Maya', 'Eli', 'Nora', 'Hugo', 'Ana', 'Kai', 'Isla', 'Ravi'];
 const V = new THREE.Vector3(), V2 = new THREE.Vector3(), V3 = new THREE.Vector3();
 const dist2 = (x0, z0, x1, z1) => (x1 - x0) ** 2 + (z1 - z0) ** 2;
@@ -18,7 +20,8 @@ const yawTo = (x0, z0, x1, z1) => Math.atan2(x1 - x0, z1 - z0);
 const lerpYaw = (a, b, k) => { let d = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; return a + d * Math.min(1, k); };
 
 export function init(o) {
-  const {S, cam, rig, tables, eaters, win, stage, truckBox, props, jukebox, lowriders, parkBounds, player, liveList, attachSprout, lite, phone: isPhone, canvas, extraObstacles, theme, menu} = o;
+  const {S, cam, rig, tables, eaters, win, stage, truckBox, props, jukebox, lowriders, parkBounds, player, liveList, attachSprout, lite, phone: isPhone, canvas, extraObstacles, theme, menu, seed} = o;
+  _rng = makeRng(seed || 1);
   // Halloween outfits for the AI crowd: fetch catalog, filter halloween wearables, apply to all actors (and staff) when theme is halloween
   let halloweenWear = [];
   if (theme === 'halloween') {
@@ -27,9 +30,9 @@ export function init(o) {
       halloweenWear = j.items.filter(it => it.model && it.theme === 'halloween');
       if (!halloweenWear.length) return;
       const applyOne = (a) => {
-        const n = 1 + (Math.random() < .35 ? 1 : 0);
+        const n = 1 + (_rng() < .35 ? 1 : 0);
         const rows = [];
-        for (let i = 0; i < n; i++) rows.push(halloweenWear[Math.floor(Math.random() * halloweenWear.length)]);
+        for (let i = 0; i < n; i++) rows.push(halloweenWear[Math.floor(_rng() * halloweenWear.length)]);
         const uniq = [...new Map(rows.map(r => [r.id, r])).values()];
         Wear.apply(a.root, uniq).catch(() => {});
       };
@@ -40,7 +43,7 @@ export function init(o) {
   const FOOD_EMOJI = {'Street Taco':'🌮','3 Street Tacos':'🌮','Burrito':'🌯','Bean & Cheese Burrito':'🌯','Quesadilla':'🧀','Loaded Fries':'🍟','Chips & Salsa':'🫔','Chips & Guacamole':'🥑','Esquite':'🌽','Churros':'🍩','Mexican Coke':'🥤','Jarritos':'🥤','Bottled Water':'💧'};
   const FOOD_ITEMS = [];
   try { for (const c of (menu && menu.categories) || []) for (const it of (c.items || [])) FOOD_ITEMS.push(it.name); } catch (e) {}
-  const pickFood = () => FOOD_ITEMS.length ? FOOD_ITEMS[Math.floor(Math.random() * FOOD_ITEMS.length)] : 'Taco';
+  const pickFood = () => FOOD_ITEMS.length ? FOOD_ITEMS[Math.floor(_rng() * FOOD_ITEMS.length)] : 'Taco';
   const foodEmoji = (name) => FOOD_EMOJI[name] || '🌮';
   const attachFood = (a, emoji) => {
     if (a._food) return;
@@ -101,9 +104,9 @@ export function init(o) {
   function makeActor(kid, unit) {
     let look = People.randomLook();
     while (!kid && look.kid) look = People.randomLook();   // randomLook makes ~20% kids itself: adults must not inherit the kid head rig
-    if (kid) Object.assign(look, {kid: true, scale: .62 + Math.random() * .1, beard: false, vest: 0, hat: null, sleeve: 'short', dress: Math.random() < .4, hair: pick(['short', 'long', 'bun'])});
-    else look.scale = .95 + Math.random() * .1;
-    const root = People.buildAvatar(Math.floor(Math.random() * 360), {}, 0, look);
+    if (kid) Object.assign(look, {kid: true, scale: .62 + _rng() * .1, beard: false, vest: 0, hat: null, sleeve: 'short', dress: _rng() < .4, hair: pick(['short', 'long', 'bun'])});
+    else look.scale = .95 + _rng() * .1;
+    const root = People.buildAvatar(Math.floor(_rng() * 360), {}, 0, look);
     root.visible = false; S.add(root);
     const p = poi.wander();
     const a = {id: actors.length, root, g: root.userData, kid, name: pick(NAMES), unit, x: p.x, z: p.z, yaw: rnd(0, 6.28), plan: [], step: null, t: 0, anim: 'idle', ph: rnd(0, 6.28), gait: 0, moving: false, seat: null, near: false, spd: kid ? 1.7 : 1.25, locked: false};
@@ -114,7 +117,7 @@ export function init(o) {
     const a = makeActor(false, null); a.staff = true; a.locked = true; a.name = sp.name || a.name; a.x = sp.x; a.z = sp.z; a.yaw = sp.yaw || 0; a.anim = 'chat';
     const u = {kind: 'staff', members: [a], interact: true, busy: 0}; a.unit = u; units.push(u);
     a.root.position.set(a.x, 0, a.z); a.root.rotation.y = a.yaw;
-    if (theme === 'halloween' && halloweenWear.length) { const rows = [halloweenWear[Math.floor(Math.random() * halloweenWear.length)]]; Wear.apply(a.root, rows).catch(() => {}); }
+    if (theme === 'halloween' && halloweenWear.length) { const rows = [halloweenWear[Math.floor(_rng() * halloweenWear.length)]]; Wear.apply(a.root, rows).catch(() => {}); }
     return a;
   }
   function makeUnit(kind, n, hasKid) {
@@ -139,12 +142,12 @@ export function init(o) {
   const trashSteps = () => { const c = poi.can(); return c ? [go(c), wait(1.5, 'toss', c)] : []; };
 
   function soloPlan(a) {
-    const r = Math.random(), P = [];
+    const r = _rng(), P = [];
     if (a.kid) {
       const g = poi.game(); P.push(go(g), wait(rnd(14, 32), 'play', g));
       if (r < .6) { const s = seatStep(a); if (s) P.push(...s, ...trashSteps()); }
     } else if (r < .32) { const p = poi.pit(); P.push(go(p), wait(rnd(25, 60), 'watch', {fx: 8, fz: -70}));
-      if (Math.random() < .5) P.push(...orderEat(a)); }
+      if (_rng() < .5) P.push(...orderEat(a)); }
     else if (r < .6) P.push(...orderEat(a));
     else if (r < .75) { const g = poi.game(); P.push(go(g), wait(rnd(10, 22), 'play', g)); }
     else { const w = poi.wander(); P.push(go(w), wait(rnd(3, 9), 'idle')); }
@@ -152,7 +155,7 @@ export function init(o) {
   }
   function orderEat(a) {
     const food = pickFood(), emoji = foodEmoji(food);
-    const q = poi.queue(Math.floor(Math.random() * 4)), P = [go(q), wait(rnd(6, 10), 'queue', q)];
+    const q = poi.queue(Math.floor(_rng() * 4)), P = [go(q), wait(rnd(6, 10), 'queue', q)];
     P.push({k: 'do', fn: () => attachFood(a, emoji) });   // pick up food at the window
     const s = seatStep(a);
     if (s) {   // s = [go(seat), sit]; carry food during the walk, drop it when sitting
@@ -166,13 +169,13 @@ export function init(o) {
     return P;
   }
   function groupPlans(u) {   // one plan per member, same shape so they move and finish together
-    const n = u.members.length, r = Math.random(), plans = u.members.map(() => []);
+    const n = u.members.length, r = _rng(), plans = u.members.map(() => []);
     const all = (fn) => u.members.forEach((m, i) => plans[i].push(...[].concat(fn(m, i))));
     if (r < .3) { const w = poi.wander(), w2 = poi.wander(); all((m, i) => [go(off(w, i, n)), wait(rnd(3, 6), 'chat'), go(off(w2, i, n)), wait(rnd(2, 5), 'chat')]); }
     else if (r < .5) { const p = poi.pit(); all((m, i) => [go(off(p, i, n)), wait(rnd(25, 55), 'watch', {fx: 8, fz: -70})]); }
     else if (r < .66) { const w = poi.wander(), d = rnd(9, 16); all((m, i) => [go(off(w, i, n)), wait(d, 'dance')]); }
     else if (r < .78) {
-      const q = poi.queue(Math.floor(Math.random() * 4));
+      const q = poi.queue(Math.floor(_rng() * 4));
       u.members.forEach((m, i) => { const food = pickFood(), emoji = foodEmoji(food); plans[i].push(go(off(q, i, n)), wait(rnd(6, 9), 'chat')); plans[i].push({k: 'do', fn: () => attachFood(m, emoji) }); const s = seatStep(m); if (s) { plans[i].push(s[0]); plans[i].push({k: 'do', fn: () => removeFood(m) }); plans[i].push(s[1]); plans[i].push(...trashSteps()); } else { plans[i].push({k: 'do', fn: () => removeFood(m) }); } });
     } else if (r < .9) { const w = poi.wander(); all((m, i) => [go(off(w, i, n)), wait(5, i === 0 ? 'photo' : 'pose'), wait(2, 'cheer')]); }
     else { const g = poi.game(); u.members.forEach((m, i) => { plans[i].push(go(off(g, i, n)), wait(rnd(12, 24), m.kid ? 'play' : 'chat', g)); const s = m.kid ? seatStep(m) : null; if (s) plans[i].push(...s, ...trashSteps()); }); }
@@ -272,7 +275,7 @@ export function init(o) {
   addEventListener('eol:npc-gift', e => { const d = e.detail || {}; playerGave(d.npc, d.slot, d.cost); });
 
   // ---------- movement + step machine ----------
-  function release(a) { if (a.seatKey) taken.delete(a.seatKey); const was = a.seat; a.seatKey = null; a.seat = null; a.root.position.y = 0; if (was && Math.random() < .22 && o.onLitter) o.onLitter(a.x + rnd(-.6, .6), a.z + rnd(-.6, .6)); }   // some people just leave it on the grass
+  function release(a) { if (a.seatKey) taken.delete(a.seatKey); const was = a.seat; a.seatKey = null; a.seat = null; a.root.position.y = 0; if (was && _rng() < .22 && o.onLitter) o.onLitter(a.x + rnd(-.6, .6), a.z + rnd(-.6, .6)); }   // some people just leave it on the grass
   const segHitsBox = (x0, z0, x1, z1, B) => {   // segment vs the truck box (rig-local coords)
     let t0 = 0, t1 = 1; const dx = x1 - x0, dz = z1 - z0;
     for (const [p, q, lo, hi] of [[x0, dx, B.x0 + .08, B.x1 - .08], [z0, dz, B.z0 + .08, B.z1 - .08]]) {   // slightly inset: grazing the edge is fine
@@ -404,7 +407,7 @@ export function init(o) {
         a._stkT += dt;
         if (Math.hypot(a.x - a._stkX, a.z - a._stkZ) > 1.0) { a._stkX = a.x; a._stkZ = a.z; a._stkT = 0; }
         if (a._stkT > 2) {
-          a.x = 8 + (Math.random() - .5) * 6; a.z = -58 + (Math.random() - .5) * 4;
+          a.x = 8 + (_rng() - .5) * 6; a.z = -58 + (_rng() - .5) * 4;
           a._stkX = a.x; a._stkZ = a.z; a._stkT = 0; a._stuck = 0;
           a._detourKey = null; a._detourWp = null; a._detourFrames = 0;
           a.plan = []; a.step = null; a.moving = false; a.idle = true; a.anim = 'idle';
@@ -528,7 +531,7 @@ export function init(o) {
       {label: '🤸 Cartwheel', fn: () => { a.anim = 'play'; a.idle = false; setMood(a, 'smile', 4); pop('🤸', a.root, 2.0); } },
     ];
     // pick 4 random, dedup by label
-    const shuffled = opts.slice().sort(() => Math.random() - .5).slice(0, 4);
+    const shuffled = opts.slice().sort(() => _rng() - .5).slice(0, 4);
     const menu = document.createElement('div');
     menu.className = 'eol-interact-menu';
     menu.style.cssText = 'position:fixed;left:' + Math.max(8, Math.min(innerWidth - 180, cx - 60)) + 'px;top:' + Math.max(8, Math.min(innerHeight - 160, cy - 20)) + 'px;z-index:9999;background:rgba(20,16,40,.95);border:1px solid rgba(255,255,255,.25);border-radius:12px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,.5);min-width:150px;';
@@ -589,7 +592,7 @@ export function init(o) {
   }
   function rush(x, z, secs, limit = 3) {   // a flash sale draws a few hungry units to the booth
     let n = 0;
-    for (const u of units.sort(() => Math.random() - .5)) {
+    for (const u of units.sort(() => _rng() - .5)) {
       if (u.kind === 'staff' || u.interact || n >= limit) continue;
       u.interact = true; n++;
       u.members.forEach((m, i) => { if (m.seat) release(m); m.step = null; const sp = {x: x + (i - 1) * .8 + rnd(-.4, .4), z: z + rnd(-.4, .4), fx: x, fz: z}; /* quests passes the booth's front point */ m.plan = [go(sp, 2), wait(Math.min(secs, rnd(5, 9)), 'queue', sp)]; const st = seatStep(m); if (st) m.plan.push(...st, ...trashSteps()); });

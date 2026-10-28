@@ -8,9 +8,11 @@
 //  - decor (confetti, leaves, flyers): just there, like a real festival lawn
 // Items are remembered in this browser for ~30 minutes (localStorage), picked-up ones stay picked up.
 import * as THREE from 'three';
+let _rng = Math.random;
+function makeRng(seed) { let a = (seed || 1) >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 import {mergeParts} from './people.js?v=9';
 
-const rnd = (a, b) => a + Math.random() * (b - a), pick = a => a[Math.floor(Math.random() * a.length)];
+const rnd = (a, b) => a + _rng() * (b - a), pick = a => a[Math.floor(_rng() * a.length)];
 const KEY = 'eol-stuff', TTL = 30 * 60 * 1000;
 const _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _s = new THREE.Vector3(1, 1, 1);
 const M = (x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = sx, sz = sx) => new THREE.Matrix4().compose(_p.set(x, y, z), _q.setFromEuler(_e.set(rx, ry, rz)), _s.set(sx, sy, sz));
@@ -42,6 +44,7 @@ const K = {
 };
 
 export function init(o) {
+  _rng = makeRng(o.seed || 1);
   const {S, cam, rig, truckBox, player, canvas, lite, phone: isPhone, rep, getLife} = o, small = lite || isPhone;
   const num = (v, d) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
   const CL = Math.max(0, Math.min(3, num(o.clutterMult, 1)));   // 🥤 clutter multiplier (Admin → crowd settings)
@@ -62,7 +65,7 @@ export function init(o) {
   const weights = kinds.filter(k => K[k].w).flatMap(k => Array(K[k].w).fill(k));
   function spot() { for (let i = 0; i < 12; i++) { const a = pick(AREAS.flatMap(A => Array(A.w).fill(A))), x = rnd(a.x0, a.x1), z = rnd(a.z0, a.z1); if (!inTruck(x, z)) return {x, z}; } return {x: 10, z: 12}; }
   function add(k, x, z, owner, id) { const it = {id: id || uid++, k, x, z, ry: rnd(0, 6.28), ts: Date.now(), owner: owner || null, gone: false}; items.push(it); return it; }
-  const ownerName = () => { const L = getLife && getLife(); const a = L && L.actors.filter(q => !q.staff && !q.kid).sort(() => Math.random() - .5)[0]; return a ? a.name : null; };
+  const ownerName = () => { const L = getLife && getLife(); const a = L && L.actors.filter(q => !q.staff && !q.kid).sort(() => _rng() - .5)[0]; return a ? a.name : null; };
   function populate() {
     const nTrash = Math.round((small ? 34 : 80) * CL), nDecor = Math.round((small ? 14 : 34) * CL);
     for (let i = 0; i < nTrash + nDecor; i++) { const k = pick(weights); if (K[k].t === 'lost') continue; const p = spot(); add(k, p.x, p.z); }

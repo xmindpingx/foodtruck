@@ -4,8 +4,10 @@
 // Everything is data-driven; one quest is active at a time, one small card shows it, and the only per-frame
 // work is a few distance checks.
 import * as THREE from 'three';
+let _rng = Math.random;
+function makeRng(seed) { let a = (seed || 1) >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 
-const rnd = (a, b) => a + Math.random() * (b - a), pick = a => a[Math.floor(Math.random() * a.length)];
+const rnd = (a, b) => a + _rng() * (b - a), pick = a => a[Math.floor(_rng() * a.length)];
 
 // id, sign pun, booth colour, flash-sale lines, [x, z, faces south?]
 export const VENDORS = [
@@ -60,6 +62,7 @@ const Q = [
 ];
 
 export function init(o) {
+  _rng = makeRng(o.seed || 1);
   const {S, cam, rig, life, stuff, rep, player, performers, buildBooth, lite, phone: isPhone, createStaff, stage, win, park, open} = o;
   const small = lite || isPhone;
   const vend = {};   // id → {booth, staff, x, z, sale}
@@ -135,7 +138,7 @@ export function init(o) {
     const pool = Q.filter(q => !active_recent.includes(q[1])); const q = pick(pool.length ? pool : Q), g = giverActor(q), [k, a] = parse(q[3]);
     active = {q, t: 150, giver: g, giverName: g ? g.name : 'The band', stage: 0, count: 0, hint: goalText(q[3]), dwell: 0, lostId: null};
     active_recent.push(q[1]); if (active_recent.length > 14) active_recent.shift();
-    if (k === 'lost') { const spot = stuff.items.filter(i => !i.gone && i.k).sort(() => Math.random() - .5)[0]; const it = stuff.spawnLost(pick(['teddy', 'duck', 'cap', 'ball', 'shoe']), rnd(-20, 40), rnd(6, 28), active.giverName); active.lostId = it.id; active.hint += ' (somewhere on the lawn)'; }
+    if (k === 'lost') { const spot = stuff.items.filter(i => !i.gone && i.k).sort(() => _rng() - .5)[0]; const it = stuff.spawnLost(pick(['teddy', 'duck', 'cap', 'ball', 'shoe']), rnd(-20, 40), rnd(6, 28), active.giverName); active.lostId = it.id; active.hint += ' (somewhere on the lawn)'; }
     if (k === 'deliver') { active.from = resolve(a.split('>')[0]); active.to = resolve(a.split('>')[1]); }
     if (k === 'dance') { const cx = p.x + rnd(-8, 8), cz = p.z + rnd(6, 12); life.flashDance(cx, cz, 20, small ? 6 : 12); danceAt = {x: cx, z: cz, t: 0, got: false, until: 25}; }   // the reward zone is where the dancers are
     if (g) { life.pop('❗', g.root, 2.2); g.react = performance.now() + 12000; }
