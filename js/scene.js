@@ -1134,13 +1134,13 @@ function walkTick(dt,t){
   const k=walk.keys;
   const fwd=(k.has('ArrowUp')?1:0)-(k.has('ArrowDown')?1:0),turn=(k.has('ArrowRight')?1:0)-(k.has('ArrowLeft')?1:0);
   walk.yaw-=turn*2.7*dt;   // screen-right turns the avatar's RIGHT: yaw must decrease here
-  const spd=fwd>0?2.2:fwd<0?1.5:0;
+  const spd=fwd>0?2.2:(fwd<0?-1.5:0);
   walk.x+=Math.sin(walk.yaw)*spd*dt;walk.z+=Math.cos(walk.yaw)*spd*dt;
   if(!LITE_MODE && k.has(' ')&&walk.py<=0&&walk.vy<=0.05){walk.vy=4.8;walk.py=.001;}   // space = hop (disabled in lite mode)
   walk.vy-=dt*13.5;walk.py+=walk.vy*dt;
   if(walk.py<0){walk.py=0;walk.vy=0;}
   walkCollide();
-  const moving=spd>0||turn!==0,bob=moving&&walk.py<=0?Math.abs(Math.sin(t*8.5))*.05:0;
+  const moving=Math.abs(spd)>0||turn!==0,bob=moving&&walk.py<=0?Math.abs(Math.sin(t*8.5))*.05:0;
   walk.grp.position.set(walk.x,FLOOR+walk.py+bob,walk.z);
   walk.grp.rotation.y=walk.yaw;
   // camera trails behind; mouse-drag offsets fade back to dead-rear while you move
