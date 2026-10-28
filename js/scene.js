@@ -944,6 +944,18 @@ for(let i=0;i<6;i++) spawnCrowd(-28+Math.random()*72, -4+Math.random()*24, 1);
 for(let i=0;i<40;i++) spawnCrowd(-8+Math.random()*32, -61.5+Math.random()*8, 1, true);    // pit, at the stage front, watching the band
 for(let i=0;i<8;i++) spawnCrowd(-14.5+Math.random()*5, -61+Math.random()*7, 1, true);     // west flank pack, facing the stage
 for(let i=0;i<8;i++) spawnCrowd(26.5+Math.random()*5, -61+Math.random()*7, 1, true);      // east flank pack, facing the stage
+// blankets with people laying by the stage
+for(let i=0;i<6;i++){
+  const bx=8+(Math.random()-.5)*20, bz=-55+(Math.random()-.5)*8;
+  const blanket=new THREE.Mesh(new THREE.PlaneGeometry(2.2,1.6),new THREE.MeshStandardMaterial({color:[0xe8578a,0xf2c14e,0x4fc3d9,0x53a86e,0xd77bd0][i%5],roughness:.9,side:THREE.DoubleSide}));
+  blanket.rotation.x=-Math.PI/2; blanket.position.set(bx,.02,bz); S.add(blanket);
+  for(let j=0;j<2;j++){
+    const person=buildPerformer(0xd9a978,0xd42a2a,0x1a1a1a,'civilian');
+    person.position.set(bx+(j-.5)*.8,.3,bz+(Math.random()-.5)*.6);
+    person.rotation.x=Math.PI/2; person.rotation.z=(Math.random()-.5)*.3;
+    S.add(person);
+  }
+}
 
 // (instanced cylindrical audience removed; stage crowd now uses performer-style bodies)
 
