@@ -852,7 +852,7 @@ const CROWD_LOOKS=[[0xd9a978,0xd42a2a,0x1a1a1a],[0xa8714a,0xf2c14e,0x2e8b3d],[0x
 const pick=arr=>arr[Math.floor(Math.random()*arr.length)];
 function spawnCrowd(cx,cz,n,faceStage){
   for(let i=0;i<n;i++){
-    const person=buildWaitingPerson(...pick(CROWD_LOOKS));
+    const person=buildPerformer(...pick(CROWD_LOOKS), 'civilian');
     person.position.set(cx+(Math.random()-.5)*2.6,.24,cz+(Math.random()-.5)*2.6);
     person.rotation.y=faceStage?Math.atan2(8-person.position.x,-70-person.position.z)+(Math.random()-.5)*.3:Math.random()*Math.PI*2;   // stage-front rows watch the band
     S.add(person);
@@ -1002,7 +1002,7 @@ function buildBooth(name,hue){
     // a short line of 2-4 people queued up at the table, standing single-file facing the booth
     const lineLen=2+Math.floor(Math.random()*3), dz=faceSouth?-1:1;
     for(let li=0;li<lineLen;li++){
-      const p=buildWaitingPerson(...pick(CROWD_LOOKS));
+      const p=buildPerformer(...pick(CROWD_LOOKS), 'civilian');
       p.position.set(bx+(Math.random()-.5)*.5, .24, bz+dz*(1.6+li*.75));
       p.rotation.y=(faceSouth?0:Math.PI)+(Math.random()-.5)*.3;
       S.add(p);
@@ -1108,7 +1108,7 @@ function walkStart(){
   // your avatar steps in on the ground between the camera and where it was looking
   walk.x=cam.position.x+fwd.x*4.4;walk.z=cam.position.z+fwd.z*4.4;
   walk.yaw=Math.atan2(fwd.x,fwd.z);walk.py=0;walk.vy=0;walk.hold=0;
-  walk.grp=buildWaitingPerson(0xd9a978,new THREE.Color().setHSL((hue??(Math.abs(Date.now())%360))/360,.55,.48),0x1a1a1a);
+  walk.grp=buildPerformer(0xd9a978,new THREE.Color().setHSL((hue??(Math.abs(Date.now())%360))/360,.55,.48),0x1a1a1a,'civilian');
   walk.grp.traverse(o=>{o.castShadow=true;});
   // little nameplate: same white-on-dark pill style as the presence avatars
   let name='You';try{name=localStorage.getItem('eol-visitor-name')||'You';}catch(e){}
