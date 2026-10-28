@@ -100,6 +100,7 @@ except urllib.error.HTTPError as e: assert e.code == 401, e.code
 PYX
 
 want /models/impala.json 200
+want /js/wear.js 200
 want /models/impala.bin 200
 want /js/model.js 200
 want /tools/model_gen.py 404

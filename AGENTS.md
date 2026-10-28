@@ -14,11 +14,14 @@ Both are the same server process (pm2 app `foodtruck-site`, port 8095) behind a 
 2. You cannot see the 3D scene. Verify with the smoke test, `node --check`, curl, and the console
    simulation snippets in section 5. If a change is visual, say so in your final message and ask the
    owner to look at `http://localhost:8223/3d`.
-3. **Never run** `sudo`, `pm2`, `systemctl`, `docker`, `rm -rf`, or anything that restarts the live site.
-   The owner restarts it. If you changed `server.py`, `index.html`, `mobile.html`, `admin.html`, `css/*`
-   or `js/*`, end your final message with exactly this line: `Restart needed: pm2 restart foodtruck-site`
+3. **Allowed (owner-granted):** `pm2 restart|reload|status|logs|describe foodtruck-site`, and git `add <files>` / `commit` / `pull --ff-only` /
+   `push origin main`. **Never run** `sudo`, `systemctl`, `docker`, `rm -rf`, any other pm2 app (this machine hosts ~10), `pm2 delete|stop`,
+   force-push, `commit --amend`, `reset --hard`, `git add -A`/`git add .`, or touch Cloudflare/DNS. After you change a served file
+   (`server.py`, `index.html`, `mobile.html`, `admin.html`, `css/*`, `js/*`, `models/*`) and the checks pass, commit, push, then
+   `pm2 restart foodtruck-site` and confirm `curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8095/3d` prints 200.
+   OpenCode shortcuts: `/check`, `/review`, `/ship`, `/next` (`.opencode/commands/`), agents `reviewer` + `release` (`.opencode/agents/`).
 4. Never touch `data/` (live orders, settings, password hashes), `lib/` (vendored three.js), `tex/`, `img/`,
-   `media/`. Never read `data/settings.json` in full — it holds service URLs and keys. Never print secrets.
+   `media/`, `models/pilot-*`. Never read `data/settings.json` in full — it holds service URLs and keys. Never print secrets.
    Do not touch Cloudflare, DNS, or anything under `/home/dad/.secrets`.
 5. No new dependencies: Python standard library only on the server; vanilla ES modules + the vendored
    three.js r160 in `lib/` in the browser. No npm, no bundler, no CDN scripts, no new files in `lib/`.
@@ -378,4 +381,4 @@ Tag the material (section 6.9) and bump `gfx.js`'s `V` constant when you re-rend
 - [ ] no secrets read or printed; `data/`, `lib/`, `tex/`, `img/`, `media/` untouched
 - [ ] new routes have smoke checks; new settings are in `DEFAULT_SETTINGS` + `PUBLIC_SETTINGS` + admin.html
 - [ ] ROADMAP.md updated (bug fixed → remove it; new gap → add it)
-- [ ] final line: `Restart needed: pm2 restart foodtruck-site` (when any served file changed)
+- [ ] served file changed -> committed, pushed and `pm2 restart foodtruck-site` done (or say why not)

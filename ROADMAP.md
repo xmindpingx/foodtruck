@@ -94,3 +94,21 @@ Smoke now also checks: one `?v=` per module, gfx assets + private raw dir, accou
 - Sounds: splash, trash, hug, flash-sale bell.
 - Admin: theme override (force a holiday for everyone). Done in this round: clutter amount + actor count + interaction rate (`crowdAmount`/`actorsAmount`/`interactAmount`/`clutterAmount` in Environment tab).
 - Tests: headless render test for each theme; unit tests for `themes.autoTheme` across a year.
+
+### 3D wearables (backbone shipped; the rest is this to-do)
+Backbone: `js/wear.js` (sockets -> shared-geometry props), `tools/wear_gen.py` (FLUX ref -> Hunyuan3D mv-turbo -> `models/wear/`),
+`bling/catalog.json` rows with `model:true`, `slot` = a socket name, `mat` = a `wear.js` MATS key; `BLING_SLOTS` widened in server.py;
+worn cap raised 6 -> 8. Pilot facts: ~50 s/item warm, 1500 tris reads the same as 6000, props carry NO colour/UVs (one `mat` each).
+- [ ] Generate the rest of the catalog (design pass produced ~98 rows; saved under the session scratchpad). Re-scope to single-material
+      silhouettes; drop items that duplicate the free Look picker (ball/cowboy/beret, afro/bun/long/short) or live bling (sombrero, pocket watch).
+- [ ] Hair + facial hair: UNTESTED whether generated solids bury the painted face (critics say yes). Pilot one hair/beard/moustache; else
+      add procedural styles to people.js (`HAIRS`, `g.beard`). Needs `userData.part` stamps to suppress the default hair/hat/shoe.
+- [ ] Clothes: NOT generated meshes (can't fit an articulated avatar). Procedural garment geometry in `rig()` + ComfyUI fabric tiles via gfx_gen.py;
+      other visitors need a rebuild path in avatars.js `poll()` (it only diffs bling today).
+- [ ] Missing sockets: shoulderL/R, earL/R, nose, wrists. Foot socket is at the shoe centre (y -.428), sole is -.472: use `dy:-.044` or move it.
+- [ ] account.js UI grouping by kind (cascade: account.js -> shop.js -> 10 modules + index.html/mobile.html `?v=`), pricing entry rung (60-90),
+      pun labels, fix emoji collisions, bling-golden-goggles slot hat -> glasses.
+- [ ] Ownership of worn bling is still not verified server-side (T2) — more valuable items make it matter more.
+- [ ] Sprouts: ~1/3 size when clipped on, clip anywhere on the body, a dozen new festival sprout types (owner request).
+- [ ] Draw calls: workflow `draw-call-survey` lists what animates per prop; then `People.mergeStatic()` the truck rig (467 meshes), water park (189),
+      stage (118), arcade/jukebox. Current ~974 render calls (shadows on), was ~1,200+.

@@ -298,13 +298,13 @@ def info(path):
 
 
 # ---------------------------------------------------------------- pack for the web
-def pack(path, name, length=5.4, rot_x=0.0, yaw=0.0, sizes=(1024, 512), quality=(86, 82)):
+def pack(path, name, length=5.4, rot_x=0.0, yaw=0.0, single=False, sizes=(1024, 512), quality=(86, 82)):
     """GLB -> models/<name>.json + .bin (quantised) + colour/normal/orm JPEGs at desktop and phone sizes."""
     import io
     import numpy as np
     from PIL import Image
     prims, texes, g = read_glb(path)
-    os.makedirs(OUT, exist_ok=True)
+    os.makedirs(os.path.dirname(os.path.join(OUT, name)), exist_ok=True)
 
     P, N, U, C, I, base = [], [], [], [], [], 0
     has_col = any(p.get('col') is not None for p in prims)
@@ -349,7 +349,7 @@ def pack(path, name, length=5.4, rot_x=0.0, yaw=0.0, sizes=(1024, 512), quality=
     # the generator bakes one colour field over everything, so tyres, glass and chrome would otherwise
     # take the body's candy paint. Classified per triangle from its generated colour plus its height.
     groups = []
-    if True:
+    if not single:   # wearables pack as ONE group: the catalog's `mat` shades the whole prop
         tri = idx.reshape(-1, 3)
         c = col[tri].mean(axis=1) if col is not None else np.zeros((len(tri), 3), 'f4')
         yv = pos[tri][:, :, 1].mean(axis=1)
@@ -418,5 +418,5 @@ if __name__ == '__main__':
     if cmd == 'refs': refs(only=pos[1:] or None)
     elif cmd == 'model': model(pos[1], seed=int(opt('--seed', float, 42)), faces=int(opt('--faces', float, 60000)), tex=int(opt('--tex', float, 2048)), uv='--uv' in a)
     elif cmd == 'info': info(pos[1])
-    elif cmd == 'pack': pack(pos[1], pos[2], length=opt('--len', float, 5.4), rot_x=opt('--rot-x', float, 0.0), yaw=opt('--yaw', float, 0.0))
+    elif cmd == 'pack': pack(pos[1], pos[2], length=opt('--len', float, 5.4), rot_x=opt('--rot-x', float, 0.0), yaw=opt('--yaw', float, 0.0), single='--single' in a)
     else: print(__doc__)

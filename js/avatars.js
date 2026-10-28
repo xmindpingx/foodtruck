@@ -11,7 +11,8 @@ import * as THREE from 'three';
 import {WX0, WX1, BW, FLOOR} from './truck.js?v=12';
 import {CONFIG} from './shop.js?v=8';
 import * as Account from './account.js?v=8';   // language picked at sign-up drives chips + docks
-import * as People from './people.js?v=8';     // realistic shared-geometry bodies (painted faces, swinging limbs)
+import * as People from './people.js?v=8';
+import * as Wear from './wear.js?v=1';     // realistic shared-geometry bodies (painted faces, swinging limbs)
 
 const ID_KEY = 'eol-visitor-id', NAME_KEY = 'eol-visitor-name', PROFILE_KEY = 'eol-visitor-profile';
 const CAP_STYLES = ['', 'ball', 'cowboy', 'beret', 'cone', 'marge', 'bart', 'lisa', 'homer', 'duff', 'krusty', 'moes', 'flanders'];
@@ -85,8 +86,9 @@ export function applyBling(group, ids) {
   const body = group && group.children[0]; if (!body) return;
   for (const sp of group.userData.bling || []) body.remove(sp);
   group.userData.bling = [];
+  Wear.apply(group, (ids || []).map(id => BLING_BY[id]).filter(Wear.isWear));   // 3D props on the avatar's sockets
   for (const id of ids || []) {
-    const it = BLING_BY[id]; if (!it || !BLING_POS[it.slot]) continue;
+    const it = BLING_BY[id]; if (!it || it.model || !BLING_POS[it.slot]) continue;
     const sp = new THREE.Sprite(blingMat(id)), sz = (BLING_SIZE[it.slot] || .3) * (it.size || 1);
     sp.position.set(...BLING_POS[it.slot]); sp.scale.set(sz, sz, 1); sp.userData.sz = sz;
     body.add(sp); group.userData.bling.push(sp);
@@ -103,7 +105,7 @@ export function toggleBling(id) {   // one piece per slot; saved in the profile 
   const it = BLING_BY[id]; if (!it) return false;
   let cur = (myProfile.bling || []).filter(x => BLING_BY[x]);
   if (cur.includes(id)) cur = cur.filter(x => x !== id);
-  else cur = [...cur.filter(x => BLING_BY[x].slot !== it.slot), id].slice(-6);
+  else cur = [...cur.filter(x => BLING_BY[x].slot !== it.slot), id].slice(-8);
   myProfile.bling = cur; saveProfile();
   const me = live.get(myId); if (me) { me.blingIds = cur; applyBling(me.group, cur); }
   dispatchEvent(new Event('eol:bling-changed'));
@@ -646,7 +648,7 @@ export function disposeBody(grp) {
   grp.traverse(o => {
     if (o.isSprite) { if (o.material && !BLING_SPRITE.has(o.material)) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } return; }
     if (!o.isMesh) return;
-    if (o.geometry) o.geometry.dispose();
+    if (o.geometry && !o.userData.shared) o.geometry.dispose();   // worn 3D props share one geometry across wearers
     if (o.userData.custom && !o.userData.skinFace && o.material) o.material.dispose();
   });
 }

@@ -1,28 +1,71 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "model": "opencode-go/beam-free",
-  "instructions": ["AGENTS.md", "ROADMAP.md"],
+  "instructions": [
+    "AGENTS.md",
+    "ROADMAP.md"
+  ],
   "permission": {
     "edit": "allow",
     "webfetch": "ask",
     "bash": {
       "*": "allow",
       "sudo *": "deny",
-      "pm2 *": "deny",
       "systemctl *": "deny",
       "service *": "deny",
       "docker *": "deny",
       "rm -rf *": "deny",
       "rm -r *": "deny",
-      "git push*": "deny",
-      "git commit --amend*": "deny",
-      "git reset --hard*": "deny",
-      "git add -A*": "deny",
-      "git add .*": "deny",
       "cat data/settings.json": "deny",
       "cat */.secrets/*": "deny",
       "cloudflared *": "deny",
-      "curl * api.cloudflare.com*": "deny"
+      "curl * api.cloudflare.com*": "deny",
+      "pm2 *": "deny",
+      "pm2 restart foodtruck-site*": "allow",
+      "pm2 reload foodtruck-site*": "allow",
+      "pm2 status*": "allow",
+      "pm2 list*": "allow",
+      "pm2 describe foodtruck-site*": "allow",
+      "pm2 logs foodtruck-site*": "allow",
+      "pm2 jlist*": "allow",
+      "git push --force*": "deny",
+      "git push -f*": "deny",
+      "git push * --force*": "deny",
+      "git push * -f": "deny",
+      "git commit --amend*": "deny",
+      "git reset --hard*": "deny",
+      "git clean*": "deny",
+      "git add -A*": "deny",
+      "git add .*": "deny",
+      "git checkout -- *": "deny"
+    }
+  },
+  "agent": {
+    "build": {
+      "description": "Default agent: implements one ROADMAP task at a time on the food-truck site"
+    },
+    "reviewer": {
+      "description": "Read-only reviewer: checks a diff against AGENTS.md before commit",
+      "mode": "subagent",
+      "temperature": 0.1,
+      "permission": {
+        "edit": "deny",
+        "bash": {
+          "*": "deny",
+          "git diff*": "allow",
+          "git status*": "allow",
+          "git log*": "allow",
+          "grep *": "allow",
+          "node --check *": "allow",
+          "python3 -m py_compile *": "allow",
+          "bash tests/smoke.sh": "allow"
+        }
+      }
+    },
+    "release": {
+      "description": "Runs the checks, commits, pulls, pushes and restarts the live site",
+      "mode": "subagent",
+      "temperature": 0
     }
   }
 }
