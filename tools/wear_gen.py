@@ -79,6 +79,20 @@ ITEMS = {
  'wear-hippie-pack':    ('🎒 Groovy Rucksack', 'back', .4, 'cloth', 110, '', 'a canvas rucksack with peace patches, three-quarter view'),
  'wear-biker-pack':     ('🎒 Road Warrior Pack', 'back', .42, 'leather', 130, '', 'a black leather motorcycle backpack with straps, three-quarter view'),
  'wear-teen-pack':      ('🎒 Teen Spirit Pack', 'back', .38, 'cloth', 90, '', 'a small school backpack with pins and patches, three-quarter view'),
+ # --- interaction props + dance wearables (queued) ---
+ 'wear-jump-rope':     ('🪢 Jump to Conclusions Rope', 'handR', .60, 'cloth', 80, '', 'a jump rope with wooden handles, coiled, front view'),
+ 'wear-tap-shoes':     ('👟 Tap-tastic Shoes', 'shoes', .29, 'black', 120, '', 'a single black tap shoe with metal taps, side view'),
+ 'wear-tutu':          ('🩰 Tutu Much Tutu', 'waist', .40, 'cloth', 110, '', 'a pink tulle tutu skirt, front view'),
+ 'wear-salsa-shoes':   ('💃 Salsa Soul Shoes', 'shoes', .29, 'red', 120, '', 'a single red heeled salsa dance shoe, side view'),
+ 'wear-dance-ribbon':  ('🎀 Ribbon Dancer', 'handL', .45, 'neon', 70, '', 'a flowing dance ribbon on a stick, front view'),
+ 'wear-steampunk-goggles': ('🥽 Steamy Goggles', 'glasses', .16, 'brass', 100, '', 'a pair of brass steampunk goggles with leather straps, front view'),
+ 'wear-steampunk-vest':   ('🦺 Steam Vest', 'chest', .35, 'leather', 130, '', 'a brown leather steampunk vest with brass buttons, front view'),
+ 'wear-halloween-witch-hat': ('🧙 Witch Way Hat', 'hat', .32, 'black', 100, '', 'a black witch hat with a purple band, three-quarter view'),
+ 'wear-halloween-cape':      ('🧛 Caped Crusader Cape', 'back', .45, 'cloth', 130, '', 'a black vampire cape with a red lining, spread, back view'),
+ 'wear-christmas-elf-hat':   ('🧝 Elf Help Hat', 'hat', .30, 'cloth', 90, '', 'a green and red elf hat with a bell, three-quarter view'),
+ 'wear-christmas-scarf':     ('🧣 Wrap Star Scarf', 'collar', .35, 'cloth', 80, '', 'a red and green striped winter scarf, front view'),
+ 'wear-summer-shades':       ('😎 Sun Out Shades', 'glasses', .14, 'black', 80, '', 'a pair of oversized summer sunglasses, front view'),
+ 'wear-summer-flipflops':    ('🩴 Flip Flop Flop', 'shoes', .27, 'rubber', 60, '', 'a single pair of rubber flip flops, side view'),
 }
 
 def gen(ids):

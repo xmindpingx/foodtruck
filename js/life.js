@@ -476,6 +476,11 @@ export function init(o) {
       {label: '👏 Cheer', fn: () => { cheer(a, 3); pop('👏', a.root, 2.0); } },
       {label: '🌱 Give sprout', fn: () => { dispatchEvent(new CustomEvent('eol:npc-gift', {detail: {npc: a.id, slot: pick(['collar', 'chest', 'chestL', 'chestR', 'shoulderL', 'shoulderR', 'hat', 'waist', 'hip', 'back', 'handL', 'handR']), cost: 0}})); } },
       {label: '🚶 Follow me', fn: () => { if (a.staff) { pop('🙅', a.root, 2.0); return; } if (a.seat) release(a); a.plan = [{k: 'follow', t: 20, dist: 2.2}, wait(2, 'wave')]; a.step = null; a.idle = false; setMood(a, 'smile', 4); } },   // t = seconds to tag along (0 used to end it on the next frame)
+      {label: '🪢 Jump rope', fn: () => { a.anim = 'play'; a.idle = false; setMood(a, 'smile', 5); pop('🪢', a.root, 2.0); } },
+      {label: '💃 Salsa', fn: () => { a.anim = 'dance'; a.idle = false; setMood(a, 'smile', 5); pop('💃', a.root, 2.0); } },
+      {label: '🕺 Breakdance', fn: () => { a.anim = 'dance'; a.idle = false; setMood(a, 'smile', 6); pop('🕺', a.root, 2.0); } },
+      {label: '🎤 Sing', fn: () => { a.anim = 'chat'; a.idle = false; setMood(a, 'smile', 4); pop('🎤', a.root, 2.0); } },
+      {label: '🤸 Cartwheel', fn: () => { a.anim = 'play'; a.idle = false; setMood(a, 'smile', 4); pop('🤸', a.root, 2.0); } },
     ];
     // pick 4 random, dedup by label
     const shuffled = opts.slice().sort(() => Math.random() - .5).slice(0, 4);
