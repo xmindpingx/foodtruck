@@ -956,17 +956,6 @@ for(let i=0;i<12;i++) spawnCrowd(26.5+Math.random()*5, -61+Math.random()*7, 1, t
 // shadow pass) until the camera comes within CROWD_RANGE - 16 m on phones / lite mode, 40 m on
 // desktops - with 3 m of hysteresis so nobody flickers at the boundary. The 200-body instanced
 // audience is two draw calls and is never culled, so the stage front still reads as packed.
-  for(let i=0;i<n;i++){
-    const looks=[0xd9a978,0xa8714a,0xf0c7a0,0xc78f5e,0x8a5a35,0xe6b98a,0xb07a4e,0x7a4a2a,0xd9a978,0xa8714a];
-    const sk=looks[Math.floor(Math.random()*looks.length)];
-    const person=buildPerformer(sk,0xd42a2a+Math.floor(Math.random()*0x800000),0x1a1a1a,'civilian');
-    person.position.set(cx+(Math.random()-.5)*2.6,0.56,cz+(Math.random()-.5)*2.6);
-    person.rotation.y=faceStage?Math.atan2(8-person.position.x,-70-person.position.z)+(Math.random()-.5)*.3:Math.random()*Math.PI*2;   // stage-front rows watch the band
-    S.add(person);
-    if(Math.random()<.35) lightPipe(person);
-    cullable(person);
-  }
-// ----------
 // pipe smokers: a bowl-and-stem pipe held to the mouth, plus two staggered smoke puffs that
 // rise off the bowl and fade instead of one shared fog-machine plume. Per-puff sprite
 // material so each puff fades on its own; the shared texture keeps it cheap.
