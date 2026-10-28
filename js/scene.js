@@ -887,7 +887,7 @@ function spawnCrowd(cx,cz,n,faceStage){
     const looks=[0xd9a978,0xa8714a,0xf0c7a0,0xc78f5e,0x8a5a35,0xe6b98a,0xb07a4e,0x7a4a2a,0xd9a978,0xa8714a];
     const sk=looks[Math.floor(Math.random()*looks.length)];
     const person=buildPerformer(sk,0xd42a2a+Math.floor(Math.random()*0x800000),0x1a1a1a,'civilian');
-    person.position.set(cx+(Math.random()-.5)*2.6,0,cz+(Math.random()-.5)*2.6);
+    person.position.set(cx+(Math.random()-.5)*2.6,0.56,cz+(Math.random()-.5)*2.6);
     person.rotation.y=faceStage?Math.atan2(8-person.position.x,-70-person.position.z)+(Math.random()-.5)*.3:Math.random()*Math.PI*2;   // stage-front rows watch the band
     S.add(person);
     cullable(person);
