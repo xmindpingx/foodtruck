@@ -61,7 +61,7 @@ function closedPark(S, o) {
   const sign = add(new THREE.Mesh(new THREE.PlaneGeometry(5.6, 2.6), new THREE.MeshBasicMaterial({map: tex, side: THREE.DoubleSide})), PARK.x1 + .3, 3.6, gz); sign.rotation.y = Math.PI / 2;
   for (const dz of [-2.8, 2.8]) add(new THREE.Mesh(new THREE.CylinderGeometry(.1, .12, 3.6, 8), std(0x7a5a38, .9)), PARK.x1 + .3, 1.8, gz + dz);
   G.visible = false; const RANGE = (lite || isPhone) ? 45 : 85, v = new THREE.Vector3(); let nextPun = 7;
-  return {closed: true, group: G, guards: [], towers: [], poi: {}, bounds: PARK, tick(t, dt) {
+  return {closed: true, group: G, guards: [], towers: [], poi: {}, bounds: PARK, zones: [], splash: () => {}, tick(t, dt) {
     cam.getWorldPosition(v); G.visible = Math.hypot(v.x - PARK.x1, v.z - gz) < RANGE; if (!G.visible) return;
     if (!message && (nextPun -= dt) < 0) { nextPun = 7; n++; paint(); }
   }};
@@ -69,7 +69,7 @@ function closedPark(S, o) {
 
 export function init(S, o) {
   if (o.open === false) return closedPark(S, o);
-  const {lite, phone: isPhone, cam} = o, small = lite || isPhone;
+  const {lite, phone: isPhone, cam, player, onUse} = o, small = lite || isPhone;
   const G = new THREE.Group(); G.userData.steamSkip = true; S.add(G);   // keeps its own bright colours under any theme
   // each part of the park hides on its own when the camera is far from it (phones use ~60% of these radii)
   const sec = {}; let cur = G;
@@ -188,6 +188,16 @@ export function init(S, o) {
   // squirt fight: two bathers in the wave pool soak each other
   const fighters = waveBathers.slice(0, 2);
 
+  // ---------- interactive zones: entering one splashes + grants Rep (cooldown per zone) ----------
+  const zones = [
+    {name: 'wave pool', x: WP.x, z: WP.z, r: 8, last: 0},
+    {name: 'lazy river', x: LR.x, z: LR.z, r: 9, last: 0},
+    {name: 'bumper boats', x: BP.x, z: BP.z, r: 5, last: 0},
+    {name: 'slide splash', x: -66, z: 3.6, r: 3.2, last: 0},
+    {name: 'slide splash', x: -38, z: -11.6, r: 3.2, last: 0},
+  ];
+  for (const [cx, cz] of cannons) zones.push({name: 'water cannon', x: cx, z: cz, r: 3, last: 0});
+
   // ---------- loungers + umbrellas ----------
   mkSec('lounge', -53, 8, 75);
   {
@@ -213,6 +223,8 @@ export function init(S, o) {
       G.visible = any;
     }
     if (!G.visible) return;
+    // interactive: stepping into an attraction splashes + grants Rep (per-zone cooldown)
+    if (player) { const pp = (typeof player === 'function' ? player() : player); if (pp) for (const z of zones) { if (Math.hypot(pp.x - z.x, pp.z - z.z) < z.r && (t - z.last) > 22) { z.last = t; splash(pp.x, pp.z); if (onUse) onUse(z.name); } } }
     if (sec.wave.on && sec.wave.d < (small ? 40 : 75)) {   // wave pool vertices + bobbing bathers
       const a = wpos.array;
       for (let i = 0; i < wpos.count; i++) a[i * 3 + 1] = wbase[i * 3 + 1] + waveH(wbase[i * 3], t);
@@ -247,5 +259,5 @@ export function init(S, o) {
       drops.count = n; drops.instanceMatrix.needsUpdate = true;
     }
   }
-  return {tick, group: G, guards, towers: guards.map(([x, z]) => ({x, z})), poi: {gate: {x: PARK.x1 - 2, z: PARK.gate.z}, wave: {x: WP.x + WP.w / 2 + 2, z: WP.z}, river: {x: LR.x + LR.r1 + 1.2, z: LR.z}, slideA: {x: -66, z: 2}, slideB: {x: -38, z: -10}, boats: {x: BP.x + BP.r + 1.5, z: BP.z}}, bounds: PARK};
+  return {tick, group: G, guards, towers: guards.map(([x, z]) => ({x, z})), poi: {gate: {x: PARK.x1 - 2, z: PARK.gate.z}, wave: {x: WP.x + WP.w / 2 + 2, z: WP.z}, river: {x: LR.x + LR.r1 + 1.2, z: LR.z}, slideA: {x: -66, z: 2}, slideB: {x: -38, z: -10}, boats: {x: BP.x + BP.r + 1.5, z: BP.z}}, bounds: PARK, zones, splash};
 }
