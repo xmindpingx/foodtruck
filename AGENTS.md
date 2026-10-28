@@ -275,14 +275,21 @@ forces full mode; the chip bottom-right toggles it. Themes: `?theme=steampunk|ha
   (and again at 1.5 s). `small` (phones/lite) loads `gfx/<name>.m.jpg` and skips normal maps; desktop loads
   `<name>.jpg` + `<name>.n.jpg`. `enabled` = `CONFIG.sceneTextures !== false`.
 - A builder opts a material in by tagging `material.userData`: `gfx:'<name>'` (grass wood canvas stone sand water
-  backdrop signboard deck food-<vendorId>), optional `gfxRepeat:[x,y]`, `gfxTint:true` (neutral fabric: keeps
+  backdrop signboard deck food-<vendorId> car-paint car-wheel car-tire car-grille car-seat), optional `gfxRepeat:[x,y]`, `gfxTint:true` (neutral fabric: keeps
   material.color as the tint — themefx may recolour it), `gfxShade:0..1` (darker natural texture),
   `gfxNoNormal:true`, `gfxMacro:texture` + `gfxMacroRepeat` (ground only: blends the old canvas over the photo
   so 4 m tiles don't show), `gfxSign:fn(img)` (booth signs repaint their canvas on the board image).
   Untagged materials — and the truck — are never touched. Every material gets its own texture object
   (cheap: three.js shares the GPU image), so animating `material.map.offset` (the lazy river) is safe.
-- Where tags live today: ground + buildTable + buildBooth (+ sign) + buildStage backdrop in scene.js; water,
-  deck, rims, walls, beach, umbrellas in waterpark.js; vendor sandwich boards in quests.js.
+- Where tags live today: ground + buildTable + buildBooth (+ sign) + buildStage backdrop + the lowrider's paint,
+  wheels, tyres, grille and upholstery in scene.js; water, deck, rims, walls, beach, umbrellas in waterpark.js;
+  vendor sandwich boards in quests.js.
+- The '64 lowrider (`buildLowriderImpala`) is one extruded side profile (`carBodyShape`) plus a painted cabin
+  (`carCabinShape`) with inset glass; `extrudeAcross(shape,width,bevel)` maps shape x -> +z (front) and extrudes
+  across the car's width. The hub sits at y=.34, so **the tyre's outer radius must stay .34** or the wheels sink
+  into the lawn. The car group carries `userData.steamSkip` so holiday palettes never repaint the candy purple,
+  and `userData.switches/banks/switchLeds` (tap targets) must survive any rebuild — scene.js's click handler
+  walks ancestors to find the car, so nesting is fine.
 - Contact shadows: scene.js draws one soft blob per crowd body (`CROWD_BLOBS`, shown/hidden with the body)
   and per AI actor (`ACTOR_BLOBS`, updated each frame) outside the sun's shadow box (|x|,|z| > 13 m).
 
@@ -336,6 +343,13 @@ include the Easter/Thanksgiving edge days (the day before the window, first day,
 
 **T10. Sounds (no assets)** — a tiny `js/sfx.js` using WebAudio oscillators for splash / trash / hug /
 flash-sale bell; trigger from life.js `pop()` kinds and quests.js; respect `localStorage['eol-chat-quiet']`.
+
+**T11b. 3D model generation is blocked on this GPU** — `tools/model_gen.py` has a working TRELLIS 2 image->3D
+pipeline (`model <ref.png>`), but every installed 3D model is int8 (`trellis_2_int8_convrot`, `pixal3d_*`) and this
+box cannot run int8 GEMM: `torch._int_mm` fails with `HIPBLAS_STATUS_INVALID_VALUE` because the torch build ships
+no `TensileLibrary_lazy_gfx1030.dat` (RX 6800). `TORCH_BLAS_PREFER_HIPBLASLT=0` does not help. It needs either a
+torch/ROCm build with gfx1030 hipBLASLt kernels or non-quantized (bf16/fp16) 3D weights. Image generation is
+unaffected. Re-test with: `/home/dad/aaservers/ComfyUI/vcomfy/bin/python -c "import torch;a=torch.randint(-8,8,(256,512),dtype=torch.int8,device='cuda');torch._int_mm(a,a.T.contiguous())"`.
 
 **T11. New / better ComfyUI texture** — `tools/gfx_gen.py` (`TEX` table: name → prompt, width, height, kind:
 `seamless` | `seamx` (planks: left/right wrap only) | `tint` (neutral fabric) | `photo`). Add or edit a row, then

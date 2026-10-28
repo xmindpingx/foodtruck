@@ -35,6 +35,21 @@ TEX = {
                  'no people, no silhouettes, no text, no logos, photorealistic', 1024, 512, 'photo'),
     'signboard': ('Front view photograph of a blank weathered wooden sign board made of cream-painted horizontal planks with a hand-painted dark red border '
                   'and slightly chipped paint, the board fills the entire frame edge to edge, flat even lighting, no text, no letters, no logos, photorealistic', 1024, 320, 'photo'),
+    # --- '64 lowrider: the maps that carry the realism (wire wheels and candy flake can't be modelled cheaply)
+    'car-paint': ('Extreme macro photograph of a flawless candy purple metalflake car paint surface, deep violet base with fine silver '
+                  'metal flakes sparkling under a glossy clear coat, perfectly flat panel, ' + SURF, 1024, 1024, 'seamless'),
+    'car-wheel': ('Straight-on front view photograph of a chrome wire-spoke car wheel, 72 thin polished chrome spokes radiating from a '
+                  'chrome knock-off hub to a chrome rim, surrounded by a thin white wall tire, the wheel perfectly centred and circular '
+                  'and filling the frame, shot square to the camera, studio lighting, isolated on a pure solid flat black background, '
+                  'photorealistic, no text, no logos', 512, 512, 'photo'),
+    'car-tire': ('Extreme macro photograph of a black rubber car tire sidewall and tread, fine rubber grain and shallow tread grooves '
+                 'running left to right, matte black, ' + SURF, 512, 512, 'seamx'),
+    'car-grille': ('Extreme close-up macro photograph cropped tight on the chrome grille mesh of a 1960s American car: '
+                   'rows of fine polished horizontal chrome bars with dark gaps between them, filling the entire frame edge to edge '
+                   'with no border, no body panels, no headlights, no background, flat even studio lighting, photorealistic, '
+                   'no text, no logos', 1024, 512, 'photo'),
+    'car-seat': ('Extreme macro photograph of tan tuck-and-roll pleated leather car upholstery, evenly spaced vertical padded rolls with '
+                 'stitched seams, soft leather grain, ' + SURF, 512, 512, 'seamless'),
     'food-wok': (f'Lo mein noodles with colorful stir-fried vegetables in an open white takeout box with wooden chopsticks, {FOOD}', 512, 512, 'photo'),
     'food-pita': (f'A stuffed gyro pita wrap with sliced roast meat, tomato, red onion and creamy tzatziki in a paper wrap, {FOOD}', 512, 512, 'photo'),
     'food-fry': (f'Golden crispy french fries spilling from a red and white striped paper cone next to a small cup of ketchup, {FOOD}', 512, 512, 'photo'),
@@ -42,33 +57,20 @@ TEX = {
     'food-sundae': (f'An ice cream sundae in a tall glass with three scoops, hot fudge, whipped cream, rainbow sprinkles and a cherry on top, {FOOD}', 512, 512, 'photo'),
     'food-pretzel': (f'A giant golden soft pretzel sprinkled with coarse salt next to a small cup of warm cheese dip on parchment paper, {FOOD}', 512, 512, 'photo'),
 }
-NORMALS = ('grass', 'stone', 'sand', 'wood', 'canvas')
+NORMALS = ('grass', 'stone', 'sand', 'wood', 'canvas', 'car-paint', 'car-tire', 'car-seat')
 CROP = {'signboard': .015}   # trim a thin white margin some renders leave around the subject   # desktop-only tangent-space normal maps derived from luminance
 
 
-def comfy_settings(url):
-    os.environ.setdefault('FOODTRUCK_DATA', tempfile.mkdtemp(prefix='gfx-data-'))   # importing server.py must never touch live data/
-    os.environ['FOODTRUCK_NO_PREWARM'] = '1'
-    sys.path.insert(0, ROOT)
-    import server
-    return server, {**server.DEFAULT_SETTINGS, 'comfyUrl': url, 'imageEngine': 'comfyui', 'comfyCheckpoint': '', 'comfyWorkflow': '',
-                    'comfySamplingSteps': 4, 'comfySeed': 'random', 'comfyBatchSize': 1}
-
-
-def wake(url, wait=240):
-    t0 = time.time()
-    while time.time() - t0 < wait:
-        try:
-            urllib.request.urlopen(url.rstrip('/') + '/system_stats', timeout=20).read(); return True
-        except Exception:
-            time.sleep(4)
-    return False
+def _client():
+    sys.path.insert(0, os.path.join(ROOT, 'tools'))
+    import model_gen
+    return model_gen
 
 
 def gen(names, url, redo=False):
     os.makedirs(RAW, exist_ok=True)
-    server, s = comfy_settings(url)
-    if not wake(url): sys.exit(f'ComfyUI did not answer at {url} within 4 minutes')
+    M = _client(); M.COMFY = url
+    M.wake()
     todo = [n for n in (names or TEX) if n in TEX]
     for n in todo:
         dst = os.path.join(RAW, n + '.png')
@@ -76,17 +78,17 @@ def gen(names, url, redo=False):
             if not redo: continue
             os.replace(dst, os.path.join(RAW, n + '-old.png'))
         prompt, w, h, _ = TEX[n]
-        s['comfyWidth'], s['comfyHeight'] = w, h
         t = time.time()
         for attempt in (1, 2):
             try:
-                png = server.comfy_render(s, prompt, {})
-                with open(dst, 'wb') as f: f.write(png)
-                print(f'{n}: ok {len(png)//1024} KB {time.time()-t:.0f}s', flush=True); break
+                outs = M.run(M.flux_graph(prompt, w, h, seed=1234 + attempt * 31 + (hash(n) & 0xffff)), label=n)
+                for node in outs.values():
+                    for im in node.get('images', []):
+                        png = M.fetch_image(im); open(dst, 'wb').write(png)
+                        print(f'{n}: ok {len(png)//1024} KB {time.time()-t:.0f}s', flush=True); break
+                if os.path.exists(dst): break
             except Exception as e:
-                print(f'{n}: attempt {attempt} failed: {e}', flush=True); wake(url, 120)
-    try: server.comfy_free(s)
-    except Exception as e: print('comfy_free failed:', e)
+                print(f'{n}: attempt {attempt} failed: {e}', flush=True); M.wake(120)
     print('DONE', flush=True)
 
 

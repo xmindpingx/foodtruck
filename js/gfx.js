@@ -11,8 +11,8 @@
 // truck are never touched. Admin → Environment → "Photo textures" (sceneTextures) switches it all off.
 import * as THREE from 'three';
 
-const V = 1;   // bump when gfx/*.jpg are regenerated so browsers refetch
-const NORMAL = {grass: .55, stone: .45, sand: .4, wood: .8, canvas: .3};   // desktop normal-map strength
+const V = 2;   // bump when gfx/*.jpg are regenerated so browsers refetch
+const NORMAL = {grass: .55, stone: .45, sand: .4, wood: .8, canvas: .3, 'car-tire': .9, 'car-seat': .7, 'car-paint': .16};   // desktop normal-map strength
 const SPECIAL = {deck: 'stone', backdrop: 'backdrop'};
 
 export function init({R, small, enabled = true}) {

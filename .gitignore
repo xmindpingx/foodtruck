@@ -16,3 +16,4 @@ _to_delete/
 
 # ComfyUI raw renders (tools/gfx_gen.py); only the built gfx/*.jpg are served
 tools/gfx_raw/
+tools/model_raw/

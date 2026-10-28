@@ -17,6 +17,7 @@ Restart needed after pulling: `pm2 restart foodtruck-site`.
 | Rep | `js/rep.js`, `server.py` (`/api/rep`, `/api/gift-npc`, `/api/npc-friend-gift`) | levels 0-5; more Rep = more crowd greetings |
 | Clutter | `js/stuff.js` | trash / lost items / decor, near+mid LOD, local persistence 30 min |
 | Vendors + quests | `js/quests.js` | 6 pun vendors (with food-photo sandwich boards), flash sales, flash dances, ~37 pun quests |
+| '64 lowrider | `js/scene.js` (`buildLowriderImpala`) | extruded side-profile body + painted cabin with inset glass, clear-coat candy paint, ComfyUI wire-wheel/tyre/grille/upholstery/metalflake maps; hydraulics, ON-SWITCHES and tap-to-hop unchanged |
 | Photo textures | `tools/gfx_gen.py`, `gfx/`, `js/gfx.js` | 14 ComfyUI renders (grass, wood, canvas, stone, sand, water, LED wall, sign board, 6 vendor dishes) → tileable JPEG + phone size + normal maps; admin `sceneTextures`; contact-shadow blobs in scene.js |
 | Water park | `js/waterpark.js` | wave pool, lazy river, bumper boats, slides, cannons; per-section culling; admin switch -> "closed for repairs" |
 | Admin switches | `admin.html` Environment tab (Games card) | `waterparkOn`, `waterparkClosedMsg`, `ambientLifeOn`, `questsOn` |
@@ -39,6 +40,14 @@ OverflowError on infinite numbers; big static dirs (lib bling gfx media img tex)
 Smoke now also checks: one `?v=` per module, gfx assets + private raw dir, account/presence hardening.
 
 ## Known bugs / rough edges
+
+0. **ComfyUI cannot generate 3D models on this machine** (found 2026-10-28). `tools/model_gen.py` implements the
+   full TRELLIS 2 image->3D pipeline and ComfyUI accepts the graph, but the sampler dies with
+   `HIPBLAS_STATUS_INVALID_VALUE`: all three installed 3D models are int8-quantised and this torch build has no
+   gfx1030 hipBLASLt kernels (`TensileLibrary_lazy_gfx1030.dat` missing), so `torch._int_mm` fails outright on the
+   RX 6800. `TORCH_BLAS_PREFER_HIPBLASLT=0` does not change it. Fix is on the ComfyUI side: a torch/ROCm build with
+   gfx1030 int8 kernels, or non-quantised (bf16/fp16) 3D weights such as Hunyuan3D-2. Image generation is fine.
+   Until then the lowrider is hand-built geometry wearing ComfyUI photo maps, not a generated mesh.
 
 1. **No real-device performance data.** Budgets (crowd range, section radii, pixel ratio, 2048 shadow map) are estimates. Needs Safari Web Inspector on an iPhone 12; watch draw calls (life + stuff + park + vendors) and memory.
 2. The crowd uses 31-mesh `buildPerformer` bodies again (commit 779f65b, deliberate): ~2.7k meshes / ~830k triangles when all are in range — the biggest phone cost; `People.crowdPerson()` is 2 meshes. Static props (tables, booths) are hundreds of unmerged meshes that all cast into the sun shadow map. Lite mode still does not lower pixel ratio / antialiasing / lights on phones; `eol-lite=0` (3D page) on an iPhone 12 is the heavy path.

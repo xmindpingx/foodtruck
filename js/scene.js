@@ -10,7 +10,7 @@ import * as Themes from './themes.js?v=2';   // steampunk by default, a theme pe
 import * as FX from './themefx.js?v=5';       // re-skins everything but the truck + gears/lamps/airships or lights/bunting/confetti
 import * as Life from './life.js?v=26';        // ambient crowd life: eat, queue, play, wander, greet the player
 import * as Waterpark from './waterpark.js?v=5';
-import * as Gfx from './gfx.js?v=1';   // ComfyUI photo textures (gfx/*.jpg) on tagged materials
+import * as Gfx from './gfx.js?v=4';   // ComfyUI photo textures (gfx/*.jpg) on tagged materials
 import * as Rep from './rep.js?v=1';
 import * as Stuff from './stuff.js?v=5';
 import * as Quests from './quests.js?v=5';   // pun vendors, flash sales/dances, quests that earn Rep   // litter, lost items and micro-clutter, LOD'd by distance
@@ -571,93 +571,156 @@ window.__EOL_SEATS=()=>TABLE_HIT.map(t=>{const w=truckRig.localToWorld(t.positio
 // stylized '64-ish Impala lowrider mock-up, parked beside the truck (low-poly proportions, not a
 // photo, not a photoreal brand recreation - generic candy paint, chrome Dayton-style wire wheels,
 // hydraulics ("on switches") and a trunk/back-seat subwoofer setup, all built from primitives.
-function buildChromeDWheel(){   // chrome wire-spoke "Daytons" look
-  const wheel=new THREE.Group();
-  const tire=new THREE.Mesh(new THREE.CylinderGeometry(.34,.34,.22,24),new THREE.MeshStandardMaterial({color:0x1a1a1a,roughness:.9}));wheel.add(tire);
-  const rim=new THREE.Mesh(new THREE.CylinderGeometry(.24,.24,.26,24),new THREE.MeshStandardMaterial({color:0xe8ecef,roughness:.08,metalness:1}));wheel.add(rim);
-  const hub=new THREE.Mesh(new THREE.CylinderGeometry(.07,.07,.29,16),new THREE.MeshStandardMaterial({color:0xf3d98a,roughness:.15,metalness:.9}));wheel.add(hub);   // gold knock-off spinner
-  for(let i=0;i<12;i++){const a=i/12*Math.PI*2;
-    const spoke=new THREE.Mesh(new THREE.BoxGeometry(.02,.22,.02),new THREE.MeshStandardMaterial({color:0xe8ecef,roughness:.08,metalness:1}));
-    spoke.position.set(Math.cos(a)*.13,0,Math.sin(a)*.13);spoke.rotation.y=a;wheel.add(spoke);}
-  wheel.rotation.z=Math.PI/2;
-  return wheel;
+// ---- '64-style lowrider: the body is one extruded side profile (real silhouette, bevelled edges,
+// wheel arches cut straight through) wearing clear-coated candy paint, and the parts geometry can't
+// sell cheaply - wire-spoke wheels, grille, taillight panel, tyre rubber, tuck-and-roll upholstery -
+// are ComfyUI photographs (tools/gfx_gen.py, applied by js/gfx.js). Generic car: no maker's marks.
+const CAR_LEN=5.4, CAR_WID=1.95;
+function carBodyShape(){   // side silhouette, x = along the car (+ = front), y = height off the ground
+  const s=new THREE.Shape();
+  s.moveTo(2.58,.26);
+  s.lineTo(2.15,.22);  s.absarc(1.65,.22,.50,0,Math.PI,false);    // front wheel arch
+  s.lineTo(-1.15,.22); s.absarc(-1.65,.22,.50,0,Math.PI,false);   // rear wheel arch
+  s.lineTo(-2.30,.22);
+  s.lineTo(-2.58,.26); s.lineTo(-2.66,.42); s.lineTo(-2.64,.72);
+  s.quadraticCurveTo(-2.54,.84,-2.26,.88);                        // rear deck
+  s.lineTo(-1.15,.90); s.lineTo(.72,.90); s.lineTo(2.20,.86);     // belt line, long flat hood
+  s.lineTo(2.56,.84); s.lineTo(2.64,.72);                         // nose: a near-vertical face for the grille
+  s.lineTo(2.66,.42); s.closePath();
+  return s;
+}
+function carCabinShape(){   // greenhouse mass: raked screen, flat roof, fast backlight (painted; glass is inset below)
+  const s=new THREE.Shape();
+  s.moveTo(.70,.86); s.lineTo(.18,1.44); s.lineTo(-.96,1.46); s.lineTo(-1.52,.86); s.closePath();
+  return s;
+}
+function roundedRect(w,h,r){
+  const s=new THREE.Shape();
+  s.moveTo(-w/2+r,-h/2); s.lineTo(w/2-r,-h/2); s.quadraticCurveTo(w/2,-h/2,w/2,-h/2+r);
+  s.lineTo(w/2,h/2-r);   s.quadraticCurveTo(w/2,h/2,w/2-r,h/2);
+  s.lineTo(-w/2+r,h/2);  s.quadraticCurveTo(-w/2,h/2,-w/2,h/2-r);
+  s.lineTo(-w/2,-h/2+r); s.quadraticCurveTo(-w/2,-h/2,-w/2+r,-h/2);
+  return s;
+}
+// extrude a side-profile shape across the car's width: shape x -> +z (front), extrusion -> x, centred
+function extrudeAcross(shape,width,bevel){
+  const g=new THREE.ExtrudeGeometry(shape,{depth:width,bevelEnabled:bevel>0,bevelThickness:bevel,
+    bevelSize:bevel,bevelOffset:0,bevelSegments:2,curveSegments:14});
+  g.rotateY(-Math.PI/2); g.translate(width/2,0,0); g.computeVertexNormals(); return g;
 }
 function buildLowriderImpala(){
   const car=new THREE.Group();
+  const LEN=CAR_LEN, WID=CAR_WID;
   const CANDY=0x4a0f72;   // deep candy purple over a dark base, classic lowrider paint
-  const paint=new THREE.MeshStandardMaterial({color:CANDY,roughness:.16,metalness:.55});
-  const glass=new THREE.MeshStandardMaterial({color:0x10131a,roughness:.1,metalness:.3});
-  const chrome=new THREE.MeshStandardMaterial({color:0xe8ecef,roughness:.08,metalness:1});
-  const woofMat=new THREE.MeshStandardMaterial({color:0x111111,roughness:.4,metalness:.3});
-  const tan=new THREE.MeshStandardMaterial({color:0xa8763e,roughness:.8});
+  // clear-coated candy paint: the realism is in the reflection (scene env map), not in a diffuse map
+  const paint=new THREE.MeshPhysicalMaterial({color:CANDY,roughness:.17,metalness:.85,
+    clearcoat:1,clearcoatRoughness:.05,envMapIntensity:1.5});
+  Object.assign(paint.userData,{gfx:'car-paint',gfxRepeat:[30,30]});   // photographed candy metalflake
+  const glass=new THREE.MeshPhysicalMaterial({color:0x0b0e15,roughness:.05,metalness:.25,
+    clearcoat:1,clearcoatRoughness:.03,envMapIntensity:1.7,side:THREE.DoubleSide});
+  const chrome=new THREE.MeshStandardMaterial({color:0xdfe4e8,roughness:.07,metalness:1,envMapIntensity:1.35});
   const steel=new THREE.MeshStandardMaterial({color:0x8d939b,metalness:.9,roughness:.3});
-  const LEN=5.4, WID=1.95;
-  // interior first so the shell sits over it: split bench + receiver/front seats, dash and wheel
-  {const seat=new THREE.Mesh(new THREE.BoxGeometry(WID*.6,.22,.85),tan);seat.position.set(0,.62,.75);car.add(seat);
-   const seatBack=new THREE.Mesh(new THREE.BoxGeometry(WID*.6,.3,.12),tan);seatBack.position.set(0,.8,1.18);seatBack.rotation.x=-.2;car.add(seatBack);
-   const dash=new THREE.Mesh(new THREE.BoxGeometry(WID*.78,.16,.5),new THREE.MeshStandardMaterial({color:0x1a1214,roughness:.7}));
-   dash.position.set(0,.8,LEN*.3-.95);dash.rotation.x=.3;car.add(dash);
-   const wheel=new THREE.Mesh(new THREE.TorusGeometry(.16,.02,8,20),new THREE.MeshStandardMaterial({color:0x2a1a10,roughness:.6}));
-   wheel.rotation.x=1.15;wheel.position.set(-.36,.86,LEN*.3-1.15);car.add(wheel);
-   const post=new THREE.Mesh(new THREE.CylinderGeometry(.02,.02,.2,6),chrome);post.position.set(-.36,.78,LEN*.3-1.0);post.rotation.x=.4;car.add(post);}
-  const body=new THREE.Mesh(new THREE.BoxGeometry(WID,.56,LEN),paint);body.position.y=.5;car.add(body);
-  const cabin=new THREE.Mesh(new THREE.BoxGeometry(WID*.82,.46,LEN*.4),paint);cabin.position.set(0,.98,.35);car.add(cabin);
-  // greenhouse glass runs a touch WIDER but shorter than the paint cabin, so it shows as the
-  // window band all around instead of hiding inside the roof box
-  const windsh=new THREE.Mesh(new THREE.BoxGeometry(WID*.84,.32,LEN*.32),glass);windsh.position.set(0,1.0,.35);car.add(windsh);
-  const spear=new THREE.Mesh(new THREE.BoxGeometry(WID+.02,.05,LEN*.78),chrome);spear.position.set(0,.52,-.1);car.add(spear);   // chrome side spear
-  // period details: door seams + handles, side mirrors, roof drip rail, A/C louvres on the cowl
-  for(const sx of [1,-1]){
-    const seamB=new THREE.Mesh(new THREE.BoxGeometry(.014,.5,.01),new THREE.MeshStandardMaterial({color:0x2a1450,roughness:.6}));
-    seamB.position.set(sx*(WID/2+.002),.5,.42);car.add(seamB);
-    const seamF=seamB.clone();seamF.rotation.y=0;seamF.position.set(sx*(WID/2+.002),.5,-.62);car.add(seamF);
-    const seamT=new THREE.Mesh(new THREE.BoxGeometry(.02,.5,.014),new THREE.MeshStandardMaterial({color:0x2a1450,roughness:.6}));
-    seamT.position.set(sx*(WID/2-.02),.5,1.25);car.add(seamT);
-    for(const hz of [.7,-.8]){const h=new THREE.Mesh(new THREE.BoxGeometry(.02,.035,.12),chrome);h.position.set(sx*(WID/2+.01),.56,hz);car.add(h);}
-    const mrArm=new THREE.Mesh(new THREE.BoxGeometry(.04,.04,.2),chrome);mrArm.position.set(sx*(WID/2+.14),.92,LEN*.3-.55);car.add(mrArm);
-    const mr=new THREE.Mesh(new THREE.BoxGeometry(.05,.2,.12),chrome);mr.position.set(sx*(WID/2+.2),1.04,LEN*.3-.62);mr.castShadow=true;car.add(mr);
-    // fender louvres: three little vents behind each front wheel arch
-    for(let v=0;v<3;v++){const vent=new THREE.Mesh(new THREE.BoxGeometry(.02,.18,.035),steel);
-      vent.position.set(sx*(WID/2+.01),.55,LEN/2-.95+v*.13);car.add(vent);}}
-  // drip rail: thin chrome trim riding the roof edges (a full plate read as a giant white slab)
-  {const dz=LEN*.21;
-   for(const sx of [-1,1]){const s=new THREE.Mesh(new THREE.BoxGeometry(.025,.03,LEN*.42),chrome);s.position.set(sx*(WID*.41),1.22,.35);car.add(s);}
-   for(const sz of [-1,1]){const c=new THREE.Mesh(new THREE.BoxGeometry(WID*.82,.03,.025),chrome);c.position.set(0,1.22,.35+sz*dz);car.add(c);}}
-  const bumperF=new THREE.Mesh(new THREE.BoxGeometry(WID*1.04,.22,.22),chrome);bumperF.position.set(0,.3,LEN/2-.02);car.add(bumperF);
-  const bumperR=new THREE.Mesh(new THREE.BoxGeometry(WID*1.04,.22,.22),chrome);bumperR.position.set(0,.3,-LEN/2+.02);car.add(bumperR);
-  for(const sx of [-1,1]){const guard=new THREE.Mesh(new THREE.BoxGeometry(.12,.2,.5),chrome);
-    guard.position.set(sx*(WID*.72),.32,LEN/2-.02);car.add(guard);}   // bumper guards
-  // grille: chrome bar + vertical teeth, dual round headlights in bezels
-  const grille=new THREE.Mesh(new THREE.BoxGeometry(WID*.6,.2,.05),chrome);grille.position.set(0,.54,LEN/2+.03);car.add(grille);
-  for(let i=0;i<6;i++){const tooth=new THREE.Mesh(new THREE.BoxGeometry(.05,.16,.02),steel);
-    tooth.position.set(-.4+i*.16,.54,LEN/2+.06);car.add(tooth);}
-  for(const sx of [-1,1]){const bez=new THREE.Mesh(new THREE.CylinderGeometry(.145,.145,.05,14),steel);
-    bez.rotation.x=Math.PI/2;bez.position.set(sx*(WID*.4),.54,LEN/2+.05);car.add(bez);
-    const lamp=new THREE.Mesh(new THREE.CylinderGeometry(.11,.11,.03,14),new THREE.MeshStandardMaterial({color:0xfff3cf,emissive:0xfff3cf,emissiveIntensity:.4}));
-    lamp.rotation.x=Math.PI/2;lamp.position.set(sx*(WID*.4),.54,LEN/2+.08);car.add(lamp);}
-  for(const sx of [-1,1]){const fin=new THREE.Mesh(new THREE.BoxGeometry(.06,.3,.5),paint);   // subtle period tailfins
-    fin.position.set(sx*(WID/2-.03),.78,-LEN/2+.35);fin.rotation.x=-.12;car.add(fin);}
-  for(const sz of [-1,1]){const lcol=sz>0?0xfff3cf:0xaa1f1f;
-    const light=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,.06,16),new THREE.MeshStandardMaterial({color:lcol,emissive:lcol,emissiveIntensity:.55}));
-    light.rotation.x=Math.PI/2;light.position.set(WID/2-.26,.5,sz*(LEN/2+.02));car.add(light);
-    const light2=light.clone();light2.position.x=-WID/2+.26;car.add(light2);}
-  const pass=new THREE.Mesh(new THREE.CylinderGeometry(.3,.3,.02,20),new THREE.MeshStandardMaterial({color:0xffffff,roughness:.5}));   // white essays? no: plates
-  pass.rotation.x=Math.PI/2;pass.position.set(0,.42,LEN/2+.05);car.add(pass);
-  // whitewalls + hydraulics hardware at every corner: double-acting cylinders, hoses, springs
+  const woofMat=new THREE.MeshStandardMaterial({color:0x111111,roughness:.4,metalness:.3});
   const hose=new THREE.MeshStandardMaterial({color:0xa32b1e,roughness:.6});
+  const shadowIn=new THREE.MeshStandardMaterial({color:0x14121a,roughness:.95});   // wheel wells / cabin floor
+  const tan=new THREE.MeshStandardMaterial({color:0xa8763e,roughness:.8});
+  Object.assign(tan.userData,{gfx:'car-seat',gfxRepeat:[3,1]});                    // tuck-and-roll photo
+  const rubber=new THREE.MeshStandardMaterial({color:0x15151a,roughness:.93});
+  Object.assign(rubber.userData,{gfx:'car-tire',gfxRepeat:[12,1]});
+  const wheelFace=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.22,metalness:.85,envMapIntensity:1.7});
+  Object.assign(wheelFace.userData,{gfx:'car-wheel',gfxNoNormal:true});            // 72-spoke wire wheel photo
+  const grilleM=new THREE.MeshStandardMaterial({color:0xcfd4d8,roughness:.22,metalness:.9,envMapIntensity:1.5});
+  Object.assign(grilleM.userData,{gfx:'car-grille',gfxNoNormal:true});
+  const lensW=new THREE.MeshStandardMaterial({color:0xfff3cf,emissive:0xfff3cf,emissiveIntensity:.45,roughness:.15});
+  const lensR=new THREE.MeshStandardMaterial({color:0xc01820,emissive:0xd01a1a,emissiveIntensity:.7,roughness:.15});
+
+  // interior first so the shell sits over it: split bench, dash and wheel
+  {const floor=new THREE.Mesh(new THREE.BoxGeometry(WID*.8,.04,LEN*.42),shadowIn);floor.position.set(0,.56,-.1);car.add(floor);
+   const seat=new THREE.Mesh(new THREE.BoxGeometry(WID*.68,.2,.8),tan);seat.position.set(0,.66,-.62);car.add(seat);
+   const seatBack=new THREE.Mesh(new THREE.BoxGeometry(WID*.68,.42,.14),tan);seatBack.position.set(0,.84,-1.0);seatBack.rotation.x=.18;car.add(seatBack);
+   const seatF=new THREE.Mesh(new THREE.BoxGeometry(WID*.68,.2,.78),tan);seatF.position.set(0,.66,.28);car.add(seatF);
+   const seatFB=new THREE.Mesh(new THREE.BoxGeometry(WID*.68,.4,.14),tan);seatFB.position.set(0,.83,-.08);seatFB.rotation.x=.18;car.add(seatFB);
+   const dash=new THREE.Mesh(new THREE.BoxGeometry(WID*.8,.18,.42),new THREE.MeshStandardMaterial({color:0x1a1214,roughness:.7}));
+   dash.position.set(0,.80,.78);dash.rotation.x=-.25;car.add(dash);
+   const wheel=new THREE.Mesh(new THREE.TorusGeometry(.17,.022,8,22),new THREE.MeshStandardMaterial({color:0x2a1a10,roughness:.6}));
+   wheel.rotation.x=1.2;wheel.position.set(-.38,.88,.62);car.add(wheel);
+   const post=new THREE.Mesh(new THREE.CylinderGeometry(.02,.02,.2,6),chrome);post.position.set(-.38,.80,.70);post.rotation.x=-.35;car.add(post);}
+
+  // ---- shell: one extruded profile for the body, one for the greenhouse, a painted roof skin on top
+  const body=new THREE.Mesh(extrudeAcross(carBodyShape(),WID,.05),paint);body.name='carBody';car.add(body);
+  // cabin is painted metal (roof and pillars in one piece); the windows are glass panes inset in it
+  const cabin=new THREE.Mesh(extrudeAcross(carCabinShape(),WID*.90,.035),paint);car.add(cabin);
+  {const gx=WID*.452;
+   const sideWin=new THREE.PlaneGeometry(1.30,.40);
+   for(const sx of [-1,1]){
+     const w=new THREE.Mesh(sideWin,glass);w.rotation.y=sx*Math.PI/2;w.position.set(sx*gx,1.14,-.37);car.add(w);
+     const fr=new THREE.Mesh(new THREE.BoxGeometry(.02,.035,1.34),chrome);fr.position.set(sx*(gx+.006),1.35,-.37);car.add(fr);
+     const fr2=fr.clone();fr2.position.y=.93;car.add(fr2);
+     const b=new THREE.Mesh(new THREE.BoxGeometry(.05,.46,.06),paint);b.position.set(sx*(gx-.01),1.14,-.37);car.add(b);}   // B-pillar
+   const wsh=new THREE.Mesh(new THREE.PlaneGeometry(WID*.80,.80),glass);
+   wsh.rotation.x=-.731;wsh.position.set(0,1.15,.44);car.add(wsh);                                   // windscreen, raked back
+   const bl=new THREE.Mesh(new THREE.PlaneGeometry(WID*.80,.84),glass);
+   bl.rotation.x=.75;bl.position.set(0,1.16,-1.24);car.add(bl);                                      // backlight
+   for(const sx of [-1,1]){   // chrome drip rails down each side of the roof
+     const rail=new THREE.Mesh(new THREE.BoxGeometry(.03,.04,1.30),chrome);rail.position.set(sx*WID*.448,1.44,-.40);car.add(rail);}}
+  // dark wheel wells: the arches cut clean through the extrusion, these fill them behind the tyres
+  for(const sz of [1,-1]){
+    const well=new THREE.Mesh(new THREE.CylinderGeometry(.46,.46,WID*.92,20),shadowIn);
+    well.rotation.z=Math.PI/2;well.position.set(0,.22,sz*1.65);car.add(well);}
+
+  // ---- chrome: full-length side spear, bumpers with guards, window surround, mirrors, louvres
+  const spear=new THREE.Mesh(new THREE.BoxGeometry(WID+.03,.05,LEN*.80),chrome);spear.position.set(0,.74,-.05);car.add(spear);
+  const sill=new THREE.Mesh(new THREE.BoxGeometry(WID+.02,.05,LEN*.46),chrome);sill.position.set(0,.27,0);car.add(sill);
+  for(const sz of [1,-1]){
+    const bar=new THREE.Mesh(extrudeAcross(roundedRect(.30,.16,.07),WID*1.04,.02),chrome);
+    bar.position.set(0,.36,sz*(LEN/2-.08));car.add(bar);
+    for(const sx of [-1,1]){const guard=new THREE.Mesh(extrudeAcross(roundedRect(.26,.30,.09),.13,.02),chrome);
+      guard.position.set(sx*WID*.30,.42,sz*(LEN/2-.06));car.add(guard);}}
+  const grille=new THREE.Mesh(new THREE.PlaneGeometry(WID*.52,.24),grilleM);   // photographed chrome mesh
+  grille.position.set(0,.57,LEN/2-.035);car.add(grille);
+  {const surround=new THREE.Mesh(new THREE.BoxGeometry(WID*.56,.285,.03),chrome);surround.position.set(0,.57,LEN/2-.055);car.add(surround);}
+  // headlights and taillights: chrome bezel + lens, one pair each end
+  for(const sx of [-1,1]){
+    const bez=new THREE.Mesh(new THREE.CylinderGeometry(.12,.12,.08,18),chrome);
+    bez.rotation.x=Math.PI/2;bez.position.set(sx*WID*.355,.58,LEN/2-.055);car.add(bez);
+    const lamp=new THREE.Mesh(new THREE.CylinderGeometry(.093,.093,.03,18),lensW);
+    lamp.rotation.x=Math.PI/2;lamp.position.set(sx*WID*.355,.58,LEN/2-.012);car.add(lamp);
+    for(const dz of [0,1]){   // twin round taillights per side, '60s style
+      const tb=new THREE.Mesh(new THREE.CylinderGeometry(.088,.088,.06,16),chrome);
+      tb.rotation.x=Math.PI/2;tb.position.set(sx*(WID*.22+dz*WID*.17),.58,-LEN/2+.055);car.add(tb);
+      const tl=new THREE.Mesh(new THREE.CylinderGeometry(.068,.068,.03,16),lensR);
+      tl.rotation.x=Math.PI/2;tl.position.set(tb.position.x,.58,-LEN/2+.018);car.add(tl);}
+    const tstrip=new THREE.Mesh(new THREE.BoxGeometry(WID*.40,.04,.03),chrome);
+    tstrip.position.set(sx*WID*.28,.78,-LEN/2+.045);car.add(tstrip);}
+  for(const sx of [-1,1]){
+    const seam=new THREE.Mesh(new THREE.BoxGeometry(.012,.56,.012),new THREE.MeshStandardMaterial({color:0x2a1450,roughness:.6}));
+    seam.position.set(sx*(WID/2+.03),.56,-.42);car.add(seam);
+    const seam2=seam.clone();seam2.position.z=.86;car.add(seam2);
+    const h=new THREE.Mesh(new THREE.BoxGeometry(.025,.035,.13),chrome);h.position.set(sx*(WID/2+.04),.62,.30);car.add(h);
+    const mrArm=new THREE.Mesh(new THREE.CylinderGeometry(.018,.018,.16,6),chrome);
+    mrArm.rotation.z=Math.PI/2;mrArm.position.set(sx*(WID/2+.10),.90,.62);car.add(mrArm);
+    const mr=new THREE.Mesh(extrudeAcross(roundedRect(.12,.09,.03),.05,.012),chrome);
+    mr.position.set(sx*(WID/2+.19),.92,.62);car.add(mr);
+    for(let v=0;v<3;v++){const vent=new THREE.Mesh(new THREE.BoxGeometry(.02,.16,.035),steel);
+      vent.position.set(sx*(WID/2+.012),.60,1.02-v*.13);car.add(vent);}}
+
+  // ---- wire wheels: a tyre torus with photographed rubber + a photographed 72-spoke face each side
+  const tyreGeo=new THREE.TorusGeometry(.268,.072,12,30);   // skinny lowrider rubber; outer radius .34 = the hub height, so it rests on the grasstyreGeo.rotateY(Math.PI/2);
+  const faceGeo=new THREE.CircleGeometry(.285,30);
   for(const sx of [-1,1])for(const sz of [-1,1]){
-    const w=buildChromeDWheel();w.position.set(sx*(WID/2-.01),.34,sz*(LEN/2-1.05));car.add(w);
-    const w1=new THREE.Mesh(new THREE.TorusGeometry(.235,.02,8,24),new THREE.MeshStandardMaterial({color:0xf4f6f0,roughness:.5}));
-    w1.position.copy(w.position);w1.position.y-=.02;car.add(w1);w1.rotation.z=Math.PI/2;
+    const hub=new THREE.Group();hub.position.set(sx*(WID/2-.055),.34,sz*(LEN/2-1.05));car.add(hub);
+    hub.add(new THREE.Mesh(tyreGeo,rubber));
+    const outer=new THREE.Mesh(faceGeo,wheelFace);outer.rotation.y=sx*Math.PI/2;outer.position.x=sx*.072;hub.add(outer);
+    const inner=new THREE.Mesh(faceGeo,wheelFace);inner.rotation.y=-sx*Math.PI/2;inner.position.x=-sx*.072;hub.add(inner);
     // pump cylinders: two chrome tubes bolted beside the axle, rams under the frame points
-    for(const oy of [-.08,.08]){const cyl=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,.26,10),chrome);
-      cyl.position.set(sx*(WID/2-.05)+(sz<0?.0:-.0),.22,sz*(LEN/2-1.05)+oy*1.6);car.add(cyl);
-      const ram=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.22,8),steel);
-      ram.position.set(cyl.position.x,.34,cyl.position.z);car.add(ram);}
-    const pkg=new THREE.Mesh(new THREE.TorusGeometry(.1,.028,8,20),hose);   // High-pressure hose arc to the pump
-    pkg.position.set(sx*(WID/2-.09),.3,sz*(LEN/2-1.05)-sz*.28);pkg.rotation.y=Math.PI/2*sz;pkg.rotation.x=.4*sz;car.add(pkg);
-    const spg=new THREE.Mesh(new THREE.TorusGeometry(.11,.022,6,18),steel);   // spring coil visible between body & axle
-    spg.position.set(sx*(WID/2-.06),.44,sz*(LEN/2-1.05));spg.rotation.z=Math.PI/2;car.add(spg);}
+    for(const oy of [-.08,.08]){const cyl=new THREE.Mesh(new THREE.CylinderGeometry(.045,.045,.24,10),chrome);
+      cyl.position.set(sx*.60,.20,sz*(LEN/2-1.05)+oy*1.6);car.add(cyl);
+      const ram=new THREE.Mesh(new THREE.CylinderGeometry(.028,.028,.2,8),steel);
+      ram.position.set(cyl.position.x,.31,cyl.position.z);car.add(ram);}
+    const pkg=new THREE.Mesh(new THREE.TorusGeometry(.09,.025,8,20),hose);   // high-pressure hose arc to the pump
+    pkg.position.set(sx*.52,.21,sz*(LEN/2-1.05)-sz*.26);pkg.rotation.y=Math.PI/2*sz;pkg.rotation.x=.4*sz;car.add(pkg);
+    const spg=new THREE.Mesh(new THREE.TorusGeometry(.095,.02,6,18),steel);   // spring coil between body & axle
+    spg.position.set(sx*.64,.34,sz*(LEN/2-1.05));spg.rotation.z=Math.PI/2;car.add(spg);}
   // ---- trunk, popped open, showing a big dual-sub box (the "jackhammer"-style setup) ----
   const trunkLid=new THREE.Mesh(new THREE.BoxGeometry(WID*.9,.06,LEN*.22),paint);
   trunkLid.position.set(0,.84,-LEN/2+LEN*.11);trunkLid.rotation.x=-.95;car.add(trunkLid);   // tilted open, hinge at the rear edge
@@ -692,6 +755,7 @@ function buildLowriderImpala(){
     const led=new THREE.Mesh(new THREE.SphereGeometry(.014,8,6),new THREE.MeshStandardMaterial({color:0x330000,emissive:0xff2020,emissiveIntensity:on?1.8:.15}));
     led.position.set(sw.position.x,.885,-LEN/2+.79);car.add(led);leds.push(led);}
   car.userData.switches=switches;car.userData.switchLeds=leds;car.userData.banks={front:true,back:false,left:false,right:false};
+  car.userData.steamSkip=true;   // candy purple is the car's identity: holiday palettes never repaint it
   car.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});
   return car;
 }
@@ -1071,7 +1135,7 @@ canvas.addEventListener('click',e=>{m2.set(e.clientX/innerWidth*2-1,-(e.clientY/
   const used=isTap(e);tapArmed=false;if(!used)return;   // flip a switch = arm/disarm a hydraulics bank, tap the body = popped burst
   const hitCar=CAR_HIT.length?ray.intersectObjects(CAR_HIT,true):[];
   if(hitCar.length){
-    const o=hitCar[0].object,car=o.parent&&o.parent.userData&&o.parent.userData.switches?o.parent:null;
+    const o=hitCar[0].object;let car=o.parent;while(car&&!(car.userData&&car.userData.switches))car=car.parent;
     if(car){
       car.userData.lastUse=performance.now();   // interacting keeps the armed-bank show alive
       if(o.userData.bank){const u=car.userData,b=o.userData.bank,i=u.switches.indexOf(o);
