@@ -107,12 +107,7 @@ standing next to each other see different crowd behaviour.
   every visitor sees and can wear the same items. Completed by `tools/wear_gen.py catalog`.
   *Status: first 8 items (fedora, shades, oxfords, cowboy boots, backpack, bowtie, cane,
   top hat) generated this session; commit + restart pending.*
-- **Phase 2 — Deterministic ambient crowd.** Replace `Math.random()` in `js/life.js`,
-  `js/stuff.js`, `js/quests.js` with a seeded PRNG, and drive `t` from a shared server
-  clock (fetch `/api/time` on load, offset `THREE.Clock`) instead of per-page `clock.elapsedTime`.
-  Init must be a pure function of `(seed, t0)` so a late joiner reconstructs the current
-  state. Seats/queues become deterministic reservations keyed by `(actorId, t)`.
-  *Risk: large; touches every system that calls `rnd()`/`pick()`.*
+- **Phase 2 — Deterministic ambient crowd (in progress).** `Math.random()` replaced with a seeded PRNG (mulberry32) in `js/life.js`, `js/stuff.js`, `js/quests.js`; `/api/time` endpoint added (returns server time + daily seed); `t` in the render loop driven by the shared clock offset. Seed passed to all three init functions. *Remaining: make init a pure function of (seed, t0) so late joiners reconstruct state; convert remaining `Math.random()` calls; seats/queues as deterministic reservations.*
 - **Phase 3 — Live avatar action sync.** Extend `POST /api/presence` profile with a
   `action`/`anim` field and broadcast it; `avatars.js` `setStatus()` already maps status
   to an anim, but ambient interactions (wave/high-five/hug) are local. Server must
