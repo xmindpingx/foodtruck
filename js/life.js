@@ -11,7 +11,7 @@ import * as People from './people.js?v=4';
 
 const rnd = (a, b) => a + Math.random() * (b - a), pick = a => a[Math.floor(Math.random() * a.length)];
 const NAMES = ['Rosa', 'Mateo', 'Luz', 'Diego', 'Camila', 'Santi', 'Abby', 'Jun', 'Priya', 'Omar', 'Lena', 'Tomás', 'Maya', 'Eli', 'Nora', 'Hugo', 'Ana', 'Kai', 'Isla', 'Ravi'];
-const V = new THREE.Vector3(), V2 = new THREE.Vector3();
+const V = new THREE.Vector3(), V2 = new THREE.Vector3(), V3 = new THREE.Vector3();
 const dist2 = (x0, z0, x1, z1) => (x1 - x0) ** 2 + (z1 - z0) ** 2;
 const yawTo = (x0, z0, x1, z1) => Math.atan2(x1 - x0, z1 - z0);
 const lerpYaw = (a, b, k) => { let d = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; return a + d * Math.min(1, k); };
@@ -230,16 +230,47 @@ export function init(o) {
     }
     return true;
   };
-  function detour(a, tx, tz) {   // if the straight line crosses the truck, aim for a corner first
+  function detour(a, tx, tz) {   // route around any obstacle (truck, tables, props, booths, water park) instead of clipping through
     const s = rig.worldToLocal(V.set(a.x, 0, a.z)).clone(), e = rig.worldToLocal(V2.set(tx, 0, tz)).clone();
-    if (!segHitsBox(s.x, s.z, e.x, e.z, truckBox)) return [tx, tz];
-    let best = null;
-    for (const [cx, cz] of [[truckBox.x0, truckBox.z0], [truckBox.x0, truckBox.z1], [truckBox.x1, truckBox.z0], [truckBox.x1, truckBox.z1]]) {
-      const d = Math.hypot(cx - s.x, cz - s.z) + Math.hypot(e.x - cx, e.z - cz);
-      if (!best || d < best.d) best = {d, cx, cz};
+    const obs = obstacles();
+    // truck box first
+    if (segHitsBox(s.x, s.z, e.x, e.z, truckBox)) {
+      let best = null;
+      for (const [cx, cz] of [[truckBox.x0, truckBox.z0], [truckBox.x0, truckBox.z1], [truckBox.x1, truckBox.z0], [truckBox.x1, truckBox.z1]]) {
+        const d = Math.hypot(cx - s.x, cz - s.z) + Math.hypot(e.x - cx, e.z - cz);
+        if (!best || d < best.d) best = {d, cx, cz};
+      }
+      if (Math.hypot(best.cx - s.x, best.cz - s.z) >= .4) {
+        const w = rig.localToWorld(V.set(best.cx, 0, best.cz)); return [w.x, w.z];
+      }
     }
-    if (Math.hypot(best.cx - s.x, best.cz - s.z) < .4) return [tx, tz];   // already standing at that corner: carry on straight
-    const w = rig.localToWorld(V.set(best.cx, 0, best.cz)); return [w.x, w.z];
+    // circular obstacles
+    for (const o of obs) {
+      if (o === null) continue;
+      const ow = rig.worldToLocal(V3.set(o.x, 0, o.z));
+      const ox = ow.x, oz = ow.z, r = o.r + 0.4;
+      const dx = e.x - s.x, dz = e.z - s.z;
+      const fx = s.x - ox, fz = s.z - oz;
+      const aa = dx * dx + dz * dz;
+      const bb = 2 * (fx * dx + fz * dz);
+      const cc = fx * fx + fz * fz - r * r;
+      const disc = bb * bb - 4 * aa * cc;
+      if (disc >= 0 && aa > 1e-6) {
+        const t1 = (-bb - Math.sqrt(disc)) / (2 * aa);
+        const t2 = (-bb + Math.sqrt(disc)) / (2 * aa);
+        if ((t1 >= 0 && t1 <= 1) || (t2 >= 0 && t2 <= 1)) {
+          // route around the side with shorter path
+          const mid = (Math.max(0, Math.min(1, t1 >= 0 ? t1 : t2)));
+          const px = s.x + dx * mid, pz = s.z + dz * mid;
+          const ang = Math.atan2(pz - oz, px - ox);
+          const wx = ox + Math.cos(ang + Math.PI / 2) * (r + 0.5);
+          const wz = oz + Math.sin(ang + Math.PI / 2) * (r + 0.5);
+          const w = rig.localToWorld(V.set(wx, 0, wz));
+          return [w.x, w.z];
+        }
+      }
+    }
+    return [tx, tz];
   }
   function obstacles() {
     const out = [];
