@@ -377,6 +377,21 @@ function makeBody(hue, prof = {}) {
   body.position.y = .5; body.castShadow = true; body.userData.custom = 'shirt'; g.add(body);
   const head = new THREE.Mesh(new THREE.SphereGeometry(.14, 16, 12), skin);
   head.position.y = .92; head.castShadow = true; head.userData.custom = 'skin'; g.add(head);
+  // arms + legs (swinging groups)
+  const arms = [], legs = [];
+  for (const sx of [-1, 1]) {
+    const arm = new THREE.Group(); arm.position.set(sx * .22, .62, 0);
+    const ua = new THREE.Mesh(new THREE.CapsuleGeometry(.05, .34, 6, 10), shirt);
+    ua.position.y = -.17; ua.rotation.z = sx * .15; arm.add(ua);
+    g.add(arm); arms.push(arm);
+  }
+  for (const sx of [-1, 1]) {
+    const leg = new THREE.Group(); leg.position.set(sx * .08, .28, 0);
+    const la = new THREE.Mesh(new THREE.CapsuleGeometry(.06, .3, 6, 10), shirt);
+    la.position.y = -.15; leg.add(la);
+    g.add(leg); legs.push(leg);
+  }
+  g.userData.arms = arms; g.userData.legs = legs;
   const style = prof.cap || 'ball';
   const hatY = 1.12;
   if (style === 'ball') {
@@ -622,14 +637,28 @@ export function tick(t, dt) {
     const g = a.group;
     const d = a.target.clone().sub(g.position); d.y = 0;
     const dist = d.length();
-    if (dist > 0.08) {
+    const moving = dist > 0.08;
+    if (moving) {
       d.normalize(); g.position.addScaledVector(d, Math.min(dist, dt * 0.9));
       g.rotation.y = Math.atan2(d.x, d.z);
       g.position.y = FLOOR + Math.abs(Math.sin(t * 6 + a.phase)) * 0.03;   // walk bob
+      const swing = Math.sin(t * 8 + a.phase) * 0.6;
+      const arms = g.userData.arms || [];
+      const legs = g.userData.legs || [];
+      if (arms[0]) arms[0].rotation.x = swing;
+      if (arms[1]) arms[1].rotation.x = -swing;
+      if (legs[0]) legs[0].rotation.x = -swing * 0.5;
+      if (legs[1]) legs[1].rotation.x = swing * 0.5;
     } else {
       a.wait -= dt;
       g.position.y = FLOOR + Math.sin(t * 1.6 + a.phase) * 0.01;   // idle breathing
       if (a.wait <= 0 && a.status !== 'ordering') { a.target = randSpot(); a.wait = 2 + Math.random() * 3; }
+      const arms = g.userData.arms || [];
+      const legs = g.userData.legs || [];
+      if (arms[0]) arms[0].rotation.x = 0;
+      if (arms[1]) arms[1].rotation.x = 0;
+      if (legs[0]) legs[0].rotation.x = 0;
+      if (legs[1]) legs[1].rotation.x = 0;
     }
     if (a.glow) { const gt = a.status === 'ordering' ? 1.1 : 0; a.glow.intensity += (gt - a.glow.intensity) * Math.min(1, dt * 4); }
     if (a.bubble && now > a.bubbleUntil) { a.bubbleAnchor.remove(a.bubble); a.bubble.material.map.dispose(); a.bubble.material.dispose(); a.bubble = null; }

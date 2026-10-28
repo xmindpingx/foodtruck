@@ -4,7 +4,7 @@
 // HIGH SCORES board by the truck (click it) and the trivia bot's live-score questions stay true.
 // Lobby + done screens speak the language picked at sign-up (Account.lang()).
 import * as THREE from 'three';
-import {announce, clockNow, visitorName, aboveDock} from './avatars.js?v=11';
+import {announce, clockNow, visitorName, aboveDock} from './avatars.js?v=12';
 import {CONFIG} from './shop.js?v=7';                // games on/off switches (Admin → Settings → Games)
 import * as Account from './account.js?v=7';
 
