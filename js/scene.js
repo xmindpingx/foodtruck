@@ -702,7 +702,7 @@ function buildLowriderImpala(){
     led.position.set(sw.position.x,1.01,-.02);remote.add(led);leds.push(led);}
   remote.userData.switches=switches;remote.userData.switchLeds=leds;remote.userData.banks={front:true,back:false,left:false,right:false};
   car.userData.switches=switches;car.userData.switchLeds=leds;car.userData.banks={front:true,back:false,left:false,right:false};
-  car.userData.steamSkip=true;   // candy purple is the car's identity: holiday palettes never repaint it
+  car.userData.remote=remote; car.userData.steamSkip=true;   // candy purple is the car's identity: holiday palettes never repaint it
   car.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});
   return car;
 }
@@ -1453,13 +1453,14 @@ R.setAnimationLoop(()=>{const dt=Math.min(clock.getDelta(),0.1),t=clock.elapsedT
       hop=Math.sin(Math.min(1,u.burstT)*Math.PI)*.42;}
     if(u.banks){
       // armed banks idle out: pulses stop ~90s after the last tap/swipe, cue resumes on contact
-      const fresh=(performance.now()-(u.lastUse||0))<90000;
+      const fresh=true;  // keep the car hopping (idle-out removed: owner wants it always moving)
       const b=u.banks,pulse=i=>{const p=(t*1.15+seed+i*.62)%1.6;return Math.pow(Math.max(0,Math.sin(Math.min(1,p/1.6)*Math.PI)),2)*.28;};
       const vF=u.burst>0||!fresh?0:(b.front?pulse(0):0),vB=u.burst>0||!fresh?0:(b.back?pulse(1):0),
             vL=u.burst>0||!fresh?0:(b.left?pulse(2):0),vR=u.burst>0||!fresh?0:(b.right?pulse(3):0);
       hop=Math.max(hop,vF,vB,vL,vR);
       tiltX=(vB-vF)*.5;tiltZ=(vL-vR)*.45;}
     car.position.y=base+hop;car.rotation.x=tiltX;car.rotation.z=tiltZ;
+    const _rem=car.userData.remote;if(_rem){_rem.position.y=-hop;_rem.rotation.x=-tiltX;_rem.rotation.z=-tiltZ;}
   }
   Avatars.tick(t,dt);
   ctl.update();R.render(S,cam);});
