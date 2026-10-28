@@ -8,6 +8,7 @@
 // actor is within CROWD range of the camera, everyone else just advances along their path.
 import * as THREE from 'three';
 import * as People from './people.js?v=9';
+import * as Wear from './wear.js?v=4';
 
 const rnd = (a, b) => a + Math.random() * (b - a), pick = a => a[Math.floor(Math.random() * a.length)];
 const NAMES = ['Rosa', 'Mateo', 'Luz', 'Diego', 'Camila', 'Santi', 'Abby', 'Jun', 'Priya', 'Omar', 'Lena', 'Tomás', 'Maya', 'Eli', 'Nora', 'Hugo', 'Ana', 'Kai', 'Isla', 'Ravi'];
@@ -17,7 +18,24 @@ const yawTo = (x0, z0, x1, z1) => Math.atan2(x1 - x0, z1 - z0);
 const lerpYaw = (a, b, k) => { let d = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; return a + d * Math.min(1, k); };
 
 export function init(o) {
-  const {S, cam, rig, tables, eaters, win, stage, truckBox, props, jukebox, lowriders, parkBounds, player, liveList, attachSprout, lite, phone: isPhone, canvas, extraObstacles} = o;
+  const {S, cam, rig, tables, eaters, win, stage, truckBox, props, jukebox, lowriders, parkBounds, player, liveList, attachSprout, lite, phone: isPhone, canvas, extraObstacles, theme} = o;
+  // Halloween outfits for the AI crowd: fetch catalog, filter halloween wearables, apply to all actors (and staff) when theme is halloween
+  let halloweenWear = [];
+  if (theme === 'halloween') {
+    fetch('/bling/catalog.json').then(r => r.ok ? r.json() : null).then(j => {
+      if (!j || !j.items) return;
+      halloweenWear = j.items.filter(it => it.model && it.theme === 'halloween');
+      if (!halloweenWear.length) return;
+      const applyOne = (a) => {
+        const n = 1 + (Math.random() < .35 ? 1 : 0);
+        const rows = [];
+        for (let i = 0; i < n; i++) rows.push(halloweenWear[Math.floor(Math.random() * halloweenWear.length)]);
+        const uniq = [...new Map(rows.map(r => [r.id, r])).values()];
+        Wear.apply(a.root, uniq).catch(() => {});
+      };
+      for (const a of actors) applyOne(a);
+    }).catch(() => {});
+  }
   const num = (v, d) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
   const CM = Math.max(0, Math.min(3, num(o.castMult, 1)));      // 🎪 ambient cast multiplier (Admin → crowd settings)
   const IM = Math.max(0, Math.min(3, num(o.interactMult, 1)));  // 👋 player-greeting frequency multiplier
@@ -80,7 +98,9 @@ export function init(o) {
   function createStaff(sp) {   // {x, z, yaw, name, look?} — stands at a post; vendors.js sets .anim / moods
     const a = makeActor(false, null); a.staff = true; a.locked = true; a.name = sp.name || a.name; a.x = sp.x; a.z = sp.z; a.yaw = sp.yaw || 0; a.anim = 'chat';
     const u = {kind: 'staff', members: [a], interact: true, busy: 0}; a.unit = u; units.push(u);
-    a.root.position.set(a.x, 0, a.z); a.root.rotation.y = a.yaw; return a;
+    a.root.position.set(a.x, 0, a.z); a.root.rotation.y = a.yaw;
+    if (theme === 'halloween' && halloweenWear.length) { const rows = [halloweenWear[Math.floor(Math.random() * halloweenWear.length)]]; Wear.apply(a.root, rows).catch(() => {}); }
+    return a;
   }
   function makeUnit(kind, n, hasKid) {
     const u = {kind, members: [], interact: false, busy: 0};

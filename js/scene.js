@@ -9,7 +9,7 @@ import * as People from './people.js?v=9';
 const mergeStatic=People.mergeStatic;   // one mesh per material for static props (see people.js)
 import * as Themes from './themes.js?v=2';   // steampunk by default, a theme per big holiday around its date
 import * as FX from './themefx.js?v=5';       // re-skins everything but the truck + gears/lamps/airships or lights/bunting/confetti
-import * as Life from './life.js?v=28';        // ambient crowd life: eat, queue, play, wander, greet the player
+import * as Life from './life.js?v=29';        // ambient crowd life: eat, queue, play, wander, greet the player
 import * as Waterpark from './waterpark.js?v=5';
 import * as Gfx from './gfx.js?v=4';
 import * as Model from './model.js?v=3';   // ComfyUI-generated meshes (tools/model_gen.py -> models/)   // ComfyUI photo textures (gfx/*.jpg) on tagged materials
@@ -1373,7 +1373,7 @@ const stuff=CONFIG.ambientLifeOn!==false?Stuff.init({S,cam,rig:truckRig,truckBox
   canvas,lite:LITE_MODE,phone:IS_PHONE,rep:Rep,getLife:()=>life}):null;
 window.__EOL_STUFF=stuff;
 if(CONFIG.ambientLifeOn!==false){
-  life=Life.init({S,cam,rig:truckRig,tables:TABLE_HIT,eaters,win:{x1:WX1,z:BW/2},castMult:CONFIG.actorsAmount,interactMult:CONFIG.interactAmount,range:CONFIG.sceneLifeRange,
+  life=Life.init({S,cam,rig:truckRig,tables:TABLE_HIT,eaters,win:{x1:WX1,z:BW/2},castMult:CONFIG.actorsAmount,interactMult:CONFIG.interactAmount,range:CONFIG.sceneLifeRange,theme:SCENE_THEME,
     truckBox:{x0:TRUCK_CX-BL/2-.3,x1:TRUCK_CX+BL/2+.3,z0:-BW/2-.3,z1:BW/2+.3},
     props:()=>['claw','bbt','tag','pin','c4','ttt'].map(id=>Arcade.prop(id)),
     jukebox:jukebox, lowriders:ALL_HYDRAULICS, stage:stageBack,

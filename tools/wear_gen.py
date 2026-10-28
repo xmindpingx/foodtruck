@@ -93,6 +93,17 @@ ITEMS = {
  'wear-christmas-scarf':     ('🧣 Wrap Star Scarf', 'collar', .35, 'cloth', 80, '', 'a red and green striped winter scarf, front view'),
  'wear-summer-shades':       ('😎 Sun Out Shades', 'glasses', .14, 'black', 80, '', 'a pair of oversized summer sunglasses, front view'),
  'wear-summer-flipflops':    ('🩴 Flip Flop Flop', 'shoes', .27, 'rubber', 60, '', 'a single pair of rubber flip flops, side view'),
+ # --- icon Halloween outfits (queued; apply to AI crowd during halloween theme) ---
+ 'wear-witch-hat':       ('🧙 Witch Way Hat', 'hat', .32, 'black', 100, 'halloween', 'a black witch hat with a purple band, three-quarter view'),
+ 'wear-vampire-cape':    ('🧛 Caped Crusader Cape', 'back', .45, 'cloth', 130, 'halloween', 'a black vampire cape with a red lining, spread, back view'),
+ 'wear-pumpkin-head':    ('🎃 Pumpkin Head', 'hat', .30, 'orange', 120, 'halloween', 'a carved jack-o-lantern pumpkin mask, front view'),
+ 'wear-skeleton-gloves': ('💀 Bone Zone Gloves', 'handL', .12, 'bone', 80, 'halloween', 'a pair of white skeleton hand gloves, front view'),
+ 'wear-ghost-sheet':     ('👻 Boo Crew Sheet', 'back', .50, 'cloth', 110, 'halloween', 'a white ghost sheet costume with eye holes, back view'),
+ 'wear-mummy-wrap':      ('🧻 Wrap Star Mummy', 'chest', .35, 'cloth', 90, 'halloween', 'mummy bandage wraps around the torso, front view'),
+ 'wear-devil-horns':     ('😈 Horns of Plenty', 'hat', .12, 'red', 90, 'halloween', 'a pair of red devil horns on a headband, front view'),
+ 'wear-zombie-mask':     ('🧟 Zombie Zone Mask', 'face', .18, 'green', 100, 'halloween', 'a green zombie mask with decayed features, front view'),
+ 'wear-spider-cape':     ('🕷️ Web Slinger Cape', 'back', .40, 'black', 120, 'halloween', 'a black cape with a spider web pattern, spread, back view'),
+ 'wear-bat-wings':       ('🦇 Bat Wing Bling', 'back', .45, 'black', 140, 'halloween', 'a pair of black bat wings, spread, back view'),
 }
 
 def gen(ids):
