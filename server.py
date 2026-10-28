@@ -810,8 +810,10 @@ def _load_bling():
         with open(os.path.join(ROOT, 'bling', 'catalog.json'), encoding='utf-8') as f: return json.load(f)
     except (OSError, ValueError): return {'items': [], 'themes': {}}
 BLING = _load_bling()                                # bling/catalog.json: id, label, theme, slot, cost - the client reads the same file
-BLING_SLOTS = ('hat', 'collar', 'chest', 'shoulderL', 'shoulderR', 'shoeL', 'shoeR',
-               'glasses', 'beard', 'ears', 'back', 'waist', 'handL', 'handR', 'shoes')   # last row: 3D wearables (js/wear.js)
+BLING_SLOTS = ('hat', 'collar', 'chest', 'chestL', 'chestR', 'shoulderL', 'shoulderR',
+               'shoeL', 'shoeR', 'glasses', 'beard', 'ears', 'back', 'backUpper', 'backLower',
+               'waist', 'waistL', 'waistR', 'hip', 'hipL', 'hipR', 'handL', 'handR', 'shoes',
+               'ribsL', 'ribsR', 'thighL', 'thighR', 'kneeL', 'kneeR', 'neck')   # last row: 3D wearables (js/wear.js) + dense sprout clip points
 BLING_MAP = {i['id']: i for i in BLING.get('items', []) if i.get('slot') in BLING_SLOTS}
 SHOP_ITEMS += [{'item': i['id'], 'label': i['label'], 'cost': int(i['cost']), 'bling': True, 'slot': i['slot'], 'theme': i.get('theme', '')} for i in BLING_MAP.values()]
 SHOP_MAP = {e['item']: e for e in SHOP_ITEMS}

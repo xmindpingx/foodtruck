@@ -8,6 +8,8 @@ import * as Model from './model.js?v=3';
 const MATS = {   // shared materials, chosen per catalog row by `mat` (generated meshes carry no colour of their own)
   leather: [0x4a2e1c, .55, 0], felt: [0x56585e, .95, 0], straw: [0xd8b870, .9, 0], denim: [0x3a5a8a, .85, 0], cloth: [0x8a8f9a, .9, 0],
   gold: [0xd4a63a, .3, .9], silver: [0xc8ccd2, .28, .9], chrome: [0xdfe4e8, .12, 1], glass: [0x0b0e15, .08, .3], rubber: [0x1c1c20, .8, 0],
+  neon: [0xff2ea6, .35, .15], aqua: [0x2ec4ff, .35, .15], lime: [0x9cff3a, .35, .15], vivid: [0x8a2be2, .35, .15],
+  feather: [0xf0e8d0, .9, 0],
   wood: [0x7a4a28, .6, 0], hairdark: [0x1a1208, .8, 0], hairlight: [0x8a6a3a, .8, 0], black: [0x101012, .35, .2],
 };
 const mats = {}, geos = new Map();

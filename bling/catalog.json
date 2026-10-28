@@ -318,6 +318,61 @@
    "cost": 70,
    "model": true,
    "mat": "black"
+  },
+  {
+   "id": "wear-oxfords",
+   "label": "👞 Sole Mates Oxfords",
+   "theme": "",
+   "slot": "shoes",
+   "cost": 150,
+   "model": true,
+   "mat": "black"
+  },
+  {
+   "id": "wear-cowboy-boots",
+   "label": "🤠 Boot Scootin' Boots",
+   "theme": "",
+   "slot": "shoes",
+   "cost": 160,
+   "model": true,
+   "mat": "leather"
+  },
+  {
+   "id": "wear-backpack",
+   "label": "🎒 Pack Rat-ionalist Pack",
+   "theme": "",
+   "slot": "back",
+   "cost": 120,
+   "model": true,
+   "mat": "cloth"
+  },
+  {
+   "id": "wear-bowtie",
+   "label": "🎀 Tie-riffic Bow Tie",
+   "theme": "",
+   "slot": "collar",
+   "cost": 60,
+   "model": true,
+   "mat": "cloth"
+  },
+  {
+   "id": "wear-cane",
+   "label": "🦯 Cane Do Attitude",
+   "theme": "",
+   "slot": "handR",
+   "cost": 110,
+   "model": true,
+   "mat": "wood",
+   "dy": -0.86
+  },
+  {
+   "id": "wear-top-hat",
+   "label": "🎩 Top Notch Top Hat",
+   "theme": "",
+   "slot": "hat",
+   "cost": 140,
+   "model": true,
+   "mat": "black"
   }
  ],
  "themes": {

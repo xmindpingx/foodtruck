@@ -12,7 +12,7 @@ import {WX0, WX1, BW, FLOOR} from './truck.js?v=12';
 import {CONFIG} from './shop.js?v=8';
 import * as Account from './account.js?v=8';   // language picked at sign-up drives chips + docks
 import * as People from './people.js?v=9';     // realistic shared-geometry bodies (painted faces, swinging limbs)
-import * as Wear from './wear.js?v=2';     // 3D wearable props on the avatar sockets
+import * as Wear from './wear.js?v=4';     // 3D wearable props on the avatar sockets
 
 const ID_KEY = 'eol-visitor-id', NAME_KEY = 'eol-visitor-name', PROFILE_KEY = 'eol-visitor-profile';
 const CAP_STYLES = ['', 'ball', 'cowboy', 'beret', 'cone', 'marge', 'bart', 'lisa', 'homer', 'duff', 'krusty', 'moes', 'flanders'];
@@ -167,7 +167,7 @@ function renderGiftPanel(targetId) {
     : '<option value="">no other visitors nearby</option>';
   const sproutOpts = sprouts.map(s =>
     '<option value="' + esc(s.item) + '" data-label="' + esc(s.name || s.item) + '" data-slot="' + esc(s.slot || 'collar') + '">' + esc(s.name || s.item) + ' (×' + (s.count || 1) + ')</option>').join('');
-  const slots = ['collar','shoeL','shoeR','hat','chest','shoulderL','shoulderR'];
+  const slots = Object.keys(SPROUT_SLOTS);
   const slotOpts = slots.map(s => '<option value="' + s + '">' + s + '</option>').join('');
   giftBody.innerHTML =
     '<p style="margin:0 0 8px;opacity:.8;font-size:12px">Clip one of your sprouts onto a nearby visitor — it appears on their avatar and rides their account forever.</p>' +
@@ -567,17 +567,39 @@ function buildSprout(slot) {
   else if (slot === 'shoeL' || slot === 'shoeR') { g.scale.set(.7, .7, .7); g.rotation.x = Math.PI / 2; }
   else if (slot === 'chest') { g.scale.set(1, 1, 1); g.rotation.x = .2; }
   else if (slot === 'shoulderL' || slot === 'shoulderR') { g.scale.set(.8, .8, .8); g.rotation.z = slot === 'shoulderL' ? .3 : -.3; }
+  g.scale.multiplyScalar(0.5);   // sprouts are half size now
   g.traverse(o => { if (o.isMesh) o.castShadow = true; });
   return g;
 }
 
-// attachment point offsets in avatar local space
+// attachment point offsets in avatar local space — a dense grid (every ~3-4 in / 0.08-0.1 m)
+// so sprouts can clip almost anywhere on the body, not just a handful of spots.
 const SPROUT_SLOTS = {
-  hat:       {x: 0,     y: 1.8,  z: 0},
+  hat:       {x: 0,     y: 1.82, z: 0},
+  neck:      {x: 0,     y: 1.5,  z: 0.08},
   collar:    {x: 0,     y: 1.46, z: 0.1},
-  chest:     {x: 0,     y: 1.2,  z: 0.17},
+  chest:     {x: 0,     y: 1.22, z: 0.17},
+  chestL:    {x: -0.1, y: 1.2,  z: 0.16},
+  chestR:    {x: 0.1,  y: 1.2,  z: 0.16},
+  ribsL:     {x: -0.16, y: 1.08, z: 0.12},
+  ribsR:     {x: 0.16,  y: 1.08, z: 0.12},
   shoulderL: {x: -0.23, y: 1.4,  z: 0},
   shoulderR: {x: 0.23,  y: 1.4,  z: 0},
+  back:      {x: 0,     y: 1.35, z: -0.15},
+  backUpper: {x: 0,     y: 1.5,  z: -0.12},
+  backLower: {x: 0,     y: 1.15, z: -0.14},
+  waist:     {x: 0,     y: 1.0,  z: 0.14},
+  waistL:    {x: -0.12, y: 1.0,  z: 0.13},
+  waistR:    {x: 0.12,  y: 1.0,  z: 0.13},
+  hip:       {x: 0,     y: 0.88, z: 0.1},
+  hipL:      {x: -0.12, y: 0.86, z: 0.08},
+  hipR:      {x: 0.12,  y: 0.86, z: 0.08},
+  handL:     {x: -0.32, y: 0.95, z: 0.05},
+  handR:     {x: 0.32,  y: 0.95, z: 0.05},
+  thighL:    {x: -0.12, y: 0.6,  z: 0.08},
+  thighR:    {x: 0.12,  y: 0.6,  z: 0.08},
+  kneeL:     {x: -0.12, y: 0.35, z: 0.1},
+  kneeR:     {x: 0.12,  y: 0.35, z: 0.1},
   shoeL:     {x: -0.088, y: 0.05, z: 0.09},
   shoeR:     {x: 0.088,  y: 0.05, z: 0.09},
 };

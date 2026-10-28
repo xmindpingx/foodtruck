@@ -198,7 +198,7 @@ export function init(o) {
         const tg = lead ? target() : null; if (lead) u.tg = tg || {group: p.obj, self: true};
         const tx = () => ({x: gx(u.tg.group), z: gz(u.tg.group)});
         P.push({k: 'goDyn', fn: tx, d: 1.2 + i * .5}, wait(1.8, lead ? 'give' : 'chat', null),
-          {k: 'do', fn: () => { if (lead) { attachSprout(u.tg.group, pick(['collar', 'chest', 'shoulderL', 'hat']), 120000); pop('🌱', u.tg.group); if (u.tg.self) toast('🌱 ' + m.name + ' clipped a sprout on you!'); } else pop('👏', m.root); }}, wait(1.6, 'cheer'));
+          {k: 'do', fn: () => { if (lead) { attachSprout(u.tg.group, pick(['collar', 'chest', 'chestL', 'chestR', 'shoulderL', 'shoulderR', 'hat', 'waist', 'hip', 'back', 'handL', 'handR', 'thighL', 'thighR', 'kneeL', 'kneeR']), 120000); pop('🌱', u.tg.group); if (u.tg.self) toast('🌱 ' + m.name + ' clipped a sprout on you!'); } else pop('👏', m.root); }}, wait(1.6, 'cheer'));
       }
       m.plan = P;
     });
@@ -474,7 +474,7 @@ export function init(o) {
       {label: '💃 Dance', fn: () => { a.anim = 'dance'; a.idle = false; setMood(a, 'smile', 4); } },
       {label: '🤗 Hug', fn: () => { a.anim = 'hug'; setMood(a, 'smile', 4); pop('🤗', a.root, 2.0); } },
       {label: '👏 Cheer', fn: () => { cheer(a, 3); pop('👏', a.root, 2.0); } },
-      {label: '🌱 Give sprout', fn: () => { dispatchEvent(new CustomEvent('eol:npc-gift', {detail: {npc: a.id, slot: 'collar', cost: 0}})); } },
+      {label: '🌱 Give sprout', fn: () => { dispatchEvent(new CustomEvent('eol:npc-gift', {detail: {npc: a.id, slot: pick(['collar', 'chest', 'chestL', 'chestR', 'shoulderL', 'shoulderR', 'hat', 'waist', 'hip', 'back', 'handL', 'handR']), cost: 0}})); } },
       {label: '🚶 Follow me', fn: () => { if (a.staff) { pop('🙅', a.root, 2.0); return; } if (a.seat) release(a); a.plan = [{k: 'follow', t: 20, dist: 2.2}, wait(2, 'wave')]; a.step = null; a.idle = false; setMood(a, 'smile', 4); } },   // t = seconds to tag along (0 used to end it on the next frame)
     ];
     // pick 4 random, dedup by label

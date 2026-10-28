@@ -30,31 +30,87 @@ ITEMS = {
  'wear-bowtie':   ('🎀 Tie-riffic Bow Tie', 'collar', .10, 'cloth', 60, '', 'a classic bow tie, front view'),
  'wear-cane':     ('🦯 Cane Do Attitude', 'handR', .92, 'wood', 110, '', 'a polished wooden walking cane with a curved handle, full length view'),
  'wear-top-hat':  ('🎩 Top Notch Top Hat', 'hat', .31, 'black', 140, '', 'a tall black silk top hat with a thin band, three-quarter view'),
+ # --- pride + music festival wearables ---
+ 'wear-pride-pin':     ('🏳️‍🌈 Pride & Joy Pin', 'chest', .06, 'gold', 80, '', 'a round enamel pin with a rainbow heart emblem, front view'),
+ 'wear-festival-band': ('🎟️ All-Access Band', 'handR', .12, 'neon', 60, '', 'a fabric festival wristband with a plastic clasp, front view'),
+ 'wear-bucket-hat':    ('🪣 Bucket List Bucket', 'hat', .30, 'straw', 90, '', 'a canvas bucket hat, three-quarter view from above'),
+ 'wear-flower-crown':  ('🌸 Petal Pusher Crown', 'hat', .32, 'straw', 100, '', 'a flower crown with small mixed blossoms, top view'),
+ 'wear-fanny-pack':    ('🎒 Hands-Free Hype Pack', 'waist', .28, 'cloth', 110, '', 'a small fanny pack with a buckle and zipper, front view'),
+ 'wear-glow-sticks':   ('💚 Glow Getter Sticks', 'handL', .25, 'neon', 70, '', 'a pair of glowing neon glow sticks, front view'),
+ 'wear-neon-visor':    ('🕶️ Rave Wave Visor', 'glasses', .16, 'glass', 90, '', 'a neon-tinted futuristic visor, front view'),
+ 'wear-headphones':    ('🎧 Drop the Beat Headphones', 'ears', .18, 'black', 120, '', 'a pair of over-ear headphones, front view'),
+ 'wear-peace-pendant': ('✌️ Peace Out Pendant', 'chest', .08, 'gold', 80, '', 'a peace sign pendant on a chain, front view'),
+ 'wear-pride-sash':    ('🌈 Pride Stride Sash', 'chest', .40, 'neon', 100, '', 'a diagonal sash with a rainbow stripe, front view'),
+ # --- cannabis (adults only) ---
+ 'wear-leaf-pin':       ('🍃 Leaf Life Pin', 'chest', .06, 'lime', 80, '', 'a round enamel pin with a cannabis leaf emblem, front view'),
+ 'wear-hemp-bracelet':  ('🌿 Hemp Circle Bracelet', 'handR', .12, 'straw', 70, '', 'a braided hemp bracelet, front view'),
+ 'wear-rasta-beanie':   ('🧢 Rasta Beanie', 'hat', .28, 'cloth', 90, '', 'a knit rasta beanie with a folded brim, three-quarter view'),
+ 'wear-leaf-bandana':   ('🧣 Leafy Bandana', 'hat', .25, 'cloth', 70, '', 'a bandana with a subtle leaf print, folded, front view'),
+ 'wear-420-shades':     ('🕶️ 420 Shades', 'glasses', .14, 'black', 80, '', 'a pair of dark sunglasses with a small leaf emblem, front view'),
+ 'wear-leaf-pendant':   ('🍃 Leaf Pendant', 'chest', .07, 'gold', 90, '', 'a cannabis leaf pendant on a chain, front view'),
+ 'wear-high-buckle':    ('🔗 High Roller Buckle', 'waist', .12, 'gold', 100, '', 'a large belt buckle with a leaf emblem, front view'),
+ 'wear-hemp-sneakers':  ('👟 Hemp Hi-Tops', 'shoes', .29, 'cloth', 130, '', 'a single canvas hemp high-top sneaker, side view'),
+ 'wear-hemp-sack':      ('🎒 Hemp Sack Pack', 'back', .40, 'cloth', 120, '', 'a hemp drawstring sack backpack, three-quarter view'),
+ 'wear-bong-pin':       ('💨 Bong Voyage Pin', 'chest', .06, 'silver', 80, '', 'a small novelty pin shaped like a glass bong, front view'),
+ # --- rave ---
+ 'wear-rave-goggles':   ('🥽 Rave Riot Goggles', 'glasses', .16, 'glass', 100, '', 'a pair of futuristic rave goggles, front view'),
+ 'wear-neon-cuffs':     ('💡 Neon Cuffs', 'handL', .10, 'neon', 70, '', 'a pair of glowing neon wrist cuffs, front view'),
+ 'wear-led-choker':     ('✨ LED Choker', 'collar', .10, 'neon', 90, '', 'a glowing LED choker necklace, front view'),
+ 'wear-platform-boots': ('👢 Platform Stompers', 'shoes', .32, 'black', 150, '', 'a single black platform rave boot, side view'),
+ 'wear-neon-fanny':     ('🎒 Neon Utility Pack', 'waist', .26, 'neon', 110, '', 'a small neon fanny pack with buckles, front view'),
+ 'wear-laser-visor':    ('🕶️ Laser Visor', 'glasses', .16, 'glass', 90, '', 'a neon laser-cut visor, front view'),
+ 'wear-glow-band':      ('💚 Glow Band', 'handR', .10, 'lime', 60, '', 'a glowing lime wristband, front view'),
+ 'wear-rave-mesh':      ('🕸️ Rave Mesh Top', 'chest', .35, 'neon', 100, '', 'a mesh rave top, front view'),
+ 'wear-ear-cuffs':      ('💎 Ear Cuff Bling', 'ears', .06, 'silver', 80, '', 'a pair of silver ear cuffs, front view'),
+ 'wear-holo-pack':      ('🎒 Holo Pack', 'back', .42, 'chrome', 130, '', 'a holographic backpack, three-quarter view'),
+ # --- hippie ---
+ 'wear-groovy-bandana': ('🧣 Groovy Bandana', 'hat', .25, 'cloth', 70, '', 'a tie-dye bandana, folded, front view'),
+ 'wear-flower-power':   ('🌼 Flower Power Crown', 'hat', .32, 'straw', 100, '', 'a flower crown with daisies, top view'),
+ 'wear-round-shades':   ('🕶️ Round Trip Shades', 'glasses', .14, 'black', 80, '', 'a pair of round retro sunglasses, front view'),
+ 'wear-moc-toes':       ('🧦 Moc Toe Mocs', 'shoes', .28, 'leather', 120, '', 'a single suede moccasin shoe, side view'),
+ 'wear-fringe-vest':    ('🦌 Fringe Benefits Vest', 'chest', .35, 'leather', 130, '', 'a suede fringe vest, front view'),
+ 'wear-peace-drops':    ('✌️ Peace Drop Earrings', 'ears', .06, 'gold', 70, '', 'a pair of peace sign drop earrings, front view'),
+ 'wear-bead-necklace':  ('📿 Bead It Necklace', 'collar', .12, 'wood', 80, '', 'a beaded necklace with wooden beads, front view'),
+ 'wear-hope-headband':  ('🌸 Headband of Hope', 'hat', .28, 'cloth', 70, '', 'a fabric headband with a flower, front view'),
+ 'wear-free-satchel':   ('🎒 Free Spirit Satchel', 'back', .38, 'leather', 120, '', 'a leather satchel with a long strap, three-quarter view'),
+ 'wear-sole-sandals':   ('🩴 Sole Searching Sandals', 'shoes', .27, 'leather', 100, '', 'a single leather sandal, side view'),
+ # --- wings + themed backpacks (back slot) ---
+ 'wear-wings':          ('🪽 Angel Wings', 'back', .5, 'feather', 200, '', 'a pair of white feathered angel wings, spread, back view'),
+ 'wear-hippie-pack':    ('🎒 Groovy Rucksack', 'back', .4, 'cloth', 110, '', 'a canvas rucksack with peace patches, three-quarter view'),
+ 'wear-biker-pack':     ('🎒 Road Warrior Pack', 'back', .42, 'leather', 130, '', 'a black leather motorcycle backpack with straps, three-quarter view'),
+ 'wear-teen-pack':      ('🎒 Teen Spirit Pack', 'back', .38, 'cloth', 90, '', 'a small school backpack with pins and patches, three-quarter view'),
 }
 
 def gen(ids):
+    fast = os.environ.get('WEAR_FAST') == '1'
+    ref_size = 768 if fast else 1024
+    res = 2048 if fast else 3072
+    steps = 4 if fast else 5
+    tris = 1000 if fast else 1500
+    wait_ref = 600 if fast else 900
+    wait_mesh = 1200 if fast else 2400
     os.makedirs(RAW, exist_ok=True); M.wake()
     for i in ids:
         label, slot, ln, mat, cost, theme, prompt = ITEMS[i]
         if os.path.exists(os.path.join(M.OUT, 'wear', i + '.json')): print('have', i); continue
         png = f'{RAW}/{i}.png'
         if not os.path.exists(png):
-            for node in M.run(M.flux_graph(f'{prompt}. {FLAT}', 1024, 1024, seed=abs(hash(i)) % 100000), wait=900, label='ref ' + i).values():
+            for node in M.run(M.flux_graph(f'{prompt}. {FLAT}', ref_size, ref_size, seed=abs(hash(i)) % 100000), wait=wait_ref, label='ref ' + i).values():
                 for im in node.get('images', []): open(png, 'wb').write(M.fetch_image(im)); break
         name = f'eol_{i}.png'; shutil.copy(png, os.path.join(M.COMFY_HOME, 'input', name))
         g = {'1': {'class_type': 'ImageOnlyCheckpointLoader', 'inputs': {'ckpt_name': CKPT}},
              '20': {'class_type': 'LoadImage', 'inputs': {'image': name}},
              '21': {'class_type': 'CLIPVisionEncode', 'inputs': {'clip_vision': ['1', 1], 'image': ['20', 0], 'crop': 'none'}},
              '4': {'class_type': 'Hunyuan3Dv2Conditioning', 'inputs': {'clip_vision_output': ['21', 0]}},
-             '5': {'class_type': 'EmptyLatentHunyuan3Dv2', 'inputs': {'resolution': 3072, 'batch_size': 1}},
+             '5': {'class_type': 'EmptyLatentHunyuan3Dv2', 'inputs': {'resolution': res, 'batch_size': 1}},
              '6': {'class_type': 'ModelSamplingAuraFlow', 'inputs': {'model': ['1', 0], 'shift': 1.0}},
-             '7': {'class_type': 'KSampler', 'inputs': {'model': ['6', 0], 'positive': ['4', 0], 'negative': ['4', 1], 'latent_image': ['5', 0], 'seed': 42, 'steps': 5, 'cfg': 5.0, 'sampler_name': 'euler', 'scheduler': 'normal', 'denoise': 1.0}},
+             '7': {'class_type': 'KSampler', 'inputs': {'model': ['6', 0], 'positive': ['4', 0], 'negative': ['4', 1], 'latent_image': ['5', 0], 'seed': 42, 'steps': steps, 'cfg': 5.0, 'sampler_name': 'euler', 'scheduler': 'normal', 'denoise': 1.0}},
              '8': {'class_type': 'VAEDecodeHunyuan3D', 'inputs': {'samples': ['7', 0], 'vae': ['1', 2], 'num_chunks': 8000, 'octree_resolution': 256}},
              '9': {'class_type': 'VoxelToMeshBasic', 'inputs': {'voxel': ['8', 0], 'threshold': 0.6}},
-             '10': {'class_type': 'DecimateMesh', 'inputs': {'mesh': ['9', 0], 'target_face_count': 1500, 'placement_mode': 'midpoint'}},
+             '10': {'class_type': 'DecimateMesh', 'inputs': {'mesh': ['9', 0], 'target_face_count': tris, 'placement_mode': 'midpoint'}},
              '11': {'class_type': 'MeshSmoothNormals', 'inputs': {'mesh': ['10', 0], 'crease_angle': 60.0}},
              '12': {'class_type': 'SaveGLB', 'inputs': {'mesh': ['11', 0], 'filename_prefix': '3d/eol_' + i}}}
-        M.run(g, wait=2400, label='mesh ' + i)
+        M.run(g, wait=wait_mesh, label='mesh ' + i)
         out = os.path.join(M.COMFY_HOME, 'output', '3d')
         glb = sorted((os.path.join(out, f) for f in os.listdir(out) if f.startswith('eol_' + i) and f.endswith('.glb')), key=os.path.getmtime)[-1]
         shutil.copy(glb, f'{RAW}/{i}.glb')
@@ -62,7 +118,7 @@ def gen(ids):
 
 # per-item placement tweaks merged into the catalog row (js/wear.js FIT has the per-slot defaults): fit = scale,
 # dy/dz = metres from the socket, ry = yaw degrees. Set after looking at the item on an avatar.
-PLACE = {'wear-cane': {'dy': -.86}}
+PLACE = {'wear-cane': {'dy': -.86}, 'wear-wings': {'fit': 3, 'dy': -.1, 'dz': -.15}}
 
 def catalog():
     p = os.path.join(M.ROOT, 'bling', 'catalog.json'); c = json.load(open(p))
@@ -75,6 +131,10 @@ def catalog():
 if __name__ == '__main__':
     a = sys.argv[1:]; cmd = a[0] if a else 'help'
     if cmd == 'list': [print(('✔' if os.path.exists(os.path.join(M.OUT, 'wear', i + '.json')) else '·'), i) for i in ITEMS]
-    elif cmd == 'gen': gen(a[1:] or list(ITEMS))
+    elif cmd == 'gen':
+        fast = '--fast' in a
+        ids = [x for x in a[1:] if x != '--fast'] or list(ITEMS)
+        if fast: os.environ['WEAR_FAST'] = '1'
+        gen(ids)
     elif cmd == 'catalog': catalog()
     else: print(__doc__)

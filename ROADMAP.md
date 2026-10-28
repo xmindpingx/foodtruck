@@ -95,6 +95,38 @@ Smoke now also checks: one `?v=` per module, gfx assets + private raw dir, accou
 - Admin: theme override (force a holiday for everyone). Done in this round: clutter amount + actor count + interaction rate (`crowdAmount`/`actorsAmount`/`interactAmount`/`clutterAmount` in Environment tab).
 - Tests: headless render test for each theme; unit tests for `themes.autoTheme` across a year.
 
+### Universal AI / shared simulation (new; phased)
+
+Goal: every visitor's browser shows the **same** ambient AI crowd, the same actions on
+live visitor avatars, the same AI-assistant activity, and the same AI-generated wearables.
+Today each client runs its own life.js simulation and its own assistant, so two visitors
+standing next to each other see different crowd behaviour.
+
+- **Phase 1 — Wearables universal (in progress).** AI-generated 3D props are activated
+  through `bling/catalog.json` + `models/wear/*` and redeemed via `/api/account/shop`, so
+  every visitor sees and can wear the same items. Completed by `tools/wear_gen.py catalog`.
+  *Status: first 8 items (fedora, shades, oxfords, cowboy boots, backpack, bowtie, cane,
+  top hat) generated this session; commit + restart pending.*
+- **Phase 2 — Deterministic ambient crowd.** Replace `Math.random()` in `js/life.js`,
+  `js/stuff.js`, `js/quests.js` with a seeded PRNG, and drive `t` from a shared server
+  clock (fetch `/api/time` on load, offset `THREE.Clock`) instead of per-page `clock.elapsedTime`.
+  Init must be a pure function of `(seed, t0)` so a late joiner reconstructs the current
+  state. Seats/queues become deterministic reservations keyed by `(actorId, t)`.
+  *Risk: large; touches every system that calls `rnd()`/`pick()`.*
+- **Phase 3 — Live avatar action sync.** Extend `POST /api/presence` profile with a
+  `action`/`anim` field and broadcast it; `avatars.js` `setStatus()` already maps status
+  to an anim, but ambient interactions (wave/high-five/hug) are local. Server must
+  own the interaction outcome and echo it to all clients, or clients replay a shared
+  event log. Needs rate limiting (≤1 action/visitor/3 s).
+- **Phase 4 — Shared AI assistant.** Today `sendToAssistant()` is private per visitor.
+  Make assistant replies broadcast as a system chat line (or a dedicated `/api/assistant`
+  shared thread) so everyone sees the same Q&A; tool calls that mutate orders stay
+  per-account. Probably gated by a setting (`sharedAssistantOn`, default off).
+- **Phase 5 — Ownership + safety.** Server-side bling ownership (T2) becomes more
+  important once wearables are universal and valuable; add max-worn (8) + seasonal filter.
+
+Recommended order: finish Phase 1, then Phase 2 (biggest visible payoff), then Phase 3.
+
 ### 3D wearables (backbone shipped; the rest is this to-do)
 Backbone: `js/wear.js` (sockets -> shared-geometry props), `tools/wear_gen.py` (FLUX ref -> Hunyuan3D mv-turbo -> `models/wear/`),
 `bling/catalog.json` rows with `model:true`, `slot` = a socket name, `mat` = a `wear.js` MATS key; `BLING_SLOTS` widened in server.py;
