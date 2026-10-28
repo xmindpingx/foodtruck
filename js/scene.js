@@ -8,7 +8,7 @@ import * as Avatars from './avatars.js?v=13';
 import * as People from './people.js?v=4';
 import * as Themes from './themes.js?v=1';   // steampunk by default, a theme per big holiday around its date
 import * as FX from './themefx.js?v=1';       // re-skins everything but the truck + gears/lamps/airships or lights/bunting/confetti
-import * as Life from './life.js?v=14';        // ambient crowd life: eat, queue, play, wander, greet the player
+import * as Life from './life.js?v=15';        // ambient crowd life: eat, queue, play, wander, greet the player
 import * as Waterpark from './waterpark.js?v=1';
 import * as Rep from './rep.js?v=1';
 import * as Stuff from './stuff.js?v=2';
@@ -986,9 +986,13 @@ for(let i=0;i<8;i++){
       person.position.set(px,.3,pz);
       person.rotation.x=Math.PI/2; person.rotation.z=(Math.random()-.5)*.4;
     } else {
-      // sitting
+      // sitting variants
+      const v = Math.random();
       person.position.set(px,.4,pz);
-      person.rotation.x=-Math.PI/6;
+      if (v < 0.25) { person.rotation.x = -Math.PI/4; }            // 45° hip bend, legs out
+      else if (v < 0.5) { person.rotation.x = 0; person.rotation.z = (Math.random()-.5)*.2; }  // legs straight out
+      else if (v < 0.75) { person.rotation.x = 0; person.rotation.y += Math.PI/4; }            // indian style (crossed)
+      else { person.rotation.x = -Math.PI/3; person.position.y = .35; }  // kneeling
     }
     S.add(person);
     if (Math.random() < .3) lightPipe(person);

@@ -366,6 +366,14 @@ export function init(o) {
         if (a.step === null && a.face != null && !a.moving) { a.yaw = a.face; a.face = null; }
       }
       a.root.position.x = a.x; a.root.position.z = a.z; a.root.rotation.y = a.yaw;
+      // if animated walking but not actually moving, stop and interact instead of sliding
+      if (a.moving) {
+        const dx = a.x - (a._lx || a.x), dz = a.z - (a._lz || a.z);
+        if (Math.abs(dx) < 0.001 && Math.abs(dz) < 0.001) a._stuckWalk = (a._stuckWalk || 0) + 1;
+        else a._stuckWalk = 0;
+        a._lx = a.x; a._lz = a.z;
+        if ((a._stuckWalk || 0) > 15) { a.moving = false; a.anim = 'chat'; a._stuckWalk = 0; if (a.step) { a.step = null; } }
+      } else { a._stuckWalk = 0; }
       // cull + pose
       const d2 = dist2(a.x, a.z, cx, cz), lim = (a.near ? RANGE + 3 : RANGE) ** 2;
       a.near = d2 < lim; if (a.root.visible !== a.near) a.root.visible = a.near;
@@ -376,9 +384,10 @@ export function init(o) {
       if (q.life <= 0) { q.obj.remove(q.sp); q.sp.material.dispose(); pops.splice(i, 1); }
     }
     nextAct -= dt; if (nextAct <= 0) { const lv = repLv(); nextAct = rnd(9, 18) / (1 + lv * .5); for (let k = 0; k < 1 + (lv >= 3) + (lv >= 5); k++) interact(); }
+    nextMosh -= dt; if (nextMosh <= 0) { nextMosh = rnd(90, 180); moshPit(8 + rnd(-4,4), -62 + rnd(-3,3), 8, 10); }
     // units whose interaction plan finished return to normal life (handled by the empty-plan replan above)
   }
-  let nextAct = rnd(6, 12);
+  let nextAct = rnd(6, 12), nextMosh = rnd(60, 120);
 
   // ---------- pose ----------
   function pose(a, t, dt) {
@@ -464,6 +473,20 @@ export function init(o) {
   }
   const canPositions = () => cans.map(c => worldOf(c));
   const cheer = (a, secs) => { a.step = null; a.plan.unshift(wait(secs, 'cheer')); };
+  const moshPit = (x, z, secs = 8, limit = 12) => {
+    let n = 0;
+    for (const u of units) {
+      if (u.kind === 'staff' || u.interact || n >= limit) continue;
+      u.interact = true; n++;
+      u.members.forEach((m, i) => {
+        if (m.seat) release(m); m.step = null;
+        const a = rnd(0, 6.28), r = rnd(1, 4);
+        m.plan = [go({x: x + Math.cos(a) * r, z: z + Math.sin(a) * r}, 2.6), wait(secs, 'dance', {fx: x, fz: z})];
+      });
+    }
+    pop('🤘', null, 0); // placeholder
+    return n;
+  };
   const dancersNear = (x, z, r) => actors.filter(a => a.near && a.anim === 'dance' && !a.moving && dist2(a.x, a.z, x, z) < r * r).length;
-  return {tick, cans: canPositions, cheer, createStaff, flashDance, rush, dancersNear, pop, toast, setMood, actors, roster: () => actors.filter(a => a.near).sort((m, n) => dist2(m.x, m.z, cam.position.x, cam.position.z) - dist2(n.x, n.z, cam.position.x, cam.position.z)).slice(0, 8).map(a => ({id: 'npc:' + a.id, name: a.name + ' (festival-goer)'}))};
+  return {tick, cans: canPositions, cheer, createStaff, flashDance, rush, moshPit, dancersNear, pop, toast, setMood, actors, roster: () => actors.filter(a => a.near).sort((m, n) => dist2(m.x, m.z, cam.position.x, cam.position.z) - dist2(n.x, n.z, cam.position.x, cam.position.z)).slice(0, 8).map(a => ({id: 'npc:' + a.id, name: a.name + ' (festival-goer)'}))};
 }
