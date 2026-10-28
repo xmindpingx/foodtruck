@@ -61,7 +61,7 @@ function closedPark(S, o) {
   const sign = add(new THREE.Mesh(new THREE.PlaneGeometry(5.6, 2.6), new THREE.MeshBasicMaterial({map: tex, side: THREE.DoubleSide})), PARK.x1 + .3, 3.6, gz); sign.rotation.y = Math.PI / 2;
   for (const dz of [-2.8, 2.8]) add(new THREE.Mesh(new THREE.CylinderGeometry(.1, .12, 3.6, 8), std(0x7a5a38, .9)), PARK.x1 + .3, 1.8, gz + dz);
   G.visible = false; const RANGE = (lite || isPhone) ? 45 : 85, v = new THREE.Vector3(); let nextPun = 7;
-  return {closed: true, group: G, guards: [], towers: [], poi: {}, tick(t, dt) {
+  return {closed: true, group: G, guards: [], towers: [], poi: {}, bounds: PARK, tick(t, dt) {
     cam.getWorldPosition(v); G.visible = Math.hypot(v.x - PARK.x1, v.z - gz) < RANGE; if (!G.visible) return;
     if (!message && (nextPun -= dt) < 0) { nextPun = 7; n++; paint(); }
   }};
@@ -247,5 +247,5 @@ export function init(S, o) {
       drops.count = n; drops.instanceMatrix.needsUpdate = true;
     }
   }
-  return {tick, group: G, guards, towers: guards.map(([x, z]) => ({x, z})), poi: {gate: {x: PARK.x1 - 2, z: PARK.gate.z}, wave: {x: WP.x + WP.w / 2 + 2, z: WP.z}, river: {x: LR.x + LR.r1 + 1.2, z: LR.z}, slideA: {x: -66, z: 2}, slideB: {x: -38, z: -10}, boats: {x: BP.x + BP.r + 1.5, z: BP.z}}};
+  return {tick, group: G, guards, towers: guards.map(([x, z]) => ({x, z})), poi: {gate: {x: PARK.x1 - 2, z: PARK.gate.z}, wave: {x: WP.x + WP.w / 2 + 2, z: WP.z}, river: {x: LR.x + LR.r1 + 1.2, z: LR.z}, slideA: {x: -66, z: 2}, slideB: {x: -38, z: -10}, boats: {x: BP.x + BP.r + 1.5, z: BP.z}}, bounds: PARK};
 }

@@ -17,7 +17,7 @@ const yawTo = (x0, z0, x1, z1) => Math.atan2(x1 - x0, z1 - z0);
 const lerpYaw = (a, b, k) => { let d = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; return a + d * Math.min(1, k); };
 
 export function init(o) {
-  const {S, cam, rig, tables, eaters, win, stage, truckBox, props, player, liveList, attachSprout, lite, phone: isPhone, canvas} = o;
+  const {S, cam, rig, tables, eaters, win, stage, truckBox, props, jukebox, lowriders, parkBounds, player, liveList, attachSprout, lite, phone: isPhone, canvas, extraObstacles} = o;
   const num = (v, d) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
   const CM = Math.max(0, Math.min(3, num(o.castMult, 1)));      // 🎪 ambient cast multiplier (Admin → crowd settings)
   const IM = Math.max(0, Math.min(3, num(o.interactMult, 1)));  // 👋 player-greeting frequency multiplier
@@ -237,17 +237,7 @@ export function init(o) {
   function detour(a, tx, tz) {   // route around any obstacle (truck, tables, props, booths, water park) instead of clipping through
     const s = rig.worldToLocal(V.set(a.x, 0, a.z)).clone(), e = rig.worldToLocal(V2.set(tx, 0, tz)).clone();
     const obs = obstacles();
-    // truck box first
-    if (segHitsBox(s.x, s.z, e.x, e.z, truckBox)) {
-      let best = null;
-      for (const [cx, cz] of [[truckBox.x0, truckBox.z0], [truckBox.x0, truckBox.z1], [truckBox.x1, truckBox.z0], [truckBox.x1, truckBox.z1]]) {
-        const d = Math.hypot(cx - s.x, cz - s.z) + Math.hypot(e.x - cx, e.z - cz);
-        if (!best || d < best.d) best = {d, cx, cz};
-      }
-      if (Math.hypot(best.cx - s.x, best.cz - s.z) >= .4) {
-        const w = rig.localToWorld(V.set(best.cx, 0, best.cz)); return [w.x, w.z];
-      }
-    }
+    // truck is now a circumradius circle (see obstacles()), so corners are covered; fall through to the generic circle detour
     // circular obstacles
     for (const o of obs) {
       if (o === null) continue;
@@ -293,12 +283,25 @@ export function init(o) {
   }
   function obstacles() {
     const out = [];
-    const tb = o.truckBox; if (tb) { const cx = (tb.x0+tb.x1)/2, cz = (tb.z0+tb.z1)/2; const w = rig.localToWorld(new THREE.Vector3(cx,0,cz)); out.push({x:w.x, z:w.z, r: Math.max((tb.x1-tb.x0)/2,(tb.z1-tb.z0)/2)}); }
+    const tb = o.truckBox; if (tb) { const cx = (tb.x0+tb.x1)/2, cz = (tb.z0+tb.z1)/2; const w = rig.localToWorld(new THREE.Vector3(cx,0,cz)); out.push({x:w.x, z:w.z, r: Math.hypot((tb.x1-tb.x0)/2,(tb.z1-tb.z0)/2)+0.3}); }   // circumradius so the whole truck (cab + box) is covered
     for (const t of (o.tables||[])) { if (t && t.parent) { V.set(0,0,0); t.getWorldPosition(V); out.push({x:V.x,z:V.z,r:.95}); } }
     const ps = (o.props ? (o.props() || []) : []); for (const p of (Array.isArray(ps) ? ps : [])) { if (p && p.parent) { V.set(0,0,0); p.getWorldPosition(V); out.push({x:V.x,z:V.z,r:1.1}); } }
     const vs = (o.vendors ? (o.vendors() || []) : []); for (const v of (Array.isArray(vs) ? vs : [])) { if (v && v.spot) out.push({x:v.spot[0],z:v.spot[1],r:1.6}); }
+    if (o.jukebox && o.jukebox.parent) { V.set(0,0,0); o.jukebox.getWorldPosition(V); out.push({x:V.x,z:V.z,r:(o.jukebox.userData&&o.jukebox.userData.obstacleR)||1.2}); }
+    const lrs = Array.isArray(o.lowriders) ? o.lowriders : (typeof o.lowriders === 'function' ? (o.lowriders()||[]) : []);
+    for (const lr of lrs) { if (lr && lr.parent) { V.set(0,0,0); lr.getWorldPosition(V); out.push({x:V.x,z:V.z,r:(lr.userData&&lr.userData.obstacleR)||3.2}); } }
+    if (o.stage && o.stage.parent) { V.set(0,0,0); o.stage.getWorldPosition(V); out.push({x:V.x,z:V.z,r:(o.stage.userData&&o.stage.userData.obstacleR)||18}); }
     const wp = o.waterpark ? o.waterpark() : null;
-    if (wp && wp.group) { wp.group.getWorldPosition(V); out.push({x:V.x,z:V.z,r:8}); }
+    if (wp) {
+      const b = wp.bounds || wp.parkBounds || null;
+      if (b && Number.isFinite(b.x0)) { out.push({x:(b.x0+b.x1)/2, z:(b.z0+b.z1)/2, r: Math.hypot((b.x1-b.x0)/2,(b.z1-b.z0)/2)+2}); }
+      else if (wp.group) { out.push({x:-54, z:-3, r:31}); }
+    }
+    const extras = typeof o.extraObstacles === 'function' ? (o.extraObstacles()||[]) : (o.extraObstacles||[]);
+    for (const e of (Array.isArray(extras)?extras:[])) {
+      if (e && typeof e.getWorldPosition === 'function') { if (e.parent) { V.set(0,0,0); e.getWorldPosition(V); out.push({x:V.x,z:V.z,r:(e.userData&&e.userData.obstacleR)||1.4}); } }
+      else if (e && Number.isFinite(e.x) && Number.isFinite(e.z)) { out.push({x:e.x,z:e.z,r:e.r||1.4}); }
+    }
     return out;
   }
   function pushOut(a) {

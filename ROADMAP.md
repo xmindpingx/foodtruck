@@ -25,7 +25,7 @@ Restart needed after pulling: `pm2 restart foodtruck-site`.
 1. **No real-device performance data.** Budgets (crowd range, section radii, pixel ratio, 2048 shadow map) are estimates. Needs Safari Web Inspector on an iPhone 12; watch draw calls (life + stuff + park + vendors) and memory.
 2. Lite mode still does not lower pixel ratio / antialiasing / lights on phones; `eol-lite=0` (3D page) on an iPhone 12 is the heavy path.
 3. Hidden/background browser panes throttle `requestAnimationFrame`; the sim was verified by manually ticking `__EOL_LIFE.tick`, not by watching real time.
-4. Actors only avoid the truck box. They walk through tables, props, booths, the water park, slides, other actors. Seats ignore the player's own avatar.
+4. Actors avoid the truck (full circumradius, no more corner clipping), picnic tables, arcade props, vendor booths, the jukebox, the Impala lowrider, the main stage and the water park (its real bounds, not a stray circle at the origin). Seats still ignore the player's own avatar; slide/pool interiors remain walkable.
 5. Sit/eat/play/hug are approximate joint poses; heads do not turn (head mesh has no pivot); kids' bodies clip slightly when seated.
 6. Band performers, seated eaters, the truck worker and the 200 instanced audience still use the old low-realism bodies.
 7. Live avatars: `makeBody` uses the shared rig but each avatar gets own materials (~15 meshes). 14 avatars + 27 actors + park bathers can be heavy together; no global cap yet.

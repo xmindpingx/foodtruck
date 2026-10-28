@@ -8,8 +8,8 @@ import * as Avatars from './avatars.js?v=13';
 import * as People from './people.js?v=4';
 import * as Themes from './themes.js?v=1';   // steampunk by default, a theme per big holiday around its date
 import * as FX from './themefx.js?v=3';       // re-skins everything but the truck + gears/lamps/airships or lights/bunting/confetti
-import * as Life from './life.js?v=17';        // ambient crowd life: eat, queue, play, wander, greet the player
-import * as Waterpark from './waterpark.js?v=1';
+import * as Life from './life.js?v=18';        // ambient crowd life: eat, queue, play, wander, greet the player
+import * as Waterpark from './waterpark.js?v=2';
 import * as Rep from './rep.js?v=1';
 import * as Stuff from './stuff.js?v=4';
 import * as Quests from './quests.js?v=3';   // pun vendors, flash sales/dances, quests that earn Rep   // litter, lost items and micro-clutter, LOD'd by distance
@@ -1322,6 +1322,7 @@ if(CONFIG.ambientLifeOn!==false){
   life=Life.init({S,cam,rig:truckRig,tables:TABLE_HIT,eaters,win:{x1:WX1,z:BW/2},castMult:CONFIG.actorsAmount,interactMult:CONFIG.interactAmount,range:CONFIG.sceneLifeRange,
     truckBox:{x0:TRUCK_CX-BL/2-.3,x1:TRUCK_CX+BL/2+.3,z0:-BW/2-.3,z1:BW/2+.3},
     props:()=>['claw','bbt','tag','pin','c4','ttt'].map(id=>Arcade.prop(id)),
+    jukebox:jukebox, lowriders:ALL_HYDRAULICS, stage:stageBack,
     vendors:()=> (typeof quests!=='undefined' && quests) ? (quests.vendors||[]) : [],
     waterpark:()=>wp,
     player:()=>{if(walk.on&&walk.grp)return {obj:walk.grp,x:walk.x,z:walk.z};
