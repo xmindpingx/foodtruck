@@ -957,7 +957,7 @@ for(let i=0;i<8;i++){
     const person=buildPerformer(0xd9a978,0xd42a2a,0x1a1a1a,'civilian');
     const px = bx + (Math.random()-.5)*bw*.6;
     const pz = bz + (Math.random()-.5)*bh*.6;
-    if (Math.random() < 0.5) {
+    if (Math.random() < 0.2) {
       // lying down
       person.position.set(px,.3,pz);
       person.rotation.x=Math.PI/2; person.rotation.z=(Math.random()-.5)*.4;
