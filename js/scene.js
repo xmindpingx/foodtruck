@@ -5,7 +5,7 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {CONFIG,MENU,money,open,hooks} from './shop.js?v=8';
 import {buildTruck,WX0,WX1,WY0,WY1,BW,BL,BH,bx0,FLOOR,CL} from './truck.js?v=12';
 import * as Avatars from './avatars.js?v=15';
-import * as People from './people.js?v=5';
+import * as People from './people.js?v=6';
 import * as Themes from './themes.js?v=2';   // steampunk by default, a theme per big holiday around its date
 import * as FX from './themefx.js?v=5';       // re-skins everything but the truck + gears/lamps/airships or lights/bunting/confetti
 import * as Life from './life.js?v=26';        // ambient crowd life: eat, queue, play, wander, greet the player
@@ -392,89 +392,53 @@ function buildWaitingPerson(skinHex, shirtHex, pantsHex){
 // per-role props (mic stand, guitar, drumsticks). Far more detail than buildWaitingPerson
 // (kept low-poly for the crowd and the seated eaters); the four band members and the
 // mid-deck entertainer use this so they read as real people under the stage spots.
-function buildPerformer(skinHex, shirtHex, pantsHex, role) {
-  const skinM = new THREE.MeshStandardMaterial({color: skinHex, roughness: .5, metalness: .05});
-  const shirtM = new THREE.MeshStandardMaterial({color: shirtHex, roughness: .78, metalness: .02});
-  const pantsM = new THREE.MeshStandardMaterial({color: pantsHex, roughness: .82});
-  const shoeM = new THREE.MeshStandardMaterial({color: 0x181818, roughness: .9});
-  const hairM = new THREE.MeshStandardMaterial({color: 0x1a1208, roughness: .85});
-  const eyeM = new THREE.MeshStandardMaterial({color: 0x1a1a1a, roughness: .3});
-  const scleraM = new THREE.MeshStandardMaterial({color: 0xf4f4f4, roughness: .4});
-  const lipM = new THREE.MeshStandardMaterial({color: 0xb05050, roughness: .6});
-  const metalM = new THREE.MeshStandardMaterial({color: 0xcfd3d8, roughness: .25, metalness: .85});
-  const woodM = new THREE.MeshStandardMaterial({color: 0x5a3a1f, roughness: .55, metalness: .1});
-  const p = new THREE.Group();
-  // hips
-  const hips = new THREE.Mesh(new THREE.CylinderGeometry(.13, .14, .12, 16), pantsM); hips.position.y = .2; p.add(hips);
-  // torso (tapered)
-  const torso = new THREE.Mesh(new THREE.CylinderGeometry(.16, .135, .52, 18), shirtM); torso.position.y = .46; p.add(torso);
-  // collar (torus) + belt
-  const collar = new THREE.Mesh(new THREE.TorusGeometry(.165, .018, 8, 24), shirtM); collar.position.y = .73; collar.rotation.x = Math.PI / 2; p.add(collar);
-  const belt = new THREE.Mesh(new THREE.CylinderGeometry(.145, .145, .04, 16), new THREE.MeshStandardMaterial({color: 0x2b1b1b, roughness: .6})); belt.position.y = .2; p.add(belt);
-  // neck
-  const neck = new THREE.Mesh(new THREE.CylinderGeometry(.055, .07, .12, 12), skinM); neck.position.y = .78; p.add(neck);
-  // head group
-  const head = new THREE.Group(); head.position.y = .95; p.add(head);
-  const skull = new THREE.Mesh(new THREE.SphereGeometry(.135, 24, 18), skinM); skull.scale.y = 1.12; head.add(skull);
-  // hair cap
-  const hair = new THREE.Mesh(new THREE.SphereGeometry(.14, 24, 18, 0, Math.PI * 2, 0, Math.PI * .55), hairM); hair.position.y = .04; hair.scale.y = .95; head.add(hair);
-  // ears
-  for (const sx of [-1, 1]) { const ear = new THREE.Mesh(new THREE.SphereGeometry(.025, 10, 8), skinM); ear.scale.set(.6, 1.1, .4); ear.position.set(sx * .13, 0, 0); head.add(ear); }
-  // eyes with sclera + iris + highlight
-  for (const sx of [-1, 1]) {
-    const sclera = new THREE.Mesh(new THREE.SphereGeometry(.022, 10, 8), scleraM); sclera.position.set(sx * .045, .02, .115); head.add(sclera);
-    const iris = new THREE.Mesh(new THREE.SphereGeometry(.013, 8, 6), eyeM); iris.position.set(sx * .045, .02, .128); head.add(iris);
-    const hi = new THREE.Mesh(new THREE.SphereGeometry(.005, 6, 4), new THREE.MeshBasicMaterial({color: 0xffffff})); hi.position.set(sx * .049, .026, .132); head.add(hi);
-  }
-  // brows
-  for (const sx of [-1, 1]) { const brow = new THREE.Mesh(new THREE.BoxGeometry(.04, .008, .012), hairM); brow.position.set(sx * .045, .045, .12); brow.rotation.z = sx * .15; head.add(brow); }
-  // nose
-  const nose = new THREE.Mesh(new THREE.ConeGeometry(.012, .04, 8), skinM); nose.rotation.x = Math.PI / 2; nose.position.set(0, .005, .13); head.add(nose);
-  // mouth
-  const mouth = new THREE.Mesh(new THREE.BoxGeometry(.04, .006, .01), lipM); mouth.position.set(0, -.035, .125); head.add(mouth);
-  // arms (upper + forearm + hand) as groups so we can animate them
-  const arms = [];
-  for (const sx of [-1, 1]) {
-    const upper = new THREE.Group(); upper.position.set(sx * .22, .62, 0);
-    const ua = new THREE.Mesh(new THREE.CapsuleGeometry(.045, .28, 8, 12), shirtM); ua.position.y = -.14; ua.rotation.z = sx * .08; upper.add(ua);
-    const forearm = new THREE.Group(); forearm.position.set(0, -.28, 0);
-    const fa = new THREE.Mesh(new THREE.CapsuleGeometry(.04, .26, 8, 12), shirtM); fa.position.y = -.13; forearm.add(fa);
-    const hand = new THREE.Mesh(new THREE.BoxGeometry(.07, .09, .04), skinM); hand.position.y = -.27; forearm.add(hand);
-    upper.add(forearm); p.add(upper); arms.push(upper);
-  }
-  // legs (thigh + shin + shoe)
-  for (const sx of [-1, 1]) {
-    const thigh = new THREE.Mesh(new THREE.CapsuleGeometry(.075, .34, 8, 12), pantsM); thigh.position.set(sx * .09, .0, 0); thigh.rotation.z = sx * .04; p.add(thigh);
-    const shin = new THREE.Mesh(new THREE.CapsuleGeometry(.06, .34, 8, 12), pantsM); shin.position.set(sx * .09, -.34, .02); p.add(shin);
-    const shoe = new THREE.Mesh(new THREE.BoxGeometry(.11, .07, .22), shoeM); shoe.position.set(sx * .09, -.56, .04); p.add(shoe);
-  }
-  // per-role props + arm poses
-  p.userData.role = role; p.userData.arms = arms; p.userData.head = head; p.userData.baseY = 0;
-  if (role === 'singer') {
-    const stand = new THREE.Mesh(new THREE.CylinderGeometry(.012, .012, 1.5, 8), metalM); stand.position.set(.3, .75, .35); p.add(stand);
-    const mic = new THREE.Mesh(new THREE.CylinderGeometry(.018, .022, .12, 10), metalM); mic.position.set(.3, 1.5, .35); mic.rotation.x = .3; p.add(mic);
-    const head2 = new THREE.Mesh(new THREE.SphereGeometry(.02, 8, 6), metalM); head2.position.set(.3, 1.58, .35); p.add(head2);
-    arms[1].rotation.z = -1.1; arms[1].rotation.x = -.4; arms[1].children[1].rotation.x = -1.2;
-  } else if (role === 'guitarL' || role === 'guitarR') {
-    const side = role === 'guitarL' ? -1 : 1;
-    const bodyG = new THREE.Mesh(new THREE.CylinderGeometry(.32, .32, .07, 24), woodM); bodyG.rotation.x = Math.PI / 2; bodyG.position.set(side * .1, .5, .12); p.add(bodyG);
-    const neckG = new THREE.Mesh(new THREE.CylinderGeometry(.028, .032, .78, 10), woodM); neckG.rotation.x = Math.PI / 2; neckG.position.set(side * .1, .5, .62); p.add(neckG);
-    const headstock = new THREE.Mesh(new THREE.BoxGeometry(.12, .01, .18), woodM); headstock.position.set(side * .1, .5, 1.0); p.add(headstock);
-    for (let i = 0; i < 6; i++) { const str = new THREE.Mesh(new THREE.CylinderGeometry(.002, .002, .9, 4), metalM); str.rotation.x = Math.PI / 2; str.position.set(side * .1 - .1 + i * .04, .5 + .02, .2); p.add(str); }
-    arms[0].rotation.z = side * .6; arms[0].rotation.x = -.3; arms[0].children[1].rotation.x = -1.0;
-    arms[1].rotation.z = side * -.4; arms[1].rotation.x = .6; arms[1].children[1].rotation.x = -.8;
-  } else if (role === 'drummer') {
-    for (const sx of [-1, 1]) { const stick = new THREE.Mesh(new THREE.CylinderGeometry(.008, .008, .34, 6), woodM); stick.position.set(sx * .24, .3, .05); stick.rotation.z = sx * .3; p.add(stick); }
-    arms[0].rotation.z = .4; arms[0].rotation.x = .3; arms[1].rotation.z = -.4; arms[1].rotation.x = .3;
-    arms[0].children[1].rotation.x = .6; arms[1].children[1].rotation.x = .6;
-  }
-  p.traverse(o => { if (o.isMesh) o.castShadow = true; });
-  return p;
+// The band: a people.js articulated avatar (the old 31-mesh buildPerformer rig is gone). Same moving
+// parts the render loop drives (userData.arms, a head that turns, role) at 16 meshes / ~3.5k tris instead
+// of ~35 meshes / ~9.5k, measured: the five figures were 98% of the stage group's 49k triangles. The head
+// is the NECK PIVOT, not the merged head mesh - rotating the mesh would swing it in an arc.
+function bandMember(skinHex, shirtHex, pantsHex, role) {
+  const m = People.buildAvatar(role.charCodeAt(0) * 7 % 360, {}, 0, {skin: skinHex, shirt: shirtHex, pants: pantsHex,
+    hair: 'short', hairC: 0x1a1208, sleeve: 'long', vest: 0, dress: false, hat: null, goggles: false,
+    beard: role === 'drummer', expr: 'smile', eye: 1, scale: 1, kid: false});
+  m.userData.head = m.userData.headPivot;   // the loop turns .head.rotation.y
+  m.userData.role = role;
+  return m;
 }
 
 
 // stylized low-poly picnic tables + seated eaters in the same hand-built style as truck.js
 // (boxes & primitives, not photoreal) - scene decoration, not a factual record of who's there.
+// Collapse a static prop into one mesh per material. Every plain mesh under `group` (not instanced, not a
+// sprite, not multi-material, not one `skip(o)` keeps) has its transform baked relative to the group and is
+// appended to the bucket for its material; plain untagged materials that are visually identical share a
+// bucket. Materials are reused as they are, so gfx.js tags, gfxSign repaints and themefx recolours all still
+// apply - only the draw-call count changes. Measured: a picnic table went 22 meshes -> 7, the lowrider
+// shell 120 -> ~20. Only call it on things that never animate a sub-part (pass those parts to `skip`).
+function mergeStatic(group,skip){
+  group.updateMatrixWorld(true);
+  const inv=new THREE.Matrix4().copy(group.matrixWorld).invert(),buckets=new Map(),_n=new THREE.Matrix3(),_v=new THREE.Vector3();
+  const keyOf=m=>{const u=m.userData||{};if(u.gfx||m.map||m.emissiveMap||m.normalMap||m.alphaMap||m.vertexColors)return m;   // textured / tagged: identity
+    return [m.type,m.color?m.color.getHex():0,m.roughness,m.metalness,m.side,m.transparent?m.opacity:1,m.emissive?m.emissive.getHex():0,m.emissiveIntensity||0].join('|');};
+  group.traverse(o=>{if(!o.isMesh||o.isInstancedMesh||o.isSprite||Array.isArray(o.material)||(skip&&skip(o)))return;
+    const g=o.geometry;if(!g.attributes.position||!g.attributes.normal||!g.attributes.uv)return;
+    const k=keyOf(o.material);(buckets.get(k)||buckets.set(k,{mat:o.material,list:[]}).get(k)).list.push({o,m:new THREE.Matrix4().multiplyMatrices(inv,o.matrixWorld)});});
+  for(const {mat,list} of buckets.values()){
+    if(list.length<2)continue;
+    let nv=0,ni=0;for(const {o} of list){const g=o.geometry;nv+=g.attributes.position.count;ni+=g.index?g.index.count:g.attributes.position.count;}
+    const pos=new Float32Array(nv*3),nor=new Float32Array(nv*3),uv=new Float32Array(nv*2),idx=nv>65535?new Uint32Array(ni):new Uint16Array(ni);
+    let vo=0,io=0,cast=false,recv=false;
+    for(const {o,m} of list){const g=o.geometry,gp=g.attributes.position,gn=g.attributes.normal,gu=g.attributes.uv;_n.getNormalMatrix(m);
+      for(let i=0;i<gp.count;i++){_v.fromBufferAttribute(gp,i).applyMatrix4(m);pos[(vo+i)*3]=_v.x;pos[(vo+i)*3+1]=_v.y;pos[(vo+i)*3+2]=_v.z;
+        _v.fromBufferAttribute(gn,i).applyMatrix3(_n).normalize();nor[(vo+i)*3]=_v.x;nor[(vo+i)*3+1]=_v.y;nor[(vo+i)*3+2]=_v.z;
+        uv[(vo+i)*2]=gu.getX(i);uv[(vo+i)*2+1]=gu.getY(i);}
+      if(g.index)for(let i=0;i<g.index.count;i++)idx[io+i]=g.index.getX(i)+vo;else for(let i=0;i<gp.count;i++)idx[io+i]=i+vo;
+      vo+=gp.count;io+=g.index?g.index.count:gp.count;cast=cast||o.castShadow;recv=recv||o.receiveShadow;o.parent.remove(o);}
+    const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(pos,3));geo.setAttribute('normal',new THREE.BufferAttribute(nor,3));
+    geo.setAttribute('uv',new THREE.BufferAttribute(uv,2));geo.setIndex(new THREE.BufferAttribute(idx,1));geo.computeBoundingSphere();
+    const mesh=new THREE.Mesh(geo,mat);mesh.castShadow=cast;mesh.receiveShadow=recv;mesh.userData.merged=list.length;group.add(mesh);
+  }
+  return group;
+}
 function buildTable(canopyHex){
   const g=new THREE.Group();
   const wood=new THREE.MeshStandardMaterial({color:0x9a6b3f,roughness:.85});
@@ -500,7 +464,7 @@ function buildTable(canopyHex){
   const fringe=new THREE.Mesh(new THREE.TorusGeometry(1.42,.028,6,24),new THREE.MeshStandardMaterial({color:0xf6e7c8,roughness:.5}));
   fringe.rotation.x=Math.PI/2;fringe.position.y=2.09;g.add(fringe);
   g.traverse(o=>o.castShadow=true);
-  return g;
+  return mergeStatic(g);   // 22 meshes -> 7 (nothing on a table animates)
 }
 function buildEater(skinHex,shirtHex,pantsHex){
   const skin=new THREE.MeshStandardMaterial({color:skinHex,roughness:.7});
@@ -530,7 +494,7 @@ function buildEater(skinHex,shirtHex,pantsHex){
     snack.position.set(.24,.64,-.31);p.add(snack);}
   p.traverse(o=>o.castShadow=true);
   p.userData.head=head;
-  return p;
+  return mergeStatic(p,o=>o===head);   // the head nods in the loop, everything else is static
 }
 const eaterLooks=[[0xd9a978,0xb5342f,0x2b2b2b],[0xa8714a,0xe8c23a,0x374a6b],[0xf0c7a0,0x3f7a6b,0x4a4a4a],
   [0xe8b98c,0x4a6fb5,0x232323],[0xc0724a,0x7a4bd1,0x303030],[0x9c6f4e,0xe8425f,0x2b2f4a]];
@@ -722,7 +686,10 @@ function buildLowriderImpala(){
     pkg.position.set(sx*.52,.21,sz*(LEN/2-1.05)-sz*.26);pkg.rotation.y=Math.PI/2*sz;pkg.rotation.x=.4*sz;car.add(pkg);
     const spg=new THREE.Mesh(new THREE.TorusGeometry(.095,.02,6,18),steel);   // spring coil between body & axle
     spg.position.set(sx*.64,.34,sz*(LEN/2-1.05));spg.rotation.z=Math.PI/2;car.add(spg);}
-  // everything so far is the hand-built shell: the ComfyUI-generated body hides it once it loads
+  // everything so far is the hand-built shell: the ComfyUI-generated body hides it once it loads.
+  // Merge it first (one mesh per material; the whole car hops as a group, nothing in the shell moves on
+  // its own) - the switches and LEDs added below stay separate because they are tap targets.
+  mergeStatic(car);
   car.userData.shell = car.children.slice();
   car.userData.mats = {paint, tyre: rubber, chrome, glass};
   // ---- trunk, popped open, showing a big dual-sub box (the "jackhammer"-style setup) ----
@@ -876,7 +843,7 @@ function buildStage(o={}){
   const paM=new THREE.MeshStandardMaterial({color:0x151515,roughness:.85});
   for(const sx of [-1,1]){const pa=new THREE.Mesh(new THREE.BoxGeometry(.95*k,1.8*k,.95*k),paM);pa.position.set(sx*(W/2+1.15),.9*k,-D/2+0.6);pa.castShadow=true;g.add(pa);}
   // an animated entertainer, mid-deck facing the crowd — hyper-realistic performer
-  const performer=buildPerformer(0xe8b98a,0xff2fa0,0x2b1b3a,'singer');
+  const performer=bandMember(0xe8b98a,0xff2fa0,0x2b1b3a,'singer');
   performer.position.set(0,H+.24,D*.12);g.add(performer);
   performer.userData.baseY=performer.position.y;
   g.traverse(o=>{if(o.isMesh)o.receiveShadow=true;});
@@ -924,7 +891,7 @@ if(sharedVideoTexture){   // same uploaded TV video, playing across the big stag
 // the performing band on the deck: lead vocal center-front, two players flanking, and a
 // drummer behind a riser-mounted kit at the back. Every figure rides the same dance pulse
 // in the render loop (ALL_PERFORMERS), so the whole band moves together.
-const bandee=(skin,shirt,pants,x,y,z,role)=>{const m=buildPerformer(skin,shirt,pants,role);
+const bandee=(skin,shirt,pants,x,y,z,role)=>{const m=bandMember(skin,shirt,pants,role);
   m.position.set(x,y,z);m.userData.baseY=y;stageBack.add(m);return m;};
 const ALL_LASERS=stageRB.lasers;
 const ALL_PERFORMERS=[
@@ -1002,7 +969,7 @@ function spawnCrowd(cx,cz,n,faceStage){
     // 2-mesh merged body (People.crowdPerson) instead of the 31-mesh buildPerformer rig: the lot crowd is
     // static dressing — nothing animates its limbs — so the rig bought 29 extra draw calls and ~8k triangles
     // per body for nothing. Measured on the dev lot: 92 visible bodies went from 2,852 meshes / 876k tris
-    // (78% of the whole scene) to 184 meshes / ~129k tris. The band (ALL_PERFORMERS) still uses buildPerformer.
+    // (78% of the whole scene) to 184 meshes / ~129k tris. The band uses bandMember() - also people.js.
     const person=People.crowdPerson(sk);
     person.position.set(cx+(Math.random()-.5)*2.6*(RJ||1),0,cz+(Math.random()-.5)*2.6*(RJ||1));   // crowdPerson's feet are at y=0
     person.rotation.y=faceStage?Math.atan2(8-person.position.x,-70-person.position.z)+(Math.random()-.5)*.3*RJ:Math.random()*Math.PI*2;   // stage-front rows watch the band
@@ -1113,7 +1080,7 @@ function buildBooth(name,hue){
   Object.assign(sign.material.userData,{gfx:'signboard',gfxSign:paint});
   sign.position.set(0,H-0.55,D/2-.02);g.add(sign);
   g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
-  return g;
+  return mergeStatic(g);   // legs, same-colour merch and swatches collapse; the textured sign stays its own mesh
 }
 {let ni=0;
   // thinned by three stalls for the panorama switch - 7 booths, both zones still populated
@@ -1481,13 +1448,13 @@ R.setAnimationLoop(()=>{const dt=Math.min(clock.getDelta(),0.1),t=clock.elapsedT
   if(!LITE_MODE) for(const perf of ALL_PERFORMERS){
     perf.position.y=perf.userData.baseY+Math.abs(Math.sin(t*2.4))*.18;
     perf.rotation.y=Math.sin(t*.6)*.5;
-    // hyper-realistic performers carry their own rig (buildPerformer): arms sway per role,
+    // the band members are people.js avatars (bandMember): arms sway per role,
     // the head bobs and the hands follow — no more hard-coded child indices
     const arms=perf.userData.arms||[];
     const role=perf.userData.role;
     if(role==='singer'){
       if(arms[1]) arms[1].rotation.z = -1.1 + Math.sin(t*2.2)*.14;
-      if(arms[1]?.children[1]) arms[1].children[1].rotation.x = -1.2 + Math.sin(t*1.7)*.12;
+      if(arms[1]&&arms[1].userData.sub) arms[1].userData.sub.rotation.x = -1.2 + Math.sin(t*1.7)*.12;   // elbow group, not a child index
       if(perf.userData.head) perf.userData.head.rotation.y = Math.sin(t*.5)*.18;
     } else if(role==='drummer'){
       if(arms[0]) arms[0].rotation.x = .3 + Math.sin(t*4+.2)*.4;

@@ -275,7 +275,7 @@ export function buildAvatar(hue, prof = {}, foot = 0, over = null) {
   L.livePivot = true;   // articulated avatars get a real neck pivot (below) instead of a baked kid head matrix
   const R = rig(L), root = new THREE.Group(), body = new THREE.Group();
   body.position.y = foot; body.scale.setScalar(L.scale); root.add(body);   // feet stay put: scaling is about the body origin
-  const own = {shirt: new THREE.MeshStandardMaterial({color: shirtC, roughness: .78}), skin: new THREE.MeshStandardMaterial({color: L.skin, roughness: .62})};
+  const own = {shirt: new THREE.MeshStandardMaterial({color: L.shirt, roughness: .78}), skin: new THREE.MeshStandardMaterial({color: L.skin, roughness: .62})};   // L.shirt, not shirtC: an `over` shirt colour must win
   const build = (parts, parent) => {   // merge parts sharing a material key into one mesh each
     const buckets = new Map();
     for (const p of parts) { if (p.face) continue; const k = p.tag || ('c' + p.col) + (p.uv ? 'u' : ''); (buckets.get(k) || buckets.set(k, []).get(k)).push(p); }

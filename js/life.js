@@ -7,7 +7,7 @@
 // Cost model: plans are a handful of numbers (no per-frame allocation); limbs are only posed while the
 // actor is within CROWD range of the camera, everyone else just advances along their path.
 import * as THREE from 'three';
-import * as People from './people.js?v=5';
+import * as People from './people.js?v=6';
 
 const rnd = (a, b) => a + Math.random() * (b - a), pick = a => a[Math.floor(Math.random() * a.length)];
 const NAMES = ['Rosa', 'Mateo', 'Luz', 'Diego', 'Camila', 'Santi', 'Abby', 'Jun', 'Priya', 'Omar', 'Lena', 'Tomás', 'Maya', 'Eli', 'Nora', 'Hugo', 'Ana', 'Kai', 'Isla', 'Ravi'];
