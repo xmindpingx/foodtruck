@@ -941,10 +941,10 @@ function tickPuff(p,dt){
 // figure per cluster - the dense mass of the festival lives in the panorama. Everyone fronts
 // the stage's truck-facing side now: a wide pit band across the full deck width plus flank
 // packs at either end - nobody hangs behind the deck.
-for(let i=0;i<6;i++) spawnCrowd(-28+Math.random()*72, -4+Math.random()*24, 1);
-for(let i=0;i<40;i++) spawnCrowd(-8+Math.random()*32, -61.5+Math.random()*8, 1, true);    // pit, at the stage front, watching the band
-for(let i=0;i<8;i++) spawnCrowd(-14.5+Math.random()*5, -61+Math.random()*7, 1, true);     // west flank pack, facing the stage
-for(let i=0;i<8;i++) spawnCrowd(26.5+Math.random()*5, -61+Math.random()*7, 1, true);      // east flank pack, facing the stage
+for(let i=0;i<3;i++) spawnCrowd(-28+Math.random()*72, -4+Math.random()*24, 1);
+for(let i=0;i<60;i++) spawnCrowd(-8+Math.random()*32, -61.5+Math.random()*8, 1, true);    // pit, at the stage front, watching the band
+for(let i=0;i<12;i++) spawnCrowd(-14.5+Math.random()*5, -61+Math.random()*7, 1, true);     // west flank pack, facing the stage
+for(let i=0;i<12;i++) spawnCrowd(26.5+Math.random()*5, -61+Math.random()*7, 1, true);      // east flank pack, facing the stage
 // lawn chairs with people, with and without umbrellas
 for(let i=0;i<10;i++){
   const cx=8+(Math.random()-.5)*30, cz=-50+(Math.random()-.5)*20;
