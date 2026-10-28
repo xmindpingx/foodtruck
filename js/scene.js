@@ -1071,6 +1071,20 @@ const walkUI=()=>(!!document.querySelector('.panel.open'))||
   walkTyping();
 const walkChip=document.createElement('div');walkChip.id='eolWalkHint';walkChip.hidden=true;
 walkChip.textContent='◀ ▲ ▼ ▶ move · space jump · esc stop';document.body.appendChild(walkChip);
+// on-screen thumb pad for walking (above chat)
+const walkPad=document.createElement('div');walkPad.id='eolWalkPad';
+walkPad.style.cssText='position:fixed;left:50%;bottom:70px;transform:translateX(-50%);z-index:5;display:none;flex-direction:column;align-items:center;gap:4px;pointer-events:auto;';
+const mkBtn=(label,key)=>{const b=document.createElement('button');b.textContent=label;b.style.cssText='padding:6px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.3);background:rgba(20,16,10,.7);color:#f2c14e;cursor:pointer;font:600 12px Inter,sans-serif;';
+  const press=()=>{if(window.__EOL_WALK_PRESS)window.__EOL_WALK_PRESS(key);};
+  const release=()=>{if(window.__EOL_WALK_RELEASE)window.__EOL_WALK_RELEASE(key);};
+  b.addEventListener('pointerdown',e=>{e.preventDefault();press();});
+  b.addEventListener('pointerup',release);b.addEventListener('pointerleave',release);b.addEventListener('pointercancel',release);
+  return b;};
+const upBtn=mkBtn('▲','ArrowUp');const row=document.createElement('div');row.style.cssText='display:flex;gap:4px;';
+row.appendChild(mkBtn('◀','ArrowLeft'));row.appendChild(mkBtn('▼','ArrowDown'));row.appendChild(mkBtn('▶','ArrowRight'));
+const jumpBtn=mkBtn('Jump',' ');
+walkPad.appendChild(upBtn);walkPad.appendChild(row);walkPad.appendChild(jumpBtn);
+document.body.appendChild(walkPad);
 const _wv=new THREE.Vector3(),_wm=new THREE.Matrix4();
 function walkPushEdge(ex0,ex1,ez0,ez1){   // box push: walk out to the nearest edge of the rect
   if(walk.x>ex0&&walk.x<ex1&&walk.z>ez0&&walk.z<ez1){
@@ -1120,13 +1134,13 @@ function walkStart(){
   np.renderOrder=999;np.scale.set(1.05,.27,1);np.position.y=1.3;walk.grp.add(np);
   walkCollide();
   walk.grp.position.set(walk.x,FLOOR,walk.z);S.add(walk.grp);
-  walk.on=true;ctl.enabled=false;walkChip.hidden=false;
+  walk.on=true;ctl.enabled=false;walkChip.hidden=false;walkPad.style.display='flex';
 }
 function walkStop(){
   if(!walk.on)return;
   walk.on=false;walk.keys.clear();
   if(walk.grp){S.remove(walk.grp);walk.grp=null;}
-  walkChip.hidden=true;ctl.enabled=true;
+  walkChip.hidden=true;walkPad.style.display='none';ctl.enabled=true;
   ctl.target.set(walk.x,1.15,walk.z);      // orbit resumes pivoting right where they stood
 }
 function walkTick(dt,t){
@@ -1163,6 +1177,9 @@ addEventListener('keydown',e=>{
 });
 addEventListener('keyup',e=>{walk.keys.delete(e.key);});
 addEventListener('blur',()=>walk.keys.clear());
+window.__EOL_WALK_START = () => { if (!walk.on) walkStart(); };
+window.__EOL_WALK_PRESS = (key) => { if (!walk.on) walkStart(); walk.keys.add(key); };
+window.__EOL_WALK_RELEASE = (key) => { walk.keys.delete(key); };
 {   // look-around drag while walking: cheap pointer tracker, orthogonal to the tap guard
   let dragX=0,dragging=false;
   canvas.addEventListener('pointerdown',e=>{if(walk.on){dragging=true;dragX=e.clientX;}});
