@@ -702,7 +702,7 @@ function buildLowriderImpala(){
     led.position.set(sw.position.x,1.01,-.02);remote.add(led);leds.push(led);}
   remote.userData.switches=switches;remote.userData.switchLeds=leds;remote.userData.banks={front:true,back:false,left:false,right:false};
   car.userData.switches=switches;car.userData.switchLeds=leds;car.userData.banks={front:true,back:false,left:false,right:false};
-  car.userData.remote=remote; car.userData.steamSkip=true;   // candy purple is the car's identity: holiday palettes never repaint it
+  car.userData.steamSkip=true;   // candy purple is the car's identity: holiday palettes never repaint it
   car.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});
   return car;
 }
@@ -1460,7 +1460,6 @@ R.setAnimationLoop(()=>{const dt=Math.min(clock.getDelta(),0.1),t=clock.elapsedT
       hop=Math.max(hop,vF,vB,vL,vR);
       tiltX=(vB-vF)*.5;tiltZ=(vL-vR)*.45;}
     car.position.y=base+hop;car.rotation.x=tiltX;car.rotation.z=tiltZ;
-    const _rem=car.userData.remote;if(_rem){_rem.position.y=-hop;_rem.rotation.x=-tiltX;_rem.rotation.z=-tiltZ;}   // keep the hand remote planted while the car hops
   }
   Avatars.tick(t,dt);
   ctl.update();R.render(S,cam);});
