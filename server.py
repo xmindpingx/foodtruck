@@ -2530,6 +2530,8 @@ class H(SimpleHTTPRequestHandler):
     def do_GET(self):
         p = urlparse(self.path).path
         if self.site_gated(p): return
+        if p == '/mobile':
+            p = '/mobile.html'
         if p.startswith('/data') or p.endswith('.py') or '/.' in p:
             return self.send_error(404)
         if p == '/api/presence':

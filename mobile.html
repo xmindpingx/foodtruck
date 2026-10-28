@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>El Otro Lado — Mobile Order</title>
+<link rel="stylesheet" href="css/site.css?v=24">
+<style>
+  body{margin:0;background:#0d0a26;color:#fff;font-family:Inter,system-ui,sans-serif;overflow:auto}
+  .mwrap{padding:16px;max-width:480px;margin:0 auto}
+  .mtitle{font-family:'UnifrakturMaguntia',serif;font-size:28px;margin:8px 0}
+  .panel{position:static!important;width:100%!important;max-height:none!important;display:block!important}
+</style>
+</head>
+<body>
+<div class="mwrap">
+  <h1 class="mtitle">el Otro Lado</h1>
+  <p style="opacity:.8">Mobile ordering — tap Menu to order.</p>
+  <div id="menuHost"></div>
+</div>
+<script>
+  // Load the menu panel content by fetching index.html? Simpler: redirect to /#menu with lite mode forced.
+  try { localStorage.setItem('eol-lite','1'); } catch(e){}
+  location.replace('/#menu');
+</script>
+</body>
+</html>
