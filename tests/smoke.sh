@@ -123,7 +123,10 @@ curl -s "http://127.0.0.1:$PORT/api/settings" | grep -qE 'ollama|comfy|imageServ
 curl -s "http://127.0.0.1:$PORT/api/settings" | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
-ok = all(isinstance(d.get(k), (int, float)) and 0 <= d[k] <= 3 for k in ('crowdAmount', 'actorsAmount', 'interactAmount', 'clutterAmount'))
+ok = all(isinstance(d.get(k), (int, float)) and 0 <= d[k] <= 3 for k in ('crowdAmount', 'actorsAmount', 'interactAmount', 'clutterAmount', 'sceneFallMult', 'sceneFloatMult', 'sceneRandomness'))
+ok = ok and all(isinstance(d.get(k), (int, float)) and 0 <= d[k] <= 200 for k in ('sceneCrowdRange', 'sceneLifeRange', 'sceneClutterNear', 'sceneClutterMid', 'scenePixelRatio'))
+ok = ok and d.get('sceneSmokePuffs') == 24 and d.get('scenePipeSmokers') == 35 and d.get('scenePipePuffs') == 3
+ok = ok and d.get('sceneShadows') == '' and d.get('sceneAntialias') is True
 sys.exit(0 if ok else 1)" && ok "crowd knobs are public numbers" || bad "crowd knobs missing/non-numeric in /api/settings"
 
 echo "== order + cart math (whole cents, half-up tax)"

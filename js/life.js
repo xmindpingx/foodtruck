@@ -22,7 +22,7 @@ export function init(o) {
   const CM = Math.max(0, Math.min(3, num(o.castMult, 1)));      // 🎪 ambient cast multiplier (Admin → crowd settings)
   const IM = Math.max(0, Math.min(3, num(o.interactMult, 1)));  // 👋 player-greeting frequency multiplier
   const repLv = () => Math.max(0, Math.min(5, o.repLevel ? o.repLevel() : 0));
-  const RANGE = (lite || isPhone) ? 22 : 48;
+  const RANGE = Math.max(8, num(o.range, 0) || (lite || isPhone ? 22 : 48));   // Admin → Environment can widen/narrow the alive radius
   const actors = [], units = [], taken = new Map(), pops = [];
   let seatCount = 0;
 

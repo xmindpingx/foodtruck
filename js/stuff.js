@@ -45,7 +45,8 @@ export function init(o) {
   const {S, cam, rig, truckBox, player, canvas, lite, phone: isPhone, rep, getLife} = o, small = lite || isPhone;
   const num = (v, d) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
   const CL = Math.max(0, Math.min(3, num(o.clutterMult, 1)));   // 🥤 clutter multiplier (Admin → crowd settings)
-  const NEAR = small ? 9 : 16, MID = small ? 20 : 38, CAP = 260;
+  const NEAR = Math.max(2, num(o.near, 0) || (small ? 9 : 16));          // Admin → Environment overrides (0 = auto)
+  const MID = Math.max(NEAR + 2, num(o.mid, 0) || (small ? 20 : 38)), CAP = 260;
   const mat = new THREE.MeshStandardMaterial({vertexColors: true, roughness: .75, metalness: .03});
   const kinds = Object.keys(K), pools = {};
   for (const k of kinds) {

@@ -103,6 +103,12 @@ ROADMAP.md       Known bugs + needed features. .claude/launch.json: a local prev
   `waterparkClosedMsg` (custom sign line), `ambientLifeOn` (crowd life + litter + quests off when false),
   `questsOn`, plus bounded multipliers `crowdAmount` (static dressing), `actorsAmount` (ambient AI cast),
   `interactAmount` (greeting rate), `clutterAmount` (litter spawns) — all clamped 0–3 server-side.
+- The admin **Environment** tab holds the scene knobs: the four crowd multipliers + `sceneRandomness`
+  (scatter/pose jitter), `sceneSmokePuffs` (stage fog, 0 = off), `scenePipeSmokers` (% of crowd with a pipe),
+  `scenePipePuffs` (puffs per smoker), `sceneFallMult` / `sceneFloatMult` (theme particles/lanterns),
+  meter overrides `sceneCrowdRange` / `sceneLifeRange` / `sceneClutterNear` / `sceneClutterMid` (0 = auto),
+  `sceneShadows` ("", off, 1024, 2048, 4096), `scenePixelRatio` (0 = auto) and `sceneAntialias`.
+  Draw-distance + graphics rows apply after a reload of the 3D page.
   Older: `midwayOn`, `hotdogOn`, `triviaBotOn`, `gamePacmanOn`, `gameUnoOn`, `gameChessOn`, `geocacheOn`.
 - Env vars: `PORT`, `FOODTRUCK_DATA` (data dir; tests point it at a temp dir), `FOODTRUCK_NO_PREWARM=1`
   (skip the startup thumbnail pass), `FOODTRUCK_MOBILE_HOSTS` (comma list of Host headers that get the lite

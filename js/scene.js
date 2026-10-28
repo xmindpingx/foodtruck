@@ -7,18 +7,25 @@ import {buildTruck,WX0,WX1,WY0,WY1,BW,BL,BH,bx0,FLOOR,CL} from './truck.js?v=6';
 import * as Avatars from './avatars.js?v=13';
 import * as People from './people.js?v=4';
 import * as Themes from './themes.js?v=1';   // steampunk by default, a theme per big holiday around its date
-import * as FX from './themefx.js?v=1';       // re-skins everything but the truck + gears/lamps/airships or lights/bunting/confetti
-import * as Life from './life.js?v=16';        // ambient crowd life: eat, queue, play, wander, greet the player
+import * as FX from './themefx.js?v=2';       // re-skins everything but the truck + gears/lamps/airships or lights/bunting/confetti
+import * as Life from './life.js?v=17';        // ambient crowd life: eat, queue, play, wander, greet the player
 import * as Waterpark from './waterpark.js?v=1';
 import * as Rep from './rep.js?v=1';
-import * as Stuff from './stuff.js?v=3';
+import * as Stuff from './stuff.js?v=4';
 import * as Quests from './quests.js?v=3';   // pun vendors, flash sales/dances, quests that earn Rep   // litter, lost items and micro-clutter, LOD'd by distance
 import * as Account from './account.js?v=8';   // phone-number arcade profiles (language-first sign-up)
 import * as Arcade from './arcade.js?v=24';    // 🎪 The Midway props + six minigames + HIGH SCORES board + Pac-Man cabinet
 
+// ---------- setting helpers (declared first: the renderer below reads them) ----------
+const _num=(v,d)=>{const n=Number(v);return Number.isFinite(n)?n:d;};   // 0 is a real value, not "unset"
+const _meters=(k,auto)=>Math.max(1,_num(CONFIG[k],0)||auto);   // 0/absent = the auto phone/desktop distance
+const RAND=Math.max(0,Math.min(3,_num(CONFIG.sceneRandomness,1)));            // scatter/pose jitter multiplier
+const PIPE_SMOKERS=Math.max(0,Math.min(100,_num(CONFIG.scenePipeSmokers,35)));// % of the crowd holding a pipe
+const PIPE_PUFFS=Math.max(0,Math.min(8,_num(CONFIG.scenePipePuffs,3)));       // puffs per smoker
+
 const canvas=document.getElementById('c');
-const R=new THREE.WebGLRenderer({canvas,antialias:true});
-R.setPixelRatio(Math.min(devicePixelRatio,2));R.setSize(innerWidth,innerHeight);
+const R=new THREE.WebGLRenderer({canvas,antialias:CONFIG.sceneAntialias!==false});
+R.setPixelRatio(Math.min(devicePixelRatio,_num(CONFIG.scenePixelRatio,0)||2));R.setSize(innerWidth,innerHeight);
 R.shadowMap.enabled=true;R.shadowMap.type=THREE.PCFSoftShadowMap;
 R.toneMapping=THREE.ACESFilmicToneMapping;R.toneMappingExposure=1.05;R.outputColorSpace=THREE.SRGBColorSpace;
 const S=new THREE.Scene();   // S.environment gets a panorama-buffered env map once it's painted (below)
@@ -199,6 +206,10 @@ if(SCENE_THEME==='steampunk')TL.load('tex/panorama.jpg',t=>{t.colorSpace=THREE.S
 S.add(new THREE.HemisphereLight(0xb8d4f0,0x8b9c55,1.1));   // green ground-bounce for the grassy field
 const sun=new THREE.DirectionalLight(0xfff5e0,3.2);sun.position.set(6,18,8);sun.castShadow=true;
 sun.shadow.mapSize.set(IS_PHONE?2048:4096,IS_PHONE?2048:4096);Object.assign(sun.shadow.camera,{left:-14,right:14,top:14,bottom:-14});sun.shadow.bias=-0.0003;sun.shadow.normalBias=0.02;S.add(sun);
+// Admin → Environment: shadow budget ("off" disables the whole shadow pass; a number overrides the map size)
+{const sh=String(CONFIG.sceneShadows||'').trim();
+ if(sh==='off')R.shadowMap.enabled=false;
+ else if(sh&&/^\d+$/.test(sh)){const n=Math.max(256,Math.min(4096,+sh));sun.shadow.mapSize.set(n,n);}}
 // soft fill from the service-window side (reflected off the ground/lot)
 const fill=new THREE.DirectionalLight(0xf0e8d8,0.55);fill.position.set(-4,3,9);S.add(fill);
 // warm ambient bounce from street heat
@@ -849,7 +860,7 @@ const ALL_PERFORMERS=[
   const cymbal=new THREE.Mesh(new THREE.CylinderGeometry(.28,.3,.014,14),new THREE.MeshStandardMaterial({color:0xd9b23a,metalness:.85,roughness:.3}));cymbal.position.set(.5,3.06,-2.62);stageBack.add(cymbal);
   const stand=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,.52,6),new THREE.MeshStandardMaterial({color:0x777,metalness:.7,roughness:.3}));stand.position.set(.5,2.56,-2.62);stageBack.add(stand);
 }
-const ALL_SMOKE=[buildSmoke(stageBack,24)];
+const ALL_SMOKE=[buildSmoke(stageBack,Math.max(0,Math.min(60,_num(CONFIG.sceneSmokePuffs,24))))];
 
 // ---------- crowd: random loose clusters of festival-goers filling the open ground between
 // the house/truck cluster and the two stages. Same low-poly figure as the truck's queue, just
@@ -866,7 +877,7 @@ const pick=arr=>arr[Math.floor(Math.random()*arr.length)];
 // shadow pass) until the camera comes within CROWD_RANGE - 16 m on phones / lite mode, 40 m on
 // desktops - with 3 m of hysteresis so nobody flickers at the boundary. The 200-body instanced
 // audience is two draw calls and is never culled, so the stage front still reads as packed.
-const CROWD_RANGE=(LITE_MODE||IS_PHONE)?16:40;
+const CROWD_RANGE=_meters('sceneCrowdRange',(LITE_MODE||IS_PHONE)?16:40);
 const CULLED=[];   // {obj, p: world position}
 window.__EOL_CROWD={range:CROWD_RANGE,list:CULLED};   // console check: __EOL_CROWD.list.filter(e=>e.obj.visible).length
 function cullable(obj){
@@ -883,14 +894,15 @@ function cullCrowd(){
     if(e.obj.visible){if(d>far)e.obj.visible=false;}else if(d<near)e.obj.visible=true;}
 }
 function spawnCrowd(cx,cz,n,faceStage){
+  const RJ=RAND;   // randomness multiplier (Admin → Environment); 0 = tidy rows, 2 = wild lot
   for(let i=0;i<n;i++){
     const looks=[0xd9a978,0xa8714a,0xf0c7a0,0xc78f5e,0x8a5a35,0xe6b98a,0xb07a4e,0x7a4a2a,0xd9a978,0xa8714a];
     const sk=looks[Math.floor(Math.random()*looks.length)];
     const person=buildPerformer(sk,0xd42a2a+Math.floor(Math.random()*0x800000),0x1a1a1a,'civilian');
-    person.position.set(cx+(Math.random()-.5)*2.6,0.56,cz+(Math.random()-.5)*2.6);
-    person.rotation.y=faceStage?Math.atan2(8-person.position.x,-70-person.position.z)+(Math.random()-.5)*.3:Math.random()*Math.PI*2;   // stage-front rows watch the band
+    person.position.set(cx+(Math.random()-.5)*2.6*(RJ||1),0.56,cz+(Math.random()-.5)*2.6*(RJ||1));
+    person.rotation.y=faceStage?Math.atan2(8-person.position.x,-70-person.position.z)+(Math.random()-.5)*.3*RJ:Math.random()*Math.PI*2;   // stage-front rows watch the band
     S.add(person);
-    if(Math.random()<.35) lightPipe(person);
+    if(Math.random()*100<PIPE_SMOKERS) lightPipe(person);
     cullable(person);
   }
 }
@@ -918,7 +930,7 @@ function lightPipe(person){
   stem.position.copy(_pd.clone().multiplyScalar(.1));pipe.add(stem);
   pipe.position.set(.12,1.47,.13);pipe.rotation.y=.5;person.add(pipe);   // hand-held at mouth height
   const puffA=new THREE.Vector3(.16,1.62,.17);
-  for(let j=0;j<3;j++){   // three staggered puffs per smoker so the drift reads continuous
+  for(let j=0;j<PIPE_PUFFS;j++){   // staggered puffs per smoker so the drift reads continuous
     const spr=new THREE.Sprite(new THREE.SpriteMaterial({map:window.__EOL_PUFF_TEX,transparent:true,depthWrite:false,opacity:0}));
     spr.visible=false;spr.position.copy(puffA);person.add(spr);
     ALL_PUFFS.push({spr,t:.4+j*2.2+Math.random()*2,age:0,life:0});
@@ -938,7 +950,7 @@ function tickPuff(p,dt){
 }
 // crowd: a wide pit band across the full stage deck width plus a flank pack at either end.
 // Everyone faces the stage; the pipe smokers get their puffs from spawnCrowd().
-// Admin → Settings → Games sets crowdAmount (0 = empty lot, 1 = default, 2 = double).
+// Admin → Environment sets crowdAmount (0 = empty lot, 1 = default, 2 = double).
 const _ca=Number(CONFIG.crowdAmount); const CROWD_MULT=Number.isFinite(_ca)?Math.max(0,Math.min(3,_ca)):1;
 const cn=n=>Math.round(n*CROWD_MULT);
 for(let i=0;i<cn(3);i++) spawnCrowd(-28+Math.random()*72, -4+Math.random()*24, 1);
@@ -1295,19 +1307,19 @@ const clock=new THREE.Clock();
 if(TH&&LITE_MODE)panoDome.material.color.setHex(TH.tint);   // tint the painted fallback sky
 const fx=TH?(()=>{
   for(const p of ALL_PERFORMERS)p.userData.steamSkip=true;for(const e of eaters)e.userData.steamSkip=true;   // people keep their own colours
-  return FX.init(S,{skip:TRUCK_ORIG,lite:LITE_MODE,theme:TH});})():null;
+  return FX.init(S,{skip:TRUCK_ORIG,lite:LITE_MODE,theme:TH,fallMult:CONFIG.sceneFallMult,floatMult:CONFIG.sceneFloatMult});})():null;
 window.__EOL_FX=fx;
 // 🌊 Sir Splash-a-Lot Water Park on the west side (Admin → Settings → Games switches it to a "closed for repairs" sign)
 const wp=Waterpark.init(S,{open:CONFIG.waterparkOn!==false,message:CONFIG.waterparkClosedMsg||'',lite:LITE_MODE,phone:IS_PHONE,cam});
 // 🚶 ambient crowd life + the two-way interactions with the player (Admin → Settings → Games can switch it off)
 let life=null,quests=null;
-const stuff=CONFIG.ambientLifeOn!==false?Stuff.init({S,cam,rig:truckRig,truckBox:{x0:TRUCK_CX-BL/2-.3,x1:TRUCK_CX+BL/2+.3,z0:-BW/2-.3,z1:BW/2+.3},crate:{x:WX1+1.4,z:BW/2+1.8},clutterMult:CONFIG.clutterAmount,
+const stuff=CONFIG.ambientLifeOn!==false?Stuff.init({S,cam,rig:truckRig,truckBox:{x0:TRUCK_CX-BL/2-.3,x1:TRUCK_CX+BL/2+.3,z0:-BW/2-.3,z1:BW/2+.3},crate:{x:WX1+1.4,z:BW/2+1.8},clutterMult:CONFIG.clutterAmount,near:CONFIG.sceneClutterNear,mid:CONFIG.sceneClutterMid,
   player:()=>{if(walk.on&&walk.grp)return {obj:walk.grp,x:walk.x,z:walk.z};
     const me=Avatars.liveAvatars().find(v=>v.self);if(me&&me.group){me.group.getWorldPosition(_wv);return {obj:me.group,x:_wv.x,z:_wv.z};}return null;},
   canvas,lite:LITE_MODE,phone:IS_PHONE,rep:Rep,getLife:()=>life}):null;
 window.__EOL_STUFF=stuff;
 if(CONFIG.ambientLifeOn!==false){
-  life=Life.init({S,cam,rig:truckRig,tables:TABLE_HIT,eaters,win:{x1:WX1,z:BW/2},castMult:CONFIG.actorsAmount,interactMult:CONFIG.interactAmount,
+  life=Life.init({S,cam,rig:truckRig,tables:TABLE_HIT,eaters,win:{x1:WX1,z:BW/2},castMult:CONFIG.actorsAmount,interactMult:CONFIG.interactAmount,range:CONFIG.sceneLifeRange,
     truckBox:{x0:TRUCK_CX-BL/2-.3,x1:TRUCK_CX+BL/2+.3,z0:-BW/2-.3,z1:BW/2+.3},
     props:()=>['claw','bbt','tag','pin','c4','ttt'].map(id=>Arcade.prop(id)),
     vendors:()=> (typeof quests!=='undefined' && quests) ? (quests.vendors||[]) : [],

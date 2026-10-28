@@ -43,7 +43,7 @@ Restart needed after pulling: `pm2 restart foodtruck-site`.
 
 ## Needed features (next)
 
-- Real-device profiling pass + a global actor/avatar budget (auto-lower counts by FPS).
+- Real-device profiling pass + a global actor/avatar budget (auto-lower counts by FPS). Partly addressed: Admin → Environment has manual crowd/cast/interaction/clutter multipliers + shadow/pixel-ratio/antialias budget rows.
 - A per-phone "performance tier" (`pixelRatio`, shadow map, actor count) instead of only lite on/off.
 - Collision / steering for actors (tables, booths, water park), seat reservation visible to the player.
 - Player-visible inventory for carried items (hand sprite) and quest item pick-ups.

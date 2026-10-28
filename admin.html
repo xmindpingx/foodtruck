@@ -43,7 +43,7 @@ button:disabled{opacity:.5;cursor:wait}
 
 <div id="app" hidden>
 <header><h1>el Otro Lado</h1><span>Admin</span>
- <nav class="tabs"><button data-t="orders" class="on">Orders</button><button data-t="menu">Menu</button><button data-t="chat">Live chat</button><button data-t="inventory">Inventory</button><button data-t="reports">Reports</button><button data-t="marketing">Marketing</button><button data-t="outreach">Outreach</button><button data-t="settings">Settings</button><button id="out">Sign out</button></nav>
+ <nav class="tabs"><button data-t="orders" class="on">Orders</button><button data-t="menu">Menu</button><button data-t="chat">Live chat</button><button data-t="inventory">Inventory</button><button data-t="reports">Reports</button><button data-t="marketing">Marketing</button><button data-t="outreach">Outreach</button><button data-t="env">Environment</button><button data-t="settings">Settings</button><button id="out">Sign out</button></nav>
 </header>
 <main>
  <div id="probAlert" onclick="document.querySelector('[data-t=&quot;orders&quot;]').click()" hidden style="position:fixed;top:0;left:0;right:0;z-index:60;background:#b3242c;color:#fff;padding:10px 16px;text-align:center;font-weight:700;cursor:pointer">⚠️ <span></span></div>
@@ -124,6 +124,53 @@ button:disabled{opacity:.5;cursor:wait}
    <button class="b p" onclick="outSaveTpl()">Save template</button>
   </div>
  </section>
+
+ <!-- ENVIRONMENT (3D lot: crowd, effects, draw distance, graphics budget) -->
+ <section data-tab="env" hidden>
+  <div class="bar"><h2 style="margin:0;flex:1">Environment — the 3D lot</h2><button class="b p" id="saveEnv">Save environment</button><span id="envMsg" class="muted"></span><span class="muted">Multipliers: 1 = default, 0 = off, 2 = double. Draw-distance and graphics rows apply after a reload of the 3D page.</span></div>
+
+  <div class="card"><h3>Crowds &amp; AI</h3>
+   <p class="muted">How many people dress the lot, how many live their own lives, and how often they greet your visitors. Lower numbers = fewer draw calls = faster phones. The "Crowd life" and "Quests" on/off switches stay in Settings → Games.</p>
+   <div class="grid">
+    <div><label>Crowd size (× the people dressing the lot)</label><input data-s="crowdAmount" type="number" min="0" max="3" step="0.1"></div>
+    <div><label>Ambient AI cast (× walkers/eaters/players)</label><input data-s="actorsAmount" type="number" min="0" max="3" step="0.1"></div>
+    <div><label>Greetings &amp; interactions (× rate; 0 = never)</label><input data-s="interactAmount" type="number" min="0" max="3" step="0.1"></div>
+    <div><label>Clutter (× litter spawns; 0 = clean)</label><input data-s="clutterAmount" type="number" min="0" max="3" step="0.1"></div>
+    <div><label>Randomness (× scatter &amp; pose jitter)</label><input data-s="sceneRandomness" type="number" min="0" max="3" step="0.1"></div>
+   </div>
+  </div>
+
+  <div class="card"><h3>Smoke, pipes &amp; sky</h3>
+   <p class="muted">The drifting stage fog, the pipe smokers in the crowd and the floating/falling theme decorations. These ride along with the active holiday theme.</p>
+   <div class="grid">
+    <div><label>Stage fog puffs (0 = no smoke)</label><input data-s="sceneSmokePuffs" type="number" min="0" max="60" step="1"></div>
+    <div><label>Pipe smokers (% of crowd)</label><input data-s="scenePipeSmokers" type="number" min="0" max="100" step="5"></div>
+    <div><label>Puffs per smoker (0 = pipes stay quiet)</label><input data-s="scenePipePuffs" type="number" min="0" max="8" step="1"></div>
+    <div><label>Falling confetti / leaves / snow (×)</label><input data-s="sceneFallMult" type="number" min="0" max="3" step="0.1"></div>
+    <div><label>Floating lanterns / balloons (×)</label><input data-s="sceneFloatMult" type="number" min="0" max="3" step="0.1"></div>
+   </div>
+  </div>
+
+  <div class="card"><h3>Draw distance (meters)</h3>
+   <p class="muted">How far away people and clutter still exist. 0 = auto (phones get the short distances, desktops the long ones). Raising these draws more — only raise them if phones keep up. Applies after a reload.</p>
+   <div class="grid">
+    <div><label>Crowd visible within (0 = auto 16/40)</label><input data-s="sceneCrowdRange" type="number" min="0" max="200" step="1"></div>
+    <div><label>Ambient AI alive within (0 = auto 22/48)</label><input data-s="sceneLifeRange" type="number" min="0" max="200" step="1"></div>
+    <div><label>Detailed clutter within (0 = auto 9/16)</label><input data-s="sceneClutterNear" type="number" min="0" max="200" step="1"></div>
+    <div><label>Simple clutter within (0 = auto 20/38)</label><input data-s="sceneClutterMid" type="number" min="0" max="200" step="1"></div>
+   </div>
+  </div>
+
+  <div class="card"><h3>Graphics budget</h3>
+   <p class="muted">Big levers for weak phones — all apply after a reload of the 3D page. Shadows are the most expensive: "off" is the fastest, 4096 the prettiest.</p>
+   <div class="grid">
+    <div><label>Shadows (blank = auto 2048/4096)</label><select data-s="sceneShadows"><option value="">auto</option><option value="off">off (fastest)</option><option value="1024">1024 (soft budget)</option><option value="2048">2048 (default look)</option><option value="4096">4096 (crisp, heavy)</option></select></div>
+    <div><label>Pixel ratio (0 = auto 1.5 phone / 2 desktop)</label><input data-s="scenePixelRatio" type="number" min="0" max="3" step="0.25"></div>
+    <div><label>Antialiasing</label><label class="chk"><input type="checkbox" data-s="sceneAntialias"> Antialias on (off = faster)</label></div>
+   </div>
+  </div>
+ </section>
+
  <section data-tab="settings" hidden>
   <div class="bar"><h2 style="margin:0;flex:1">Settings</h2><button class="b p" id="saveSet">Save settings</button><span id="setMsg" class="muted"></span></div>
   <div class="card"><h3>Backup / Restore</h3>
@@ -157,10 +204,6 @@ button:disabled{opacity:.5;cursor:wait}
     <div><label>Water park closed sign (optional)</label><input data-s="waterparkClosedMsg" placeholder="blank = rotating water puns"></div>
     <div><label>Crowd life</label><label class="chk"><input type="checkbox" data-s="ambientLifeOn"> 🚶 Crowd members eat, queue, play, wander and greet you</label></div>
     <div><label>Quests</label><label class="chk"><input type="checkbox" data-s="questsOn"> ❗ Pun quests, flash sales and flash dances (earn Rep)</label></div>
-    <div><label>Crowd size (× the people dressing the lot)</label><input data-s="crowdAmount" type="number" min="0" max="3" step="0.1"></div>
-    <div><label>Ambient AI cast (× walkers/eaters/players)</label><input data-s="actorsAmount" type="number" min="0" max="3" step="0.1"></div>
-    <div><label>Greetings &amp; interactions (× rate; 0 = never)</label><input data-s="interactAmount" type="number" min="0" max="3" step="0.1"></div>
-    <div><label>Clutter (× litter spawns; 0 = clean)</label><input data-s="clutterAmount" type="number" min="0" max="3" step="0.1"></div>
     <div><label>Geocaching</label><label class="chk"><input type="checkbox" data-s="geocacheOn"> 🗺️ Hide-and-seek caches on (visitors stash collectibles)</label></div>
    </div>
    <div class="grid" style="margin-top:8px">
@@ -467,9 +510,10 @@ $('#brandLogoUpload').onchange=async e=>{const f=e.target.files[0];if(!f)return;
     $('#setMsg').innerHTML='<span class="ok">Logo uploaded — click Save settings to publish it site-wide.</span>';}
   catch(err){$('#setMsg').innerHTML=`<span class="err">${esc(err.message)}</span>`;}
   e.target.value='';};
-$('#saveSet').onclick=async()=>{const o={};document.querySelectorAll('[data-s]').forEach(el=>o[el.dataset.s]=el.type==='checkbox'?el.checked:el.type==='number'?parseFloat(el.value):el.value);
+const saveSet=async()=>{const M=()=>(!document.querySelector('[data-tab=env]').hidden?$('#envMsg'):$('#setMsg'));const o={};document.querySelectorAll('[data-s]').forEach(el=>o[el.dataset.s]=el.type==='checkbox'?el.checked:el.type==='number'?parseFloat(el.value):el.value);
   o.promos=collectPromos();o.rewardItems=collectRewards();o.marketingCampaigns=collectCamps();o.jukeboxSongs=collectJukes();
-  $('#setMsg').textContent='Saving…';try{await api('/api/admin/settings',o);SET=await api('/api/admin/settings');renderSettings();renderMenu();$('#setMsg').innerHTML='<span class="ok">Saved.</span>';}catch(e){$('#setMsg').innerHTML=`<span class="err">${esc(e.message)}</span>`;}};
+  M().textContent='Saving…';try{await api('/api/admin/settings',o);SET=await api('/api/admin/settings');renderSettings();renderMenu();M().innerHTML='<span class="ok">Saved.</span>';}catch(e){M().innerHTML=`<span class="err">${esc(e.message)}</span>`;}};
+$('#saveSet').onclick=saveSet;$('#saveEnv').onclick=saveSet;
 $('#health').onclick=async()=>{$('#healthOut').textContent='Checking…';const h=await api('/api/admin/imagegen-health');
   $('#healthOut').innerHTML=`Ollama: ${h.ollama.error?'<span class="err">offline</span>':'<span class="ok">v'+esc(h.ollama.version)+'</span>'} · ComfyUI: ${h.comfyui.error?'<span class="err">offline</span>':'<span class="ok">online</span>'} · FLUX service: ${h.images.error?'<span class="err">offline</span>':'<span class="ok">online'+(h.images.loaded?', model loaded':', model loads on first use')+'</span>'}`;};
 $('#setpw').onclick=async()=>{try{await api('/api/admin/password',{password:$('#newpw').value});$('#pwMsg').innerHTML='<span class="ok">Password changed.</span>';$('#newpw').value='';}catch(e){$('#pwMsg').innerHTML=`<span class="err">${esc(e.message)}</span>`;}};

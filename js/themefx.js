@@ -86,6 +86,7 @@ function softDot() {   // round soft sprite for falling particles
 
 export function init(S, o) {
   const {skip, lite, theme: T} = o;
+  const FM = Math.max(0, Math.min(3, Number(o.fallMult) || 1)), FT = Math.max(0, Math.min(3, Number(o.floatMult) || 1));   // Admin → Environment multipliers
   PAL = T;
   skip.forEach(ob => { if (ob.isMesh) (Array.isArray(ob.material) ? ob.material : [ob.material]).forEach(m => m && PROTECT.add(m)); });
   const run = () => restyleScene(S, skip);
@@ -150,31 +151,36 @@ export function init(S, o) {
     S.add(sb, fg);
 
     // falling confetti / leaves / snow / petals
-    const F = T.fall, N = lite ? 130 : 280, pts = new Float32Array(N * 3), col = new Float32Array(N * 3), ph = new Float32Array(N), sp = new Float32Array(N);
-    for (let i = 0; i < N; i++) {
+    const F = T.fall, N = FM > 0 ? Math.round((lite ? 130 : 280) * FM) : 0, pts = N ? new Float32Array(N * 3) : null, col = N ? new Float32Array(N * 3) : null, ph = new Float32Array(N), sp = new Float32Array(N);
+    let fall = null;
+    if (N) for (let i = 0; i < N; i++) {
       pts.set([-40 + Math.random() * 90, Math.random() * 16, -75 + Math.random() * 105], i * 3);
       C.setHex(F.colors[i % F.colors.length]); col.set([C.r, C.g, C.b], i * 3);
       ph[i] = Math.random() * 6.28; sp[i] = .6 + Math.random() * .8;
     }
-    const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(pts, 3)); pg.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    const fall = new THREE.Points(pg, new THREE.PointsMaterial({size: F.size * 2.2, map: softDot(), vertexColors: true, transparent: true, depthWrite: false, opacity: .92}));
-    fall.frustumCulled = false; S.add(fall);
+    if (N) {
+      const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(pts, 3)); pg.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      fall = new THREE.Points(pg, new THREE.PointsMaterial({size: F.size * 2.2, map: softDot(), vertexColors: true, transparent: true, depthWrite: false, opacity: .92}));
+      fall.frustumCulled = false; S.add(fall);
+    }
     // floating lanterns / balloons
-    const FL = T.floats, NF = lite ? 8 : 16, fm = new THREE.InstancedMesh(new THREE.SphereGeometry(FL.shape === 'lantern' ? .32 : .4, 10, 8), new THREE.MeshBasicMaterial(), NF), fs = [];
+    const FL = T.floats, NF = FT > 0 ? Math.round((lite ? 8 : 16) * FT) : 0, fm = new THREE.InstancedMesh(new THREE.SphereGeometry(FL.shape === 'lantern' ? .32 : .4, 10, 8), new THREE.MeshBasicMaterial(), Math.max(1, NF)), fs = [];
     for (let i = 0; i < NF; i++) { fs.push({x: -30 + Math.random() * 70, z: -70 + Math.random() * 90, y: 4 + Math.random() * 18, s: .4 + Math.random() * .5, p: Math.random() * 6}); fm.setColorAt(i, C.setHex(FL.colors[i % FL.colors.length])); }
-    fm.frustumCulled = false; S.add(fm);
+    if (NF) { fm.frustumCulled = false; S.add(fm); }
     ticks.push((t, dt) => {
-      const a = pg.attributes.position.array;
-      for (let i = 0; i < N; i++) {
-        a[i * 3 + 1] -= F.speed * sp[i] * dt; a[i * 3] += Math.sin(t * .9 + ph[i]) * F.sway * dt * .5;
-        if (a[i * 3 + 1] < 0) { a[i * 3 + 1] = 14 + Math.random() * 3; a[i * 3] = -40 + Math.random() * 90; a[i * 3 + 2] = -75 + Math.random() * 105; }
+      if (fall) {
+        const a = pg.attributes.position.array;
+        for (let i = 0; i < N; i++) {
+          a[i * 3 + 1] -= F.speed * sp[i] * dt; a[i * 3] += Math.sin(t * .9 + ph[i]) * F.sway * dt * .5;
+          if (a[i * 3 + 1] < 0) { a[i * 3 + 1] = 14 + Math.random() * 3; a[i * 3] = -40 + Math.random() * 90; a[i * 3 + 2] = -75 + Math.random() * 105; }
+        }
+        pg.attributes.position.needsUpdate = true;
       }
-      pg.attributes.position.needsUpdate = true;
-      for (let i = 0; i < NF; i++) {
+      if (NF) for (let i = 0; i < NF; i++) {
         const f = fs[i]; f.y += f.s * dt * .6; if (f.y > 30) f.y = 3;
         fm.setMatrixAt(i, M4.compose(P.set(f.x + Math.sin(t * .4 + f.p) * 1.2, f.y, f.z), Q.identity(), Sc.set(1, FL.shape === 'lantern' ? 1.25 : 1.1, 1)));
       }
-      fm.instanceMatrix.needsUpdate = true;
+      if (NF) fm.instanceMatrix.needsUpdate = true;
     });
   }
   return {tick(t, dt) { for (const f of ticks) f(t, dt); }};

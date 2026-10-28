@@ -328,6 +328,20 @@ DEFAULT_SETTINGS = {
     "actorsAmount": 1.0,         # 🚶 ambient AI cast multiplier — walkers/eaters/players (0 = none)
     "interactAmount": 1.0,       # 👋 how often the AI greets/interacts with the player (0 = never)
     "clutterAmount": 1.0,        # 🥤 litter + clutter spawn multiplier (0 = nothing new drops)
+    # --- 3D environment / performance (Admin → Environment tab; most values apply on page reload) ---
+    "sceneSmokePuffs": 24,       # fog-machine puffs drifting behind the band (0 = no stage smoke)
+    "scenePipeSmokers": 35,      # % of the crowd holding a pipe (0 = nobody smokes)
+    "scenePipePuffs": 3,         # puffs per smoker, staggered (0 = pipes but no puff clouds)
+    "sceneFallMult": 1.0,        # falling confetti / leaves / snow particle multiplier (0 = off)
+    "sceneFloatMult": 1.0,       # floating lanterns / balloons multiplier (0 = off)
+    "sceneRandomness": 1.0,      # scatter + pose randomness (0 = neat parade rows, 2 = wild lot)
+    "sceneCrowdRange": 0,        # meters the static crowd is drawn within; 0 = auto (16 phone / 40 desktop)
+    "sceneLifeRange": 0,         # meters the ambient AI cast is alive/reacting within; 0 = auto (22 / 48)
+    "sceneClutterNear": 0,       # meters of detailed clutter; 0 = auto (9 phone / 16 desktop)
+    "sceneClutterMid": 0,        # meters of simple clutter; 0 = auto (20 / 38), nothing beyond
+    "sceneShadows": "",          # "", off, 1024, 2048, 4096 (blank = auto: 2048 phone / 4096 desktop)
+    "scenePixelRatio": 0,        # fixed renderer pixel ratio; 0 = auto (1.5 phone / 2 desktop)
+    "sceneAntialias": True,      # antialiasing on (off = faster on weak GPUs)
     "triviaBotOn": True,
     # --- 3D scene: truck position, set by dragging it in layout mode (see scene.js) ---
     "truckOffsetX": 0.0,
@@ -404,6 +418,9 @@ PUBLIC_SETTINGS = ('businessName', 'tagline', 'brandLogo', 'copyrightLine', 'pho
                    'gamePacmanOn', 'gameUnoOn', 'gameChessOn',
                    'hotdogOn', 'triviaBotOn', 'waterparkOn', 'waterparkClosedMsg', 'ambientLifeOn', 'questsOn',
                    'crowdAmount', 'actorsAmount', 'interactAmount', 'clutterAmount',
+                   'sceneSmokePuffs', 'scenePipeSmokers', 'scenePipePuffs', 'sceneFallMult', 'sceneFloatMult',
+                   'sceneRandomness', 'sceneCrowdRange', 'sceneLifeRange', 'sceneClutterNear', 'sceneClutterMid',
+                   'sceneShadows', 'scenePixelRatio', 'sceneAntialias',
                    # jukebox (public: catalog + on/off) + geocaching switch + saved #layout defaults for the lot props
                    'jukeboxOn', 'jukeboxSongs', 'geocacheOn', 'layoutProps')
 
@@ -3689,9 +3706,19 @@ class H(SimpleHTTPRequestHandler):
                 if k in data: s[k] = data[k]
             s['taxRate'] = float(s['taxRate']); s['orderingOpen'] = bool(s['orderingOpen']); s['imageGenEnabled'] = bool(s['imageGenEnabled'])
             # 🎪 crowd knobs: bounded multipliers so a typo can't flood (or empty) the lot
-            for _ck in ('crowdAmount', 'actorsAmount', 'interactAmount', 'clutterAmount'):
+            for _ck in ('crowdAmount', 'actorsAmount', 'interactAmount', 'clutterAmount',
+                        'sceneFallMult', 'sceneFloatMult', 'sceneRandomness'):
                 try: s[_ck] = round(min(3, max(0, float(s.get(_ck, DEFAULT_SETTINGS[_ck])))), 2)
                 except (TypeError, ValueError): s[_ck] = DEFAULT_SETTINGS[_ck]
+            # 🎛️ environment knobs: meter overrides (0 = auto), integer effect counts, shadow presets
+            for _ek in ('sceneCrowdRange', 'sceneLifeRange', 'sceneClutterNear', 'sceneClutterMid', 'scenePixelRatio'):
+                try: s[_ek] = round(min(200, max(0, float(s.get(_ek, DEFAULT_SETTINGS[_ek])))), 2)
+                except (TypeError, ValueError): s[_ek] = DEFAULT_SETTINGS[_ek]
+            for _ik, _hi in (('sceneSmokePuffs', 60), ('scenePipeSmokers', 100), ('scenePipePuffs', 8)):
+                try: s[_ik] = max(0, min(_hi, int(float(s.get(_ik, DEFAULT_SETTINGS[_ik])))))
+                except (TypeError, ValueError): s[_ik] = DEFAULT_SETTINGS[_ik]
+            if s.get('sceneShadows') not in ('', 'off', '1024', '2048', '4096'): s['sceneShadows'] = ''
+            s['sceneAntialias'] = bool(s.get('sceneAntialias'))
             # 🎵 jukebox catalog rows + #layout's saved prop layout get the same care as the rest:
             # known-shape fields only, bounded, nothing executable ever lands in settings.json
             if not isinstance(s.get('jukeboxSongs'), list): s['jukeboxSongs'] = []
