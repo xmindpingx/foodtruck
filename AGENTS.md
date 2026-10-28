@@ -344,12 +344,23 @@ include the Easter/Thanksgiving edge days (the day before the window, first day,
 **T10. Sounds (no assets)** — a tiny `js/sfx.js` using WebAudio oscillators for splash / trash / hug /
 flash-sale bell; trigger from life.js `pop()` kinds and quests.js; respect `localStorage['eol-chat-quiet']`.
 
-**T11b. 3D model generation is blocked on this GPU** — `tools/model_gen.py` has a working TRELLIS 2 image->3D
-pipeline (`model <ref.png>`), but every installed 3D model is int8 (`trellis_2_int8_convrot`, `pixal3d_*`) and this
-box cannot run int8 GEMM: `torch._int_mm` fails with `HIPBLAS_STATUS_INVALID_VALUE` because the torch build ships
-no `TensileLibrary_lazy_gfx1030.dat` (RX 6800). `TORCH_BLAS_PREFER_HIPBLASLT=0` does not help. It needs either a
-torch/ROCm build with gfx1030 hipBLASLt kernels or non-quantized (bf16/fp16) 3D weights. Image generation is
-unaffected. Re-test with: `/home/dad/aaservers/ComfyUI/vcomfy/bin/python -c "import torch;a=torch.randint(-8,8,(256,512),dtype=torch.int8,device='cuda');torch._int_mm(a,a.T.contiguous())"`.
+**T11b. 3D model generation (works, with a caveat)** — `tools/model_gen.py`:
+`refs` renders reference photos, `model <ref.png>` runs TRELLIS 2 image->3D on ComfyUI (~10 min) and writes a GLB
+to `tools/model_raw/`, `pack <glb> <name> --len L [--yaw D]` turns it into `models/<name>.{json,bin}` (quantised,
+~0.5 MB) which `js/model.js` loads. `info <glb>` prints the bbox.
+
+ComfyUI's int8 models (`trellis_2`, `pixal3d`) could not run on this RX 6800: `torch._int_mm` goes to hipBLASLt,
+which ships no gfx1030 kernels (it targets CDNA2/3 and RDNA3+ only), so every int8 model died at its first
+sampler step. No torch build fixes that. The fix is a ComfyUI custom node,
+**`/home/dad/aaservers/ComfyUI/custom_nodes/int8_fallback_gfx1030/`**: comfy_kitchen prefers `torch.int8_mm` when
+it exists, so the node defines one — an exact int8 matmul built from fp32 (rocBLAS) GEMMs, chunked 1024-deep so
+partial sums stay inside fp32's exact-integer range. It installs itself only when `torch._int_mm` actually fails,
+so it is a no-op on healthy GPUs. Delete the directory to undo. Verified bit-exact against a CPU int32 reference.
+
+Caveat on the generated car: TRELLIS bakes the reference photo's lighting into the mesh colour, so its
+specular highlights become white blotches and the automatic paint/tyre/chrome/glass split in `pack` is rough.
+`sceneGenCar` therefore defaults to **off** (the hand-built shell ships). To finish it, regenerate from a
+flat-lit reference (`refs f` makes one) and re-pack.
 
 **T11. New / better ComfyUI texture** — `tools/gfx_gen.py` (`TEX` table: name → prompt, width, height, kind:
 `seamless` | `seamx` (planks: left/right wrap only) | `tint` (neutral fabric) | `photo`). Add or edit a row, then

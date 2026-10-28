@@ -87,6 +87,9 @@ BASE = ('classic 1960s American lowrider two-door hardtop, long low boxy body wi
 TAIL = ('plain seamless pure white studio background, soft even studio lighting, sharp focus, photorealistic product photograph, '
         'the whole car visible and centred with generous margin, no people, no text, no logos, no badges, no license plate, no watermark')
 VIEWS = {
+    'f': ('front three-quarter view from slightly above, wheels straight, completely flat even diffuse lighting '
+          'with no specular highlights, no reflections and no glare on the paint, matte finish, uniform shadowless '
+          'illumination like a texture reference photo'),
     'a': 'front three-quarter view from slightly above, wheels straight',
     'b': 'direct side profile view at eye level',
     'c': 'rear three-quarter view from slightly above',
@@ -128,7 +131,7 @@ def flux_graph(prompt, w, h, seed, steps=4):
 
 
 # ---------------------------------------------------------------- TRELLIS 2 image -> textured mesh
-def trellis_graph(image_name, seed=42, faces=60000, tex=2048, unwrap=2048, remesh=768, prefix='3d/eol'):
+def trellis_graph(image_name, seed=42, faces=60000, tex=2048, unwrap=2048, remesh=768, prefix='3d/eol', uv=False):
     """Trimmed version of ComfyUI's own 3d_pixal3d_trellis2_image_to_model template (TRELLIS.2 branch only)."""
     g = {
         '1': {'class_type': 'UNETLoader', 'inputs': {'unet_name': 'trellis_2_int8_convrot.safetensors', 'weight_dtype': 'default'}},
@@ -174,6 +177,15 @@ def trellis_graph(image_name, seed=42, faces=60000, tex=2048, unwrap=2048, remes
                                                       'drop_small_components': 0.01, 'precluster_max_verts': 20000000}},
         '28': {'class_type': 'DecimateMesh', 'inputs': {'mesh': ['27', 0], 'target_face_count': faces, 'placement_mode': 'midpoint'}},
         '29': {'class_type': 'MeshSmoothNormals', 'inputs': {'mesh': ['28', 0], 'crease_angle': 180.0}},
+    }
+    if not uv:
+        # Vertex colours straight off the coloured voxels. The UV route (below) needs a double-precision
+        # batched LU solve for the LSCM unwrap, which runs the RX 6800 out of VRAM with the 5 GB model
+        # resident - and for a web prop vertex colours are lighter anyway (no atlas to download).
+        g['30'] = {'class_type': 'PaintMesh', 'inputs': {'mesh': ['29', 0], 'voxel_colors': ['25', 0]}}
+        g['36'] = {'class_type': 'SaveGLB', 'inputs': {'mesh': ['30', 0], 'filename_prefix': prefix}}
+        return g
+    g.update({
         '30': {'class_type': 'UnwrapMesh', 'inputs': {'mesh': ['29', 0], 'segmenter': 'pec', 'resolution': unwrap, 'padding': 1, 'weld_distance': 0.0002}},
         '31': {'class_type': 'BakeTextureFromVoxel', 'inputs': {'mesh': ['30', 0], 'voxel_colors': ['25', 0], 'texture_size': tex, 'reference_mesh': ['22', 0]}},
         '32': {'class_type': 'BakeNormalMapFromMesh', 'inputs': {'low_poly': ['30', 0], 'high_poly': ['27', 0], 'resolution': tex,
@@ -184,11 +196,11 @@ def trellis_graph(image_name, seed=42, faces=60000, tex=2048, unwrap=2048, remes
                                                               'roughness': ['31', 2], 'occlusion': ['33', 0], 'normal_map': ['32', 0]}},
         '35': {'class_type': 'MeshSmoothNormals', 'inputs': {'mesh': ['34', 0], 'crease_angle': 180.0}},
         '36': {'class_type': 'SaveGLB', 'inputs': {'mesh': ['35', 0], 'filename_prefix': prefix}},
-    }
+    })
     return g
 
 
-def model(ref, seed=42, faces=60000, tex=2048):
+def model(ref, seed=42, faces=60000, tex=2048, uv=False):
     os.makedirs(RAW, exist_ok=True)
     src = ref if os.path.isabs(ref) else os.path.join(RAW, ref)
     if not os.path.isfile(src): raise SystemExit(f'no such reference image: {src}')
@@ -198,7 +210,7 @@ def model(ref, seed=42, faces=60000, tex=2048):
     prefix = f'3d/eol_{stem}'
     wake()
     print(f'TRELLIS 2 on {os.path.basename(src)} (seed {seed}, {faces} faces, {tex}px textures) — this takes a few minutes', flush=True)
-    run(trellis_graph(name, seed=seed, faces=faces, tex=tex, prefix=prefix), label='trellis')
+    run(trellis_graph(name, seed=seed, faces=faces, tex=tex, unwrap=tex, prefix=prefix, uv=uv), label='trellis')
     outdir = os.path.join(COMFY_HOME, 'output', '3d')
     globs = sorted((os.path.join(outdir, f) for f in os.listdir(outdir) if f.startswith(f'eol_{stem}') and f.endswith('.glb')),
                    key=os.path.getmtime)
@@ -251,6 +263,7 @@ def read_glb(path):
             prims.append({'pos': acc(at['POSITION']).astype('f4'),
                           'nrm': acc(at['NORMAL']).astype('f4') if 'NORMAL' in at else None,
                           'uv': acc(at['TEXCOORD_0']).astype('f4') if 'TEXCOORD_0' in at else None,
+                          'col': acc(at['COLOR_0']).astype('f4') if 'COLOR_0' in at else None,
                           'idx': acc(p['indices']).astype('u4').ravel() if 'indices' in p else None,
                           'mat': p.get('material')})
     texes = {}
@@ -293,15 +306,20 @@ def pack(path, name, length=5.4, rot_x=0.0, yaw=0.0, sizes=(1024, 512), quality=
     prims, texes, g = read_glb(path)
     os.makedirs(OUT, exist_ok=True)
 
-    P, N, U, I, base = [], [], [], [], 0
+    P, N, U, C, I, base = [], [], [], [], [], 0
+    has_col = any(p.get('col') is not None for p in prims)
     for p in prims:
         n = len(p['pos'])
         idx = p['idx'] if p['idx'] is not None else np.arange(n, dtype='u4')
         P.append(p['pos']); I.append(idx + base)
         N.append(p['nrm'] if p['nrm'] is not None else np.zeros((n, 3), 'f4'))
         U.append(p['uv'] if p['uv'] is not None else np.zeros((n, 2), 'f4'))
+        if has_col:
+            c = p.get('col')
+            C.append(np.ones((n, 3), 'f4') if c is None else c[:, :3])
         base += n
     pos, nrm, uv, idx = np.concatenate(P), np.concatenate(N), np.concatenate(U), np.concatenate(I)
+    col = np.concatenate(C) if has_col else None
 
     rx, ry = np.radians(rot_x), np.radians(yaw)
     for ang, (a, b) in ((rx, (1, 2)), (ry, (0, 2))):   # X then Y, in that order
@@ -325,7 +343,47 @@ def pack(path, name, length=5.4, rot_x=0.0, yaw=0.0, sizes=(1024, 512), quality=
     quv = np.clip((uv % 1.0 * 65535.0).round(), 0, 65535).astype('<u2')
     qidx = idx.astype('<u4') if len(pos) > 65535 else idx.astype('<u2')
 
-    blob = b''.join(a.tobytes() for a in (qpos, qnrm, quv, qidx))
+    if col is not None and col.max() > 1.5: col = col / 255.0   # some exporters hand back 0..255
+
+    # Split the single generated mesh into shading groups so the scene can give each its own material:
+    # the generator bakes one colour field over everything, so tyres, glass and chrome would otherwise
+    # take the body's candy paint. Classified per triangle from its generated colour plus its height.
+    groups = []
+    if col is not None:
+        tri = idx.reshape(-1, 3)
+        c = col[tri].mean(axis=1)
+        yv = pos[tri][:, :, 1].mean(axis=1)
+        lum = c @ np.array([.2126, .7152, .0722], dtype='f4')
+        mx, mn = c.max(1), c.min(1)
+        sat = (mx - mn) / np.maximum(mx, 1e-5)
+        h = float(pos[:, 1].max() - pos[:, 1].min())
+        nrmv = nrm[tri].mean(axis=1)
+        ny = np.abs(nrmv[:, 1]) / np.maximum(np.linalg.norm(nrmv, axis=1), 1e-5)
+        xa = np.abs(pos[tri][:, :, 0].mean(axis=1))
+        halfw = float(np.abs(pos[:, 0]).max())
+        gid = np.zeros(len(tri), dtype='i4')                       # 0 paint
+        za = np.abs(pos[tri][:, :, 2].mean(axis=1))
+        halfl = float(np.abs(pos[:, 2]).max())
+        bright = lum > .30
+        # only call it chrome where chrome actually lives - bumper/grille ends and wheel-level whitewalls.
+        # The generator bakes specular highlights into the colour, so "bright" alone speckles the flanks.
+        gid[bright & ((za > .78 * halfl) | (yv < .34 * h))] = 2
+        gid[~bright & (yv < .34 * h) & (xa > .50 * halfw)] = 1      # 1 tyre: dark, low, outboard
+        gid[~bright & (yv > .58 * h) & (ny < .70)] = 3              # 3 glass: dark, high, steeply angled (roof stays paint)
+        order = np.argsort(gid, kind='stable')
+        tri = tri[order]; gid = gid[order]
+        idx = tri.reshape(-1)
+        for g_i, nm in enumerate(('paint', 'tyre', 'chrome', 'glass')):
+            n_t = int((gid == g_i).sum())
+            if n_t: groups.append({'name': nm, 'start': int((gid < g_i).sum()) * 3, 'count': n_t * 3})
+        qidx = idx.astype('<u4') if len(pos) > 65535 else idx.astype('<u2')
+
+    parts = [qpos, qnrm, quv]
+    if col is not None:
+        parts.append(np.clip(col * 255.0, 0, 255).round().astype('u1'))
+    blob = b''.join(a.tobytes() for a in parts)
+    blob += b'\0' * (-len(blob) % 4)                     # js/model.js views the index block as Uint16/Uint32
+    blob += qidx.tobytes()
     open(os.path.join(OUT, name + '.bin'), 'wb').write(blob)
 
     written = {}
@@ -339,11 +397,12 @@ def pack(path, name, length=5.4, rot_x=0.0, yaw=0.0, sizes=(1024, 512), quality=
                 written.setdefault(slot, []).append(f)
     meta = {'v': 1, 'name': name, 'verts': int(len(pos)), 'tris': int(len(idx) // 3),
             'lo': [round(float(x), 5) for x in lo], 'hi': [round(float(x), 5) for x in hi],
-            'idx': 32 if qidx.dtype == np.dtype('<u4') else 16,
+            'idx': 32 if qidx.dtype == np.dtype('<u4') else 16, 'vcol': col is not None, 'groups': groups,
             'maps': {k: v[0] for k, v in written.items()}, 'size': [sizes[0], sizes[1]]}
     open(os.path.join(OUT, name + '.json'), 'w').write(json.dumps(meta, indent=1))
     total = sum(os.path.getsize(os.path.join(OUT, f)) for f in os.listdir(OUT) if f.startswith(name))
-    print(f'{name}: {meta["tris"]} tris, {meta["verts"]} verts, maps {list(written)}')
+    print(f'{name}: {meta["tris"]} tris, {meta["verts"]} verts, vertex-colours={col is not None}, maps {list(written)}')
+    for g in groups: print(f'  group {g["name"]:7} {g["count"]//3:6} tris')
     print(f'  bbox {np.round(lo,3).tolist()} .. {np.round(hi,3).tolist()}  (length {length} m on its longest axis)')
     print(f'  models/{name}.bin {len(blob)//1024} KB, {total//1024} KB total for both tiers')
 
@@ -355,7 +414,7 @@ if __name__ == '__main__':
     cmd = a[0] if a else 'help'
     pos = [x for i, x in enumerate(a) if not x.startswith('--') and (i == 0 or not a[i - 1].startswith('--'))]
     if cmd == 'refs': refs(only=pos[1:] or None)
-    elif cmd == 'model': model(pos[1], seed=int(opt('--seed', float, 42)), faces=int(opt('--faces', float, 60000)), tex=int(opt('--tex', float, 2048)))
+    elif cmd == 'model': model(pos[1], seed=int(opt('--seed', float, 42)), faces=int(opt('--faces', float, 60000)), tex=int(opt('--tex', float, 2048)), uv='--uv' in a)
     elif cmd == 'info': info(pos[1])
     elif cmd == 'pack': pack(pos[1], pos[2], length=opt('--len', float, 5.4), rot_x=opt('--rot-x', float, 0.0), yaw=opt('--yaw', float, 0.0))
     else: print(__doc__)

@@ -339,6 +339,9 @@ DEFAULT_SETTINGS = {
     "sceneLifeRange": 0,         # meters the ambient AI cast is alive/reacting within; 0 = auto (22 / 48)
     "sceneClutterNear": 0,       # meters of detailed clutter; 0 = auto (9 phone / 16 desktop)
     "sceneClutterMid": 0,        # meters of simple clutter; 0 = auto (20 / 38), nothing beyond
+    "sceneGenCar": False,       # 🚗 ComfyUI-generated lowrider body (models/impala.*). Off by default: the generated
+                                # colour still bakes in the reference photo's highlights, so its material split is rough
+                                # (see ROADMAP). Flip it on in Admin -> Environment to look at the generated mesh.
     "sceneTextures": True,      # 🖼️ ComfyUI photo textures on the lot (gfx/, tools/gfx_gen.py); off = flat colours, ~2.5 MB less to download
     "sceneShadows": "",          # "", off, 1024, 2048, 4096 (blank = auto: 2048 phone / 4096 desktop)
     "scenePixelRatio": 0,        # fixed renderer pixel ratio; 0 = auto (1.5 phone / 2 desktop)
@@ -421,7 +424,7 @@ PUBLIC_SETTINGS = ('businessName', 'tagline', 'brandLogo', 'copyrightLine', 'pho
                    'crowdAmount', 'actorsAmount', 'interactAmount', 'clutterAmount',
                    'sceneSmokePuffs', 'scenePipeSmokers', 'scenePipePuffs', 'sceneFallMult', 'sceneFloatMult',
                    'sceneRandomness', 'sceneCrowdRange', 'sceneLifeRange', 'sceneClutterNear', 'sceneClutterMid',
-                   'sceneShadows', 'scenePixelRatio', 'sceneAntialias', 'sceneTextures',
+                   'sceneShadows', 'scenePixelRatio', 'sceneAntialias', 'sceneTextures', 'sceneGenCar',
                    # jukebox (public: catalog + on/off) + geocaching switch + saved #layout defaults for the lot props
                    'jukeboxOn', 'jukeboxSongs', 'geocacheOn', 'layoutProps')
 
@@ -2404,7 +2407,7 @@ class H(SimpleHTTPRequestHandler):
         super().end_headers()
 
     # ---------- static-file safety ----------
-    PUBLIC_DIRS = ('lib', 'tex', 'img', 'js', 'css', 'media', 'bling', 'gfx')
+    PUBLIC_DIRS = ('lib', 'tex', 'img', 'js', 'css', 'media', 'bling', 'gfx', 'models')
     PUBLIC_FILES = ('index.html', 'admin.html', 'mobile.html', 'favicon.ico', 'robots.txt')
     def static_allowed(self):
         """Decide on the DECODED filesystem path (the raw URL can hide '/data' as '/%64ata')."""
@@ -3739,6 +3742,7 @@ class H(SimpleHTTPRequestHandler):
             if s.get('sceneShadows') not in ('', 'off', '1024', '2048', '4096'): s['sceneShadows'] = ''
             s['sceneAntialias'] = bool(s.get('sceneAntialias'))
             s['sceneTextures'] = bool(s.get('sceneTextures'))
+            s['sceneGenCar'] = bool(s.get('sceneGenCar'))
             # 🎵 jukebox catalog rows + #layout's saved prop layout get the same care as the rest:
             # known-shape fields only, bounded, nothing executable ever lands in settings.json
             if not isinstance(s.get('jukeboxSongs'), list): s['jukeboxSongs'] = []

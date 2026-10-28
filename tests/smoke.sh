@@ -99,6 +99,11 @@ try: urllib.request.urlopen(r, timeout=5); assert False
 except urllib.error.HTTPError as e: assert e.code == 401, e.code
 PYX
 
+want /models/impala.json 200
+want /models/impala.bin 200
+want /js/model.js 200
+want /tools/model_gen.py 404
+
 echo "== ComfyUI photo textures (gfx/, built by tools/gfx_gen.py)"
 want /gfx/grass.jpg 200
 want /gfx/grass.m.jpg 200

@@ -1,0 +1,45 @@
+{
+ "v": 1,
+ "name": "impala",
+ "verts": 18972,
+ "tris": 39787,
+ "lo": [
+  -1.21134,
+  0.0,
+  -2.7
+ ],
+ "hi": [
+  1.21134,
+  1.64814,
+  2.7
+ ],
+ "idx": 16,
+ "vcol": true,
+ "groups": [
+  {
+   "name": "paint",
+   "start": 0,
+   "count": 68190
+  },
+  {
+   "name": "tyre",
+   "start": 68190,
+   "count": 18846
+  },
+  {
+   "name": "chrome",
+   "start": 87036,
+   "count": 18903
+  },
+  {
+   "name": "glass",
+   "start": 105939,
+   "count": 13422
+  }
+ ],
+ "maps": {},
+ "size": [
+  1024,
+  512
+ ]
+}

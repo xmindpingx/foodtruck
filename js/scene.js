@@ -10,7 +10,8 @@ import * as Themes from './themes.js?v=2';   // steampunk by default, a theme pe
 import * as FX from './themefx.js?v=5';       // re-skins everything but the truck + gears/lamps/airships or lights/bunting/confetti
 import * as Life from './life.js?v=26';        // ambient crowd life: eat, queue, play, wander, greet the player
 import * as Waterpark from './waterpark.js?v=5';
-import * as Gfx from './gfx.js?v=4';   // ComfyUI photo textures (gfx/*.jpg) on tagged materials
+import * as Gfx from './gfx.js?v=4';
+import * as Model from './model.js?v=2';   // ComfyUI-generated meshes (tools/model_gen.py -> models/)   // ComfyUI photo textures (gfx/*.jpg) on tagged materials
 import * as Rep from './rep.js?v=1';
 import * as Stuff from './stuff.js?v=5';
 import * as Quests from './quests.js?v=5';   // pun vendors, flash sales/dances, quests that earn Rep   // litter, lost items and micro-clutter, LOD'd by distance
@@ -721,6 +722,9 @@ function buildLowriderImpala(){
     pkg.position.set(sx*.52,.21,sz*(LEN/2-1.05)-sz*.26);pkg.rotation.y=Math.PI/2*sz;pkg.rotation.x=.4*sz;car.add(pkg);
     const spg=new THREE.Mesh(new THREE.TorusGeometry(.095,.02,6,18),steel);   // spring coil between body & axle
     spg.position.set(sx*.64,.34,sz*(LEN/2-1.05));spg.rotation.z=Math.PI/2;car.add(spg);}
+  // everything so far is the hand-built shell: the ComfyUI-generated body hides it once it loads
+  car.userData.shell = car.children.slice();
+  car.userData.mats = {paint, tyre: rubber, chrome, glass};
   // ---- trunk, popped open, showing a big dual-sub box (the "jackhammer"-style setup) ----
   const trunkLid=new THREE.Mesh(new THREE.BoxGeometry(WID*.9,.06,LEN*.22),paint);
   trunkLid.position.set(0,.84,-LEN/2+LEN*.11);trunkLid.rotation.x=-.95;car.add(trunkLid);   // tilted open, hinge at the rear edge
@@ -764,6 +768,16 @@ lexus.position.set(WX1+6.2,0,BW/2+2.1);lexus.rotation.y=Math.PI/2+.08;   // park
 lexus.userData.baseY=0;
 truckRig.add(lexus);
 lexus.userData.hopSeed=Math.random()*6;lexus.userData.hopSide=Math.random()<.5?-1:1;
+// 🚗 swap in the ComfyUI-generated body (models/impala.*) when it loads. The hand-built shell stays
+// visible until then and remains the fallback, so a missing/!ok model never leaves a hole in the lot.
+if(CONFIG.sceneGenCar!==false){
+  Model.load('impala',{small:LITE_MODE||IS_PHONE,materials:lexus.userData.mats}).then(mesh=>{
+    mesh.scale.set(1.95/2.42,1,1);        // the generated body is wider than the lot's 1.95 m slot
+    mesh.castShadow=mesh.receiveShadow=true;
+    lexus.add(mesh);lexus.userData.gen=mesh;
+    for(const o of lexus.userData.shell)o.visible=false;
+  }).catch(e=>console.warn('generated car not loaded, keeping the built one:',e));
+}
 ALL_HYDRAULICS.push(lexus);   // "on switches" - gets a random hydraulic hop in the main render loop
 
 // ---------- movable lot props (#layout registry) + the saved layout EVERY visitor gets ----------

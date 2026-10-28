@@ -41,13 +41,15 @@ Smoke now also checks: one `?v=` per module, gfx assets + private raw dir, accou
 
 ## Known bugs / rough edges
 
-0. **ComfyUI cannot generate 3D models on this machine** (found 2026-10-28). `tools/model_gen.py` implements the
-   full TRELLIS 2 image->3D pipeline and ComfyUI accepts the graph, but the sampler dies with
-   `HIPBLAS_STATUS_INVALID_VALUE`: all three installed 3D models are int8-quantised and this torch build has no
-   gfx1030 hipBLASLt kernels (`TensileLibrary_lazy_gfx1030.dat` missing), so `torch._int_mm` fails outright on the
-   RX 6800. `TORCH_BLAS_PREFER_HIPBLASLT=0` does not change it. Fix is on the ComfyUI side: a torch/ROCm build with
-   gfx1030 int8 kernels, or non-quantised (bf16/fp16) 3D weights such as Hunyuan3D-2. Image generation is fine.
-   Until then the lowrider is hand-built geometry wearing ComfyUI photo maps, not a generated mesh.
+0. **ComfyUI 3D generation: fixed, but the generated colour is not usable yet.** int8 models could not run on
+   the RX 6800 (hipBLASLt has no gfx1030 kernels, so `torch._int_mm` failed); the custom node
+   `ComfyUI/custom_nodes/int8_fallback_gfx1030/` routes int8 matmuls through exact fp32 GEMMs and TRELLIS 2 now
+   runs end to end (~10 min/model). A generated lowrider is in `models/impala.*` and loads via `js/model.js`.
+   **Remaining:** TRELLIS bakes the reference photo's highlights into the mesh colour, so the paint/tyre/chrome/
+   glass split that `tools/model_gen.py pack` derives is speckled, and `sceneGenCar` defaults to off. Fix by
+   regenerating from a flat-lit reference (`python3 tools/model_gen.py refs f`, then `model impala-f1.png`) and
+   re-packing. Hunyuan3D-2 (`hunyuan3d-dit-v2_fp16.safetensors`, fp16, no int8 needed) is downloaded to
+   `~/ai-stacks/shareddata/comfyui/models/checkpoints/` as an alternative generator but is **not yet test-run**.
 
 1. **No real-device performance data.** Budgets (crowd range, section radii, pixel ratio, 2048 shadow map) are estimates. Needs Safari Web Inspector on an iPhone 12; watch draw calls (life + stuff + park + vendors) and memory.
 2. The crowd uses 31-mesh `buildPerformer` bodies again (commit 779f65b, deliberate): ~2.7k meshes / ~830k triangles when all are in range — the biggest phone cost; `People.crowdPerson()` is 2 meshes. Static props (tables, booths) are hundreds of unmerged meshes that all cast into the sun shadow map. Lite mode still does not lower pixel ratio / antialiasing / lights on phones; `eol-lite=0` (3D page) on an iPhone 12 is the heavy path.
