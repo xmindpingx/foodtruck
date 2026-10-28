@@ -8,7 +8,7 @@ import * as Avatars from './avatars.js?v=13';
 import * as People from './people.js?v=4';
 import * as Themes from './themes.js?v=1';   // steampunk by default, a theme per big holiday around its date
 import * as FX from './themefx.js?v=1';       // re-skins everything but the truck + gears/lamps/airships or lights/bunting/confetti
-import * as Life from './life.js?v=13';        // ambient crowd life: eat, queue, play, wander, greet the player
+import * as Life from './life.js?v=14';        // ambient crowd life: eat, queue, play, wander, greet the player
 import * as Waterpark from './waterpark.js?v=1';
 import * as Rep from './rep.js?v=1';
 import * as Stuff from './stuff.js?v=2';
@@ -536,11 +536,7 @@ for(let s=0;s<14;s++){
   tab.position.set(px,0,pz);
   tab.rotation.y=Math.PI/2-a;                 // one long side (bench) always faces the truck
   truckRig.add(tab);TABLE_HIT.push(tab);
-  if(s<2)for(const [dx,seat,li] of OCC_T[0]){  // occupied: a pair + one across, all mid-bite
-    const e=buildEater(...eaterLooks[li%eaterLooks.length]);
-    e.position.set(dx,.475,seat*.76);e.rotation.y=seat<0?Math.PI:0;
-    e.userData.by=.475;e.userData.ph=Math.random()*6.28;
-    tab.add(e);eaters.push(e);}
+  // (seated eaters removed - all crowd now uses performer-style bodies)
 }
 // contest sign: a little billboard riding the first open table's umbrella pole — sprites are
 // one quad, camera-facing, basically free; tapping that table (any table) opens the contest.
