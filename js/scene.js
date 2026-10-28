@@ -8,8 +8,8 @@ import * as Avatars from './avatars.js?v=13';
 import * as People from './people.js?v=4';
 import * as Themes from './themes.js?v=1';   // steampunk by default, a theme per big holiday around its date
 import * as FX from './themefx.js?v=3';       // re-skins everything but the truck + gears/lamps/airships or lights/bunting/confetti
-import * as Life from './life.js?v=22';        // ambient crowd life: eat, queue, play, wander, greet the player
-import * as Waterpark from './waterpark.js?v=2';
+import * as Life from './life.js?v=24';        // ambient crowd life: eat, queue, play, wander, greet the player
+import * as Waterpark from './waterpark.js?v=3';
 import * as Rep from './rep.js?v=1';
 import * as Stuff from './stuff.js?v=4';
 import * as Quests from './quests.js?v=3';   // pun vendors, flash sales/dances, quests that earn Rep   // litter, lost items and micro-clutter, LOD'd by distance
@@ -1053,6 +1053,8 @@ canvas.addEventListener('click',e=>{m2.set(e.clientX/innerWidth*2-1,-(e.clientY/
       else if((car.userData.burst||0)<3)car.userData.burst=(car.userData.burst||0)+1;}
   }else if(Arcade.targets().length&&ray.intersectObjects(Arcade.targets(),true).length){   // 🎪 midway prop → its minigame / score board
     Arcade.openFrom(ray.intersectObjects(Arcade.targets(),true)[0].object);
+  }else if(wp&&wp.group&&ray.intersectObject(wp.group,true).length){   // 💦 water park → splash + Rep
+    const _wh=ray.intersectObject(wp.group,true)[0]; if(_wh){wp.splash(_wh.point.x,_wh.point.z); Rep.add('react',1).then(()=>{if(life)life.toast('💦 splash! +1 Rep');});}
   }else if(jukebox.parent&&ray.intersectObject(jukebox,true).length){   // 💿 jukebox → pay points to play a song (js/jukebox.js)
     dispatchEvent(new Event('eol:juke-open'));
   }else if(Avatars.liveAvatars().length && ray.intersectObjects(Avatars.liveAvatars().map(a=>a.group),true).length){   // 🌱 tap another visitor → gift a sprout
@@ -1310,7 +1312,10 @@ const fx=TH?(()=>{
   return FX.init(S,{skip:TRUCK_ORIG,lite:LITE_MODE,theme:TH,fallMult:CONFIG.sceneFallMult,floatMult:CONFIG.sceneFloatMult});})():null;
 window.__EOL_FX=fx;
 // 🌊 Sir Splash-a-Lot Water Park on the west side (Admin → Settings → Games switches it to a "closed for repairs" sign)
-const wp=Waterpark.init(S,{open:CONFIG.waterparkOn!==false,message:CONFIG.waterparkClosedMsg||'',lite:LITE_MODE,phone:IS_PHONE,cam});
+const wp=Waterpark.init(S,{open:CONFIG.waterparkOn!==false,message:CONFIG.waterparkClosedMsg||'',lite:LITE_MODE,phone:IS_PHONE,cam,
+  player:()=>{if(walk.on&&walk.grp)return {obj:walk.grp,x:walk.x,z:walk.z};
+    const me=Avatars.liveAvatars().find(v=>v.self);if(me&&me.group){me.group.getWorldPosition(_wv);return {obj:me.group,x:_wv.x,z:_wv.z};}return null;},
+  onUse:(name)=>{Rep.add('react',1).then(()=>{if(life)life.toast('💦 '+name+'! +1 Rep');});}});
 // 🚶 ambient crowd life + the two-way interactions with the player (Admin → Settings → Games can switch it off)
 let life=null,quests=null;
 const stuff=CONFIG.ambientLifeOn!==false?Stuff.init({S,cam,rig:truckRig,truckBox:{x0:TRUCK_CX-BL/2-.3,x1:TRUCK_CX+BL/2+.3,z0:-BW/2-.3,z1:BW/2+.3},crate:{x:WX1+1.4,z:BW/2+1.8},clutterMult:CONFIG.clutterAmount,near:CONFIG.sceneClutterNear,mid:CONFIG.sceneClutterMid,

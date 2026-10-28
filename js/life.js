@@ -353,6 +353,18 @@ export function init(o) {
   function tick(t, dt) {
     cam.getWorldPosition(V2); const cx = V2.x, cz = V2.z;
     for (const a of actors) {
+      // stuck recovery: if an actor trying to move hasn't changed position in 2 s, teleport it to the stage
+      if (!a.staff && a.moving) {
+        if (a._stkX === undefined) { a._stkX = a.x; a._stkZ = a.z; a._stkT = 0; }
+        a._stkT += dt;
+        if (Math.hypot(a.x - a._stkX, a.z - a._stkZ) > 1.0) { a._stkX = a.x; a._stkZ = a.z; a._stkT = 0; }
+        if (a._stkT > 2) {
+          a.x = 8 + (Math.random() - .5) * 6; a.z = -58 + (Math.random() - .5) * 4;
+          a._stkX = a.x; a._stkZ = a.z; a._stkT = 0; a._stuck = 0;
+          a._detourKey = null; a._detourWp = null; a._detourFrames = 0;
+          a.plan = []; a.step = null; a.moving = false; a.idle = true; a.anim = 'idle';
+        }
+      } else { a._stkX = a.x; a._stkZ = a.z; a._stkT = 0; }
       // step machine
       if (a.staff) { a.moving = false; a.step = null; }
       else if (!a.step) {
@@ -451,6 +463,52 @@ export function init(o) {
     else if (an === 'chat') { const q = Math.sin(t * 2.4 + ph); if (q > .3) { A[1].rotation.x = -.5 - q * .4; el(1, -.9); } }
   }
 
+  // ---------- interaction menu shown when tapping an AI actor ----------
+  function showInteractMenu(a, cx, cy) {
+    // remove any existing menu
+    document.querySelectorAll('.eol-interact-menu').forEach(m => m.remove());
+    const opts = [
+      {label: '👋 Wave', fn: () => { setMood(a, 'smile', 3); a.anim = 'wave'; pop('👋', a.root, 2.0); } },
+      {label: '✋ High-five', fn: () => { setMood(a, 'smile', 3); a.anim = 'highfive'; pop('✋', a.root, 2.0); if (o.onReact) o.onReact(a.name); } },
+      {label: '📸 Photo', fn: () => { a.anim = 'photo'; pop('📸', a.root, 2.0); } },
+      {label: '💃 Dance', fn: () => { a.anim = 'dance'; a.idle = false; setMood(a, 'smile', 4); } },
+      {label: '🤗 Hug', fn: () => { a.anim = 'hug'; setMood(a, 'smile', 4); pop('🤗', a.root, 2.0); } },
+      {label: '👏 Cheer', fn: () => { cheer(a, 3); pop('👏', a.root, 2.0); } },
+      {label: '🌱 Give sprout', fn: () => { dispatchEvent(new CustomEvent('eol:npc-gift', {detail: {npc: a.id, slot: 'collar', cost: 0}})); } },
+      {label: '🚶 Follow me', fn: () => { a.plan = [{k: 'follow', t: 0, dist: 2.2, spd: 1.6}]; a.step = null; a.idle = false; setMood(a, 'smile', 4); } },
+    ];
+    // pick 4 random, dedup by label
+    const shuffled = opts.slice().sort(() => Math.random() - .5).slice(0, 4);
+    const menu = document.createElement('div');
+    menu.className = 'eol-interact-menu';
+    menu.style.cssText = 'position:fixed;left:' + Math.max(8, Math.min(innerWidth - 180, cx - 60)) + 'px;top:' + Math.max(8, Math.min(innerHeight - 160, cy - 20)) + 'px;z-index:9999;background:rgba(20,16,40,.95);border:1px solid rgba(255,255,255,.25);border-radius:12px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,.5);min-width:150px;';
+    const title = document.createElement('div');
+    title.textContent = '💬 ' + (a.name || 'Friend');
+    title.style.cssText = 'color:#f2c14e;font:700 13px Inter,system-ui,sans-serif;padding:4px 8px 6px;border-bottom:1px solid rgba(255,255,255,.12);margin-bottom:4px;';
+    menu.appendChild(title);
+    for (const o2 of shuffled) {
+      const btn = document.createElement('button');
+      btn.textContent = o2.label;
+      btn.style.cssText = 'display:block;width:100%;text-align:left;background:transparent;border:0;color:#fff;font:600 14px Inter,system-ui,sans-serif;padding:7px 10px;border-radius:8px;cursor:pointer;';
+      btn.onmouseenter = () => { btn.style.background = 'rgba(255,255,255,.12)'; };
+      btn.onmouseleave = () => { btn.style.background = 'transparent'; };
+      btn.onclick = (ev) => { ev.stopPropagation(); menu.remove(); try { o2.fn(); } catch (e) {} };
+      menu.appendChild(btn);
+    }
+    const close = document.createElement('button');
+    close.textContent = '✕';
+    close.style.cssText = 'position:absolute;top:4px;right:6px;background:transparent;border:0;color:rgba(255,255,255,.6);font:600 12px Inter;cursor:pointer;';
+    close.onclick = (ev) => { ev.stopPropagation(); menu.remove(); };
+    menu.appendChild(close);
+    menu.style.position = 'fixed';
+    document.body.appendChild(menu);
+    // auto-close after 6 s
+    setTimeout(() => { if (menu.parentNode) menu.remove(); }, 6000);
+    // close on outside click
+    const outside = (ev) => { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', outside, true); } };
+    setTimeout(() => document.addEventListener('click', outside, true), 50);
+  }
+
   // ---------- tap an actor → gift panel (capture so the scene's own tap handling doesn't also fire) ----------
   {
     let sx = 0, sy = 0, st = 0; const ray = new THREE.Raycaster(), m = new THREE.Vector2();
@@ -465,7 +523,7 @@ export function init(o) {
       e.stopImmediatePropagation(); e.preventDefault();
       if (a.quest && o.onQuestTap && o.onQuestTap(a)) return;
       if (a.react && performance.now() < a.react) { a.react = 0; setMood(a, 'wink', 3); pop('⭐', a.root, 2.0); if (o.onReact) o.onReact(a.name); return; }   // answered a greeting: Rep
-      o.openGift('npc:' + a.id); pop('🌱', a.root, 2.0);
+      showInteractMenu(a, e.clientX, e.clientY);
     }, true);
   }
   units.filter(u => u.kind !== 'staff').forEach((u, i) => replan(u, i % 3 === 0));   // opening scene: some already seated mid-meal, some at the show
@@ -505,5 +563,5 @@ export function init(o) {
     return n;
   };
   const dancersNear = (x, z, r) => actors.filter(a => a.near && a.anim === 'dance' && !a.moving && dist2(a.x, a.z, x, z) < r * r).length;
-  return {tick, cans: canPositions, cheer, createStaff, flashDance, rush, moshPit, dancersNear, pop, toast, setMood, actors, roster: () => actors.filter(a => a.near).sort((m, n) => dist2(m.x, m.z, cam.position.x, cam.position.z) - dist2(n.x, n.z, cam.position.x, cam.position.z)).slice(0, 8).map(a => ({id: 'npc:' + a.id, name: a.name + ' (festival-goer)'}))};
+  return {tick, cans: canPositions, cheer, interactMenu: showInteractMenu, createStaff, flashDance, rush, moshPit, dancersNear, pop, toast, setMood, actors, roster: () => actors.filter(a => a.near).sort((m, n) => dist2(m.x, m.z, cam.position.x, cam.position.z) - dist2(n.x, n.z, cam.position.x, cam.position.z)).slice(0, 8).map(a => ({id: 'npc:' + a.id, name: a.name + ' (festival-goer)'}))};
 }
