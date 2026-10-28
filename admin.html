@@ -38,7 +38,7 @@ button:disabled{opacity:.5;cursor:wait}
 <body>
 <div id="login" class="card">
  <h2>El Otro Lado · Admin</h2>
- <form id="lf"><label>Password</label><input type="password" id="pw" autofocus required><br><br><button class="b p" style="width:100%">Sign in</button><p id="lerr" class="err"></p></form>
+ <form id="lf"><label>Password</label><input type="password" id="pw" autofocus required autocomplete="current-password"><br><br><button class="b p" style="width:100%">Sign in</button><p id="lerr" class="err"></p></form>
 </div>
 
 <div id="app" hidden>
@@ -153,6 +153,10 @@ button:disabled{opacity:.5;cursor:wait}
     <div><label>Pac-Man cabinet</label><label class="chk"><input type="checkbox" data-s="gamePacmanOn"> 🟡 Pac-Man on</label></div>
     <div><label>UNO card table</label><label class="chk"><input type="checkbox" data-s="gameUnoOn"> 🃏 UNO on</label></div>
     <div><label>Crystal chess table</label><label class="chk"><input type="checkbox" data-s="gameChessOn"> ♟️ Chess on</label></div>
+    <div><label>Water park</label><label class="chk"><input type="checkbox" data-s="waterparkOn"> 🌊 Sir Splash-a-Lot Water Park open (off = "closed for repairs" sign)</label></div>
+    <div><label>Water park closed sign (optional)</label><input data-s="waterparkClosedMsg" placeholder="blank = rotating water puns"></div>
+    <div><label>Crowd life</label><label class="chk"><input type="checkbox" data-s="ambientLifeOn"> 🚶 Crowd members eat, queue, play, wander and greet you</label></div>
+    <div><label>Quests</label><label class="chk"><input type="checkbox" data-s="questsOn"> ❗ Pun quests, flash sales and flash dances (earn Rep)</label></div>
     <div><label>Geocaching</label><label class="chk"><input type="checkbox" data-s="geocacheOn"> 🗺️ Hide-and-seek caches on (visitors stash collectibles)</label></div>
    </div>
    <div class="grid" style="margin-top:8px">
