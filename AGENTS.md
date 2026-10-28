@@ -23,8 +23,7 @@ Both are the same server process (pm2 app `foodtruck-site`, port 8095) behind a 
 5. No new dependencies: Python standard library only on the server; vanilla ES modules + the vendored
    three.js r160 in `lib/` in the browser. No npm, no bundler, no CDN scripts, no new files in `lib/`.
 6. Family-facing site with kids on the lot: no nudity, no "flashing", no gambling, keep puns clean.
-7. Commit only when the owner asks. Never push. Never amend. Never `git add -A` (it would add `media/`).
-8. Do not rewrite whole files. Make targeted edits and keep each file's existing compact style.
+7. Do not rewrite whole files. Make targeted edits and keep each file's existing compact style.
 
 ## 1. The module version trap (most common way to break the site)
 
@@ -65,7 +64,8 @@ index.html       The 3D site shell: header/nav, the three panels (#menu #find #c
 mobile.html      Lite ordering page (no three.js). Same panel markup + ids as index.html so js/shop.js works
                  unchanged. The SMS opt-in block (#smsOptIn) and footer (#foot) MUST stay byte-identical to
                  index.html (registered wording; the smoke test checks it).
-admin.html       Admin SPA (bearer token). Settings → Games card has the on/off switches listed in section 3.
+admin.html       Admin SPA (bearer token). The Environment tab has the scene knobs + the Games, boombox/TV
+                 and Jukebox on/off switches listed in section 3.
 css/site.css     3D page styles. css/mobile.css: lite page styles (loaded instead of site.css).
 js/shop.js       DOM only: fetch /api/settings + /api/menu, render menu, cart (whole-cent math), order form,
                  status polling, contact mailto. Exports CONFIG, MENU, esc, money, open(panelId), hooks.
@@ -99,10 +99,10 @@ ROADMAP.md       Known bugs + needed features. .claude/launch.json: a local prev
 - Public settings reach the browser as `CONFIG` (js/shop.js) — only the keys in `PUBLIC_SETTINGS` in
   server.py. Adding a public setting = add a default in `DEFAULT_SETTINGS`, add the key to `PUBLIC_SETTINGS`,
   add a control in admin.html (`<input data-s="key">` or `<input type="checkbox" data-s="key">`).
-- Switches added recently (all in the admin Games card): `waterparkOn` (false → "closed for repairs" sign),
-  `waterparkClosedMsg` (custom sign line), `ambientLifeOn` (crowd life + litter + quests off when false),
-  `questsOn`, plus bounded multipliers `crowdAmount` (static dressing), `actorsAmount` (ambient AI cast),
-  `interactAmount` (greeting rate), `clutterAmount` (litter spawns) — all clamped 0–3 server-side.
+- The admin **Games** card (now inside the Environment tab): `waterparkOn` (false → "closed for repairs"
+  sign), `waterparkClosedMsg` (custom sign line), `ambientLifeOn` (crowd life + litter + quests off when
+  false), `questsOn`, plus bounded multipliers `crowdAmount` (static dressing), `actorsAmount` (ambient AI
+  cast), `interactAmount` (greeting rate), `clutterAmount` (litter spawns) — all clamped 0–3 server-side.
 - The admin **Environment** tab holds the scene knobs: the four crowd multipliers + `sceneRandomness`
   (scatter/pose jitter), `sceneSmokePuffs` (stage fog, 0 = off), `scenePipeSmokers` (% of crowd with a pipe),
   `scenePipePuffs` (puffs per smoker), `sceneFallMult` / `sceneFloatMult` (theme particles/lanterns),

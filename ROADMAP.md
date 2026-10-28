@@ -18,7 +18,7 @@ Restart needed after pulling: `pm2 restart foodtruck-site`.
 | Clutter | `js/stuff.js` | trash / lost items / decor, near+mid LOD, local persistence 30 min |
 | Vendors + quests | `js/quests.js` | 6 pun vendors, flash sales, flash dances, 40 pun quests |
 | Water park | `js/waterpark.js` | wave pool, lazy river, bumper boats, slides, cannons; per-section culling; admin switch -> "closed for repairs" |
-| Admin switches | `admin.html` Games card | `waterparkOn`, `waterparkClosedMsg`, `ambientLifeOn`, `questsOn` |
+| Admin switches | `admin.html` Environment tab (Games card) | `waterparkOn`, `waterparkClosedMsg`, `ambientLifeOn`, `questsOn` |
 
 ## Known bugs / rough edges
 
@@ -52,5 +52,5 @@ Restart needed after pulling: `pm2 restart foodtruck-site`.
 - Quest log history, daily streaks, leaderboards for Rep; admin editor for quests/vendors/pun text.
 - Water park: collision, swim animation for the player, working slide ride, sounds.
 - Sounds: splash, trash, hug, flash-sale bell.
-- Admin: theme override (force a holiday for everyone). Done in this round: clutter amount + actor count + interaction rate (`crowdAmount`/`actorsAmount`/`interactAmount`/`clutterAmount` in Settings → Games).
+- Admin: theme override (force a holiday for everyone). Done in this round: clutter amount + actor count + interaction rate (`crowdAmount`/`actorsAmount`/`interactAmount`/`clutterAmount` in Environment tab).
 - Tests: headless render test for each theme; unit tests for `themes.autoTheme` across a year.
