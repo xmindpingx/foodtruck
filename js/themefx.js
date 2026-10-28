@@ -152,14 +152,14 @@ export function init(S, o) {
 
     // falling confetti / leaves / snow / petals
     const F = T.fall, N = FM > 0 ? Math.round((lite ? 130 : 280) * FM) : 0, pts = N ? new Float32Array(N * 3) : null, col = N ? new Float32Array(N * 3) : null, ph = new Float32Array(N), sp = new Float32Array(N);
-    let fall = null;
+    let fall = null, pg = null;
     if (N) for (let i = 0; i < N; i++) {
       pts.set([-40 + Math.random() * 90, Math.random() * 16, -75 + Math.random() * 105], i * 3);
       C.setHex(F.colors[i % F.colors.length]); col.set([C.r, C.g, C.b], i * 3);
       ph[i] = Math.random() * 6.28; sp[i] = .6 + Math.random() * .8;
     }
     if (N) {
-      const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(pts, 3)); pg.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(pts, 3)); pg.setAttribute('color', new THREE.BufferAttribute(col, 3));
       fall = new THREE.Points(pg, new THREE.PointsMaterial({size: F.size * 2.2, map: softDot(), vertexColors: true, transparent: true, depthWrite: false, opacity: .92}));
       fall.frustumCulled = false; S.add(fall);
     }
