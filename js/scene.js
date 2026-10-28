@@ -944,6 +944,28 @@ for(let i=0;i<6;i++) spawnCrowd(-28+Math.random()*72, -4+Math.random()*24, 1);
 for(let i=0;i<40;i++) spawnCrowd(-8+Math.random()*32, -61.5+Math.random()*8, 1, true);    // pit, at the stage front, watching the band
 for(let i=0;i<8;i++) spawnCrowd(-14.5+Math.random()*5, -61+Math.random()*7, 1, true);     // west flank pack, facing the stage
 for(let i=0;i<8;i++) spawnCrowd(26.5+Math.random()*5, -61+Math.random()*7, 1, true);      // east flank pack, facing the stage
+// lawn chairs with people, with and without umbrellas
+for(let i=0;i<10;i++){
+  const cx=8+(Math.random()-.5)*30, cz=-50+(Math.random()-.5)*20;
+  const chair=new THREE.Group();
+  const seat=new THREE.Mesh(new THREE.BoxGeometry(.7,.08,.6),new THREE.MeshStandardMaterial({color:0x4a6fb5,roughness:.7}));
+  seat.position.y=.35; chair.add(seat);
+  const back=new THREE.Mesh(new THREE.BoxGeometry(.7,.9,.08),new THREE.MeshStandardMaterial({color:0x4a6fb5,roughness:.7}));
+  back.position.set(0,.8,-.26); back.rotation.x=.15; chair.add(back);
+  const leg=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.35,6),new THREE.MeshStandardMaterial({color:0x888,roughness:.5}));
+  leg.position.y=.17; chair.add(leg);
+  chair.position.set(cx,0,cz); chair.rotation.y=Math.random()*Math.PI*2;
+  S.add(chair);
+  const person=buildPerformer(0xd9a978,0xd42a2a,0x1a1a1a,'civilian');
+  person.position.set(cx,.4,cz); person.rotation.y=chair.rotation.y; person.rotation.x=-Math.PI/8;
+  S.add(person);
+  if (Math.random()<0.5) {
+    const umbrella=new THREE.Mesh(new THREE.ConeGeometry(1.1,.6,12),new THREE.MeshStandardMaterial({color:0xe8578a,roughness:.6,side:THREE.DoubleSide}));
+    umbrella.position.set(cx,.9,cz); S.add(umbrella);
+    const pole=new THREE.Mesh(new THREE.CylinderGeometry(.02,.02,1.0,6),new THREE.MeshStandardMaterial({color:0x888,roughness:.5}));
+    pole.position.set(cx,.4,cz); S.add(pole);
+  }
+}
 // blankets with people (families) laying/sitting by the stage
 const BLANKET_COLORS=[0xe8578a,0xf2c14e,0x4fc3d9,0x53a86e,0xd77bd0,0xb44dff,0xff6fa0,0x4a90d9];
 for(let i=0;i<8;i++){
