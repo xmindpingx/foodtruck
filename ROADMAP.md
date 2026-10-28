@@ -144,3 +144,42 @@ worn cap raised 6 -> 8. Pilot facts: ~50 s/item warm, 1500 tris reads the same a
 - [ ] Sprouts: ~1/3 size when clipped on, clip anywhere on the body, a dozen new festival sprout types (owner request).
 - [ ] Draw calls: workflow `draw-call-survey` lists what animates per prop; then `People.mergeStatic()` the truck rig (467 meshes), water park (189),
       stage (118), arcade/jukebox. Current ~974 render calls (shadows on), was ~1,200+.
+
+## Popular feature ideas (backlog, not yet scheduled)
+
+Collected from community feedback + common festival-site patterns. Ordered roughly by
+effort vs. payoff. Each is a candidate for a future commit; none are started.
+
+### Low effort, high delight
+- **Photo mode** — a "📸" button that hides the UI, freezes the orbit camera on your avatar and
+  saves a PNG (canvas.toDataURL) with a watermark + current theme. Shareable link optional.
+- **Emote wheel** — 8 quick emotes (wave, dance, cheer, sit, point, laugh, cry, heart) triggered
+  by a radial menu; plays the anim for 2 s then returns to idle.
+- **Achievement badges** — "First order", "10 Rep", "Found a cache", "Rode every slide", "Met 5 visitors".
+  Stored on the account (`/api/account/badges`), shown in the profile panel and above the avatar.
+- **Daily login streak** — +1 Rep/day for opening the site; streak counter in the account panel.
+- **Pet companions** — a small dog/cat that follows your avatar (1 extra draw call, People-style body).
+- **Weather** — rain/snow/fog overlays driven by a `sceneWeather` setting; theme particles already exist.
+- **Night mode toggle** — force the dark-fog holiday look on demand (admin or visitor).
+
+### Medium effort
+- **Leaderboards** — Rep top-10 (server, daily + all-time) and per-game high scores (already on the
+  HIGH SCORES board; make it global across visitors).
+- **Custom avatar poses** — pick a pose from the emote wheel and hold it; others see it via presence.
+- **Group photo** — invite nearby avatars to a "say cheese" pose; saves a shared screenshot.
+- **Replay / ghost** — record your walk path for 30 s and replay it as a ghost avatar for friends.
+- **Vehicle customization** — paint the truck / lowrider (admin-only first, then per-visitor).
+- **Seasonal events** — auto-swap themes + spawn limited-time vendors/quests on holidays (already
+  partially: themes by date).
+- **Voice reactions** — short WebAudio stings on hug/splash/trash (T10 in AGENTS.md).
+- **Mini-game tournaments** — scheduled 5-min rounds with a live scoreboard on the HIGH SCORES board.
+
+### Larger bets
+- **Mobile AR** — view the truck in AR via WebXR (model-viewer style); reuses the GLB pipeline.
+- **Party mode** — create a private room code; only friends with the code see each other's avatars.
+- **Live events** — owner broadcasts a "flash sale" or "flash dance" from admin; everyone sees it.
+- **User-generated quests** — visitors submit pun quests; admin approves; reward Rep.
+- **Accessibility pass** — keyboard-only navigation, screen-reader labels, reduced-motion mode
+  (respect `prefers-reduced-motion`), high-contrast theme.
+- **Offline PWA** — service worker caches the shell + menu so the lite page works offline.
+- **Analytics dashboard** — admin tab showing orders/hour, popular items, visitor counts, Rep gained.
