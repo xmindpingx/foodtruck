@@ -1,6 +1,7 @@
 // truck.js — builds the 1990 GMC step-van (textures painted from the real photos), kitchen,
 // worker, props and the clickable 3D menu board. Pure geometry; no DOM, no camera.
 import * as THREE from 'three';
+import * as People from './people.js?v=4';   // the cook uses the same realistic bodies as the crowd
 
 // ---------- dimensions (m) : 1990 GMC step van ----------
 export const BL=5.4, BW=2.3, BH=2.25, FLOOR=0.75;           // box
@@ -414,25 +415,39 @@ export async function buildTruck(S,{img,done,MENU,money}){
   const skin=new THREE.MeshStandardMaterial({color:0xb07a54,roughness:.7});
   const shirt=new THREE.MeshStandardMaterial({map:shirtT,roughness:.85});
   const blue=new THREE.MeshStandardMaterial({color:0x1f4fd6,roughness:.7});
+  // ---- the cook: a people.js body (painted face, articulated arms, bent elbows) in a branded cap and
+  // tiled apron. He stands on the box floor with his head framed in the service window and his hands
+  // resting on the counter edge, replacing the old cylinder-and-sphere bust.
   const W=new THREE.Group();
-  const torso=new THREE.Mesh(new THREE.CylinderGeometry(.24,.21,.62,24,1,false),shirt);torso.position.y=.31;torso.rotation.y=Math.PI/2+Math.PI;W.add(torso);
-  const head=new THREE.Mesh(new THREE.SphereGeometry(.13,24,16),skin);head.position.y=.78;head.scale.y=1.12;W.add(head);
-  const neck=new THREE.Mesh(new THREE.CylinderGeometry(.06,.07,.1,12),skin);neck.position.y=.66;W.add(neck);
-  // cap: blue w/ logo badge
-  const cap=new THREE.Mesh(new THREE.SphereGeometry(.14,24,12,0,Math.PI*2,0,Math.PI/2),blue);cap.position.y=.82;W.add(cap);
-  const brim=new THREE.Mesh(new THREE.CylinderGeometry(.12,.12,.015,24,1,false,0,Math.PI),blue);brim.position.set(0,.82,.08);brim.rotation.y=-Math.PI/2;brim.scale.set(1,1,1.1);W.add(brim);
+  const cook=People.buildAvatar(28,{},0,{skin:0xb07a54,shirt:0xf4f1ea,pants:0x2b2f3a,sleeve:'short',
+    vest:0,dress:false,hat:null,goggles:false,beard:false,hair:'short',hairC:0x3a2a1c,expr:'smile',eye:1,scale:1});
+  const cookBody=cook.children[0];
+  W.add(cook);
+  // the head is one merged mesh with its vertices up at y~1.6, so give it a neck pivot to turn about
+  const head=cook.userData.head, NECK=1.52;
+  const headPivot=new THREE.Group();headPivot.position.y=NECK;
+  cookBody.remove(head);head.position.y=-NECK;headPivot.add(head);cookBody.add(headPivot);
+  W.userData.headPivot=headPivot;W.userData.arms=cook.userData.arms;
+  // hands resting on the counter edge: shoulders forward, elbows bent
+  const [armL,armR]=cook.userData.arms;
+  for(const a of [armL,armR]){a.rotation.x=-.95;a.userData.sub.rotation.x=-1.0;}
+  armL.rotation.z=.16;armR.rotation.z=-.16;
+  // apron (pink/navy tile), bib and skirt
+  const apronM=new THREE.MeshStandardMaterial({map:Object.assign(new THREE.CanvasTexture(tiles),{colorSpace:THREE.SRGBColorSpace}),roughness:.9,side:THREE.DoubleSide});
+  const apron=new THREE.Mesh(new THREE.PlaneGeometry(.34,.44),apronM);apron.position.set(0,1.10,.178);cookBody.add(apron);
+  const bib=new THREE.Mesh(new THREE.PlaneGeometry(.19,.22),apronM);bib.position.set(0,1.42,.168);cookBody.add(bib);
+  // cap: blue w/ logo badge, riding the head so it turns with it
+  const cap=new THREE.Mesh(new THREE.SphereGeometry(.113,24,12,0,Math.PI*2,0,Math.PI/2),blue);
+  cap.position.y=1.615-NECK;headPivot.add(cap);
+  const brim=new THREE.Mesh(new THREE.CylinderGeometry(.105,.105,.015,24,1,false,0,Math.PI),blue);
+  brim.position.set(0,1.612-NECK,.075);brim.rotation.y=-Math.PI/2;brim.scale.set(1,1,1.15);headPivot.add(brim);
   const badgeC=document.createElement('canvas');badgeC.width=256;badgeC.height=80;const bb=badgeC.getContext('2d');bb.drawImage(logo,0,0,256,80);
-  const badge=new THREE.Mesh(new THREE.PlaneGeometry(.17,.053),new THREE.MeshBasicMaterial({map:Object.assign(new THREE.CanvasTexture(badgeC),{colorSpace:THREE.SRGBColorSpace}),transparent:false}));
-  badge.position.set(0,.9,.12);badge.rotation.x=-.4;W.add(badge);
-  // arms (resting on counter)
-  for(const sx of [-1,1]){const up=new THREE.Mesh(new THREE.CapsuleGeometry(.06,.26,6,12),blue);up.position.set(sx*.28,.42,.06);up.rotation.x=.6;up.rotation.z=sx*.12;W.add(up);
-    const fa=new THREE.Mesh(new THREE.CapsuleGeometry(.05,.24,6,12),skin);fa.position.set(sx*.26,.24,.27);fa.rotation.x=1.4;W.add(fa);}
-  // apron (pink/navy tile)
-  const apron=new THREE.Mesh(new THREE.PlaneGeometry(.36,.3),new THREE.MeshStandardMaterial({map:Object.assign(new THREE.CanvasTexture(tiles),{colorSpace:THREE.SRGBColorSpace}),roughness:.9}));
-  apron.position.set(0,.02,.215);W.add(apron);
+  const badge=new THREE.Mesh(new THREE.PlaneGeometry(.15,.047),new THREE.MeshBasicMaterial({map:Object.assign(new THREE.CanvasTexture(badgeC),{colorSpace:THREE.SRGBColorSpace}),transparent:false}));
+  badge.position.set(0,1.676-NECK,.098);badge.rotation.x=-.35;headPivot.add(badge);
   // worker stands in the aisle just in front of the counter run (the kitchen line rides the
   // serving-side wall now), facing the -z window with hands resting at the counter edge
-  W.position.set((WX0+WX1)/2+.35,WY0-.12,-BW/2+.95);W.rotation.y=Math.PI;W.traverse(o=>{o.castShadow=true;});truck.add(W);
+  // dropped below the box floor so his head is framed in the window and clears the overhead shelf
+  W.position.set((WX0+WX1)/2+.35,0.62,-BW/2+.95);W.rotation.y=Math.PI;W.traverse(o=>{o.castShadow=true;});truck.add(W);
 
   // ---- environmental props ----
   // propane tank behind truck

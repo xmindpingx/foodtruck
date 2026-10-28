@@ -17,6 +17,7 @@ Restart needed after pulling: `pm2 restart foodtruck-site`.
 | Rep | `js/rep.js`, `server.py` (`/api/rep`, `/api/gift-npc`, `/api/npc-friend-gift`) | levels 0-5; more Rep = more crowd greetings |
 | Clutter | `js/stuff.js` | trash / lost items / decor, near+mid LOD, local persistence 30 min |
 | Vendors + quests | `js/quests.js` | 6 pun vendors (with food-photo sandwich boards), flash sales, flash dances, ~37 pun quests |
+| Truck cook | `js/truck.js` (`buildTruck`) | people.js body with painted face, articulated arms on the counter, neck-pivot head turn, branded cap and tiled apron; replaced the cylinder-and-sphere bust |
 | '64 lowrider | `js/scene.js` (`buildLowriderImpala`) | extruded side-profile body + painted cabin with inset glass, clear-coat candy paint, ComfyUI wire-wheel/tyre/grille/upholstery/metalflake maps; hydraulics, ON-SWITCHES and tap-to-hop unchanged |
 | Photo textures | `tools/gfx_gen.py`, `gfx/`, `js/gfx.js` | 14 ComfyUI renders (grass, wood, canvas, stone, sand, water, LED wall, sign board, 6 vendor dishes) → tileable JPEG + phone size + normal maps; admin `sceneTextures`; contact-shadow blobs in scene.js |
 | Water park | `js/waterpark.js` | wave pool, lazy river, bumper boats, slides, cannons; per-section culling; admin switch -> "closed for repairs" |
@@ -48,15 +49,21 @@ Smoke now also checks: one `?v=` per module, gfx assets + private raw dir, accou
    **Remaining:** TRELLIS bakes the reference photo's highlights into the mesh colour, so the paint/tyre/chrome/
    glass split that `tools/model_gen.py pack` derives is speckled, and `sceneGenCar` defaults to off. Fix by
    regenerating from a flat-lit reference (`python3 tools/model_gen.py refs f`, then `model impala-f1.png`) and
-   re-packing. Hunyuan3D-2 (`hunyuan3d-dit-v2_fp16.safetensors`, fp16, no int8 needed) is downloaded to
-   `~/ai-stacks/shareddata/comfyui/models/checkpoints/` as an alternative generator but is **not yet test-run**.
+   re-packing. **That regeneration is blocked:** three attempts on the flat-lit reference crashed the ComfyUI
+   backend outright (Python faulthandler dump inside the KSampler, ~20 GB peak, no kernel OOM — a GPU/driver
+   fault, not RAM). The same pipeline on `impala-a0.png` completed fine, so the int8 fallback works but is not
+   reliable under sustained load on this ROCm build; shrinking its row block (8192 -> 2048) did not help.
+   Hunyuan3D-2 (`hunyuan3d-dit-v2_fp16.safetensors`, fp16, no int8 path at all) is downloaded to
+   `~/ai-stacks/shareddata/comfyui/models/checkpoints/` and is the better next thing to try — it sidesteps the
+   fallback entirely — but it is **not yet test-run**.
 
 1. **No real-device performance data.** Budgets (crowd range, section radii, pixel ratio, 2048 shadow map) are estimates. Needs Safari Web Inspector on an iPhone 12; watch draw calls (life + stuff + park + vendors) and memory.
 2. The crowd uses 31-mesh `buildPerformer` bodies again (commit 779f65b, deliberate): ~2.7k meshes / ~830k triangles when all are in range — the biggest phone cost; `People.crowdPerson()` is 2 meshes. Static props (tables, booths) are hundreds of unmerged meshes that all cast into the sun shadow map. Lite mode still does not lower pixel ratio / antialiasing / lights on phones; `eol-lite=0` (3D page) on an iPhone 12 is the heavy path.
 3. Hidden/background browser panes throttle `requestAnimationFrame`; the sim was verified by manually ticking `__EOL_LIFE.tick`, not by watching real time.
 4. Actors avoid the truck (full circumradius, no more corner clipping), picnic tables, arcade props, vendor booths, the jukebox, the Impala lowrider, the main stage and the water park (its real bounds, not a stray circle at the origin). Seats still ignore the player's own avatar; slide/pool interiors remain walkable.
 5. Sit/eat/play/hug are approximate joint poses; heads do not turn (head mesh has no pivot); kids' bodies clip slightly when seated.
-6. Band performers, seated eaters, the truck worker and the 200 instanced audience still use the old low-realism bodies.
+6. Band performers, seated eaters and the 200 instanced audience still use the old low-realism bodies. (The truck
+   cook is now a people.js body with a neck pivot, branded cap and apron.)
 7. Live avatars: `makeBody` uses the shared rig but each avatar gets own materials (~15 meshes). 14 avatars + 27 actors + park bathers can be heavy together; no global cap yet.
 8. Admin: media/logo upload re-renders settings and drops unsaved edits; "Save environment" posts every Settings field too (an invalid hidden field aborts it). Bling "worn" list is cosmetic and **not ownership-checked** by the server (anyone can claim to wear any catalog id via the presence profile).
 9. Rep for guests is local only (`eol-rep`); easy to edit, resets with the browser.

@@ -68,6 +68,9 @@ js/shop.js       DOM only: fetch /api/settings + /api/menu, render menu, cart (w
 js/account.js    Arcade accounts (phone number = account). Pill + profile panel (points, Rep, collection,
                  "Wear on your avatar" bling buttons, redeem shop). Account.lang(), Account.phone, refresh().
 js/truck.js      three.js truck geometry only. Exports BL BW BH FLOOR WX0 WX1 WY0 WY1 bx0, buildTruck().
+                 The cook is a people.js avatar: his head is re-parented to a neck pivot (the merged head mesh
+                 has its vertices at y~1.6, so rotating the mesh itself would swing it in an arc). scene.js's
+                 loop drives userData.headPivot / userData.arms.
 js/scene.js      ~1450 lines, entry point. Renderer, camera, lite detection (detectLite), crowd + booths,
                  stage/band, picnic tables + seated eaters, walking avatar (arrow keys / thumb pad), click
                  raycasts, layout mode, and the animation loop (R.setAnimationLoop near the bottom) that ticks

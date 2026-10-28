@@ -1,5 +1,5 @@
 """int8_fallback_gfx1030 (reference copy; the live one is installed at
-ComfyUI/custom_nodes/int8_fallback_gfx1030/__init__.py — edit that one, this is here so the fix is in git) — make ComfyUI's int8 models run on GPUs hipBLASLt doesn't support.
+ComfyUI/custom_nodes/int8_fallback_gfx1030/__init__.py - edit that one, this copy keeps the fix in git) - make ComfyUI's int8 models run on GPUs hipBLASLt doesn't support.
 
 Why this exists
 ---------------
@@ -35,7 +35,7 @@ NODE_CLASS_MAPPINGS = {}
 NODE_DISPLAY_NAME_MAPPINGS = {}
 
 _K_CHUNK = 1024          # |partial sum| <= 127*127*1024 < 2**24, so fp32 holds it exactly
-_M_BLOCK = 8192          # cap the fp32 temporaries for very tall activation matrices
+_M_BLOCK = 2048          # cap the fp32 temporaries (the MxN fp32 product dominates; 8192 rows crashed ROCm)
 _log = logging.getLogger(__name__)
 
 

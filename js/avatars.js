@@ -8,7 +8,7 @@
 // NOTE: visitor chat here is live and NOT moderated in real time. The admin "Live chat" tab
 // is an after-the-fact audit log, and Settings has an on/off switch if it's ever misused.
 import * as THREE from 'three';
-import {WX0, WX1, BW, FLOOR} from './truck.js?v=6';
+import {WX0, WX1, BW, FLOOR} from './truck.js?v=11';
 import {CONFIG} from './shop.js?v=8';
 import * as Account from './account.js?v=8';   // language picked at sign-up drives chips + docks
 import * as People from './people.js?v=4';     // realistic shared-geometry bodies (painted faces, swinging limbs)

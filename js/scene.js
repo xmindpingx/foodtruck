@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {CONFIG,MENU,money,open,hooks} from './shop.js?v=8';
-import {buildTruck,WX0,WX1,WY0,WY1,BW,BL,BH,bx0,FLOOR,CL} from './truck.js?v=6';
+import {buildTruck,WX0,WX1,WY0,WY1,BW,BL,BH,bx0,FLOOR,CL} from './truck.js?v=11';
 import * as Avatars from './avatars.js?v=15';
 import * as People from './people.js?v=4';
 import * as Themes from './themes.js?v=2';   // steampunk by default, a theme per big holiday around its date
@@ -1468,7 +1468,10 @@ R.setAnimationLoop(()=>{const dt=Math.min(clock.getDelta(),0.1),t=clock.elapsedT
     for(const a of life.actors){if(n>=64)break;if(a.near&&outsideSun(a.x,a.z))blobAt(ACTOR_BLOBS,n++,a.x,a.z,.85*((a.g&&a.g.scale)||1));}
     ACTOR_BLOBS.count=n;ACTOR_BLOBS.instanceMatrix.needsUpdate=true;}if(stuff)stuff.tick(t,dt);if(quests)quests.tick(t,dt);
   if(fly){const k=Math.min(1,(performance.now()-fly.s)/fly.ms),e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;cam.position.lerpVectors(fly.p0,fly.p,e);ctl.target.lerpVectors(fly.t0,fly.t,e);if(k>=1)fly=null;}
-  {const w=T.worker;w.children[1].rotation.y=Math.sin(t*.7)*.25;w.position.y=WY0-.12+Math.sin(t*1.6)*.006;}
+  {const w=T.worker;const u=w.userData;   // the cook: head turns on its neck pivot, arms work the counter
+   if(u.headPivot)u.headPivot.rotation.y=Math.sin(t*.7)*.25;
+   if(u.arms){const sw=Math.sin(t*1.9)*.07;u.arms[0].rotation.x=-.95+sw;u.arms[1].rotation.x=-.95-sw;}
+   w.position.y=0.62+Math.sin(t*1.6)*.006;}
   for(const e of eaters){e.userData.head.rotation.x=Math.sin(t*1.2+e.userData.ph)*.07;e.position.y=e.userData.by+Math.sin(t*.9+e.userData.ph)*.004;}
   if(!LITE_MODE) for(const l of ALL_LASERS){const sweep=Math.sin(t*l.speed+l.phase)*l.amp;if(l.axis==='x')l.mesh.rotation.x=sweep;else l.mesh.rotation.z=sweep;}
   if(!LITE_MODE) for(const perf of ALL_PERFORMERS){
