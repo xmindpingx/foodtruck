@@ -1,7 +1,7 @@
 // truck.js — builds the 1990 GMC step-van (textures painted from the real photos), kitchen,
 // worker, props and the clickable 3D menu board. Pure geometry; no DOM, no camera.
 import * as THREE from 'three';
-import * as People from './people.js?v=6';   // the cook uses the same realistic bodies as the crowd
+import * as People from './people.js?v=8';   // the cook uses the same realistic bodies as the crowd
 
 // ---------- dimensions (m) : 1990 GMC step van ----------
 export const BL=5.4, BW=2.3, BH=2.25, FLOOR=0.75;           // box

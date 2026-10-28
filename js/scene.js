@@ -4,8 +4,9 @@ import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {CONFIG,MENU,money,open,hooks} from './shop.js?v=8';
 import {buildTruck,WX0,WX1,WY0,WY1,BW,BL,BH,bx0,FLOOR,CL} from './truck.js?v=12';
-import * as Avatars from './avatars.js?v=15';
-import * as People from './people.js?v=6';
+import * as Avatars from './avatars.js?v=16';
+import * as People from './people.js?v=8';
+const mergeStatic=People.mergeStatic;   // one mesh per material for static props (see people.js)
 import * as Themes from './themes.js?v=2';   // steampunk by default, a theme per big holiday around its date
 import * as FX from './themefx.js?v=5';       // re-skins everything but the truck + gears/lamps/airships or lights/bunting/confetti
 import * as Life from './life.js?v=26';        // ambient crowd life: eat, queue, play, wander, greet the player
@@ -408,37 +409,6 @@ function bandMember(skinHex, shirtHex, pantsHex, role) {
 
 // stylized low-poly picnic tables + seated eaters in the same hand-built style as truck.js
 // (boxes & primitives, not photoreal) - scene decoration, not a factual record of who's there.
-// Collapse a static prop into one mesh per material. Every plain mesh under `group` (not instanced, not a
-// sprite, not multi-material, not one `skip(o)` keeps) has its transform baked relative to the group and is
-// appended to the bucket for its material; plain untagged materials that are visually identical share a
-// bucket. Materials are reused as they are, so gfx.js tags, gfxSign repaints and themefx recolours all still
-// apply - only the draw-call count changes. Measured: a picnic table went 22 meshes -> 7, the lowrider
-// shell 120 -> ~20. Only call it on things that never animate a sub-part (pass those parts to `skip`).
-function mergeStatic(group,skip){
-  group.updateMatrixWorld(true);
-  const inv=new THREE.Matrix4().copy(group.matrixWorld).invert(),buckets=new Map(),_n=new THREE.Matrix3(),_v=new THREE.Vector3();
-  const keyOf=m=>{const u=m.userData||{};if(u.gfx||m.map||m.emissiveMap||m.normalMap||m.alphaMap||m.vertexColors)return m;   // textured / tagged: identity
-    return [m.type,m.color?m.color.getHex():0,m.roughness,m.metalness,m.side,m.transparent?m.opacity:1,m.emissive?m.emissive.getHex():0,m.emissiveIntensity||0].join('|');};
-  group.traverse(o=>{if(!o.isMesh||o.isInstancedMesh||o.isSprite||Array.isArray(o.material)||(skip&&skip(o)))return;
-    const g=o.geometry;if(!g.attributes.position||!g.attributes.normal||!g.attributes.uv)return;
-    const k=keyOf(o.material);(buckets.get(k)||buckets.set(k,{mat:o.material,list:[]}).get(k)).list.push({o,m:new THREE.Matrix4().multiplyMatrices(inv,o.matrixWorld)});});
-  for(const {mat,list} of buckets.values()){
-    if(list.length<2)continue;
-    let nv=0,ni=0;for(const {o} of list){const g=o.geometry;nv+=g.attributes.position.count;ni+=g.index?g.index.count:g.attributes.position.count;}
-    const pos=new Float32Array(nv*3),nor=new Float32Array(nv*3),uv=new Float32Array(nv*2),idx=nv>65535?new Uint32Array(ni):new Uint16Array(ni);
-    let vo=0,io=0,cast=false,recv=false;
-    for(const {o,m} of list){const g=o.geometry,gp=g.attributes.position,gn=g.attributes.normal,gu=g.attributes.uv;_n.getNormalMatrix(m);
-      for(let i=0;i<gp.count;i++){_v.fromBufferAttribute(gp,i).applyMatrix4(m);pos[(vo+i)*3]=_v.x;pos[(vo+i)*3+1]=_v.y;pos[(vo+i)*3+2]=_v.z;
-        _v.fromBufferAttribute(gn,i).applyMatrix3(_n).normalize();nor[(vo+i)*3]=_v.x;nor[(vo+i)*3+1]=_v.y;nor[(vo+i)*3+2]=_v.z;
-        uv[(vo+i)*2]=gu.getX(i);uv[(vo+i)*2+1]=gu.getY(i);}
-      if(g.index)for(let i=0;i<g.index.count;i++)idx[io+i]=g.index.getX(i)+vo;else for(let i=0;i<gp.count;i++)idx[io+i]=i+vo;
-      vo+=gp.count;io+=g.index?g.index.count:gp.count;cast=cast||o.castShadow;recv=recv||o.receiveShadow;o.parent.remove(o);}
-    const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(pos,3));geo.setAttribute('normal',new THREE.BufferAttribute(nor,3));
-    geo.setAttribute('uv',new THREE.BufferAttribute(uv,2));geo.setIndex(new THREE.BufferAttribute(idx,1));geo.computeBoundingSphere();
-    const mesh=new THREE.Mesh(geo,mat);mesh.castShadow=cast;mesh.receiveShadow=recv;mesh.userData.merged=list.length;group.add(mesh);
-  }
-  return group;
-}
 function buildTable(canopyHex){
   const g=new THREE.Group();
   const wood=new THREE.MeshStandardMaterial({color:0x9a6b3f,roughness:.85});
@@ -942,6 +912,7 @@ function blobSet(max){const m=new THREE.InstancedMesh(new THREE.PlaneGeometry(1,
 const CROWD_BLOBS=blobSet(600),ACTOR_BLOBS=blobSet(64),_bm=new THREE.Matrix4(),_bq=new THREE.Quaternion(),_bp=new THREE.Vector3(),_bs=new THREE.Vector3();
 const blobAt=(mesh,i,x,z,sz)=>mesh.setMatrixAt(i,_bm.compose(_bp.set(x,.045,z),_bq,_bs.set(sz,1,sz)));
 window.__EOL_CROWD={range:CROWD_RANGE,list:CULLED,blobs:CROWD_BLOBS,actorBlobs:ACTOR_BLOBS};   // console check: __EOL_CROWD.list.filter(e=>e.obj.visible).length
+window.__EOL_R=R;window.__EOL_CAM=cam;   // console check: __EOL_R.info.render.calls / .triangles (the real per-frame draw-call count)
 function cullable(obj){
   obj.updateWorldMatrix(true,false);
   const p=new THREE.Vector3();obj.getWorldPosition(p);

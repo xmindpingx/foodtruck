@@ -67,6 +67,40 @@ export function mergeParts(parts, mode) {   // mode: 'color' | 'uv'
   return g;
 }
 
+// Collapse a static prop into one mesh per material. Every plain mesh under `group` (not instanced, not a
+// sprite, not multi-material, not one `skip(o)` keeps) has its transform baked relative to the group and is
+// appended to the bucket for its material; plain untagged materials that are visually identical share a
+// bucket. Materials are reused as they are, so gfx.js tags, gfxSign repaints and themefx recolours all still
+// apply - only the draw-call count changes. Measured: a picnic table went 22 meshes -> 7, the lowrider
+// shell 120 -> ~20. Only call it on things that never animate a sub-part (pass those parts to `skip`).
+export function mergeStatic(group, skip) {
+  group.updateMatrixWorld(true);
+  const inv=new THREE.Matrix4().copy(group.matrixWorld).invert(),buckets=new Map(),_n=new THREE.Matrix3(),_v=new THREE.Vector3();
+  const keyOf=m=>{const u=m.userData||{};if(u.gfx||m.map||m.emissiveMap||m.normalMap||m.alphaMap||m.vertexColors)return m;   // textured / tagged: identity
+    return [m.type,m.color?m.color.getHex():0,m.roughness,m.metalness,m.side,m.transparent?m.opacity:1,m.emissive?m.emissive.getHex():0,m.emissiveIntensity||0].join('|');};
+  group.traverse(o=>{if(!o.isMesh||o.isInstancedMesh||o.isSprite||Array.isArray(o.material)||(skip&&skip(o)))return;
+    const g=o.geometry;if(!g.attributes.position||!g.attributes.normal||!g.attributes.uv)return;
+    const k=keyOf(o.material);(buckets.get(k)||buckets.set(k,{mat:o.material,list:[]}).get(k)).list.push({o,m:new THREE.Matrix4().multiplyMatrices(inv,o.matrixWorld)});});
+  for(const {mat,list} of buckets.values()){
+    if(list.length<2)continue;
+    let nv=0,ni=0;for(const {o} of list){const g=o.geometry;nv+=g.attributes.position.count;ni+=g.index?g.index.count:g.attributes.position.count;}
+    const pos=new Float32Array(nv*3),nor=new Float32Array(nv*3),uv=new Float32Array(nv*2),idx=nv>65535?new Uint32Array(ni):new Uint16Array(ni);
+    let vo=0,io=0,cast=false,recv=false;
+    for(const {o,m} of list){const g=o.geometry,gp=g.attributes.position,gn=g.attributes.normal,gu=g.attributes.uv;_n.getNormalMatrix(m);
+      for(let i=0;i<gp.count;i++){_v.fromBufferAttribute(gp,i).applyMatrix4(m);pos[(vo+i)*3]=_v.x;pos[(vo+i)*3+1]=_v.y;pos[(vo+i)*3+2]=_v.z;
+        _v.fromBufferAttribute(gn,i).applyMatrix3(_n).normalize();nor[(vo+i)*3]=_v.x;nor[(vo+i)*3+1]=_v.y;nor[(vo+i)*3+2]=_v.z;
+        uv[(vo+i)*2]=gu.getX(i);uv[(vo+i)*2+1]=gu.getY(i);}
+      if(g.index)for(let i=0;i<g.index.count;i++)idx[io+i]=g.index.getX(i)+vo;else for(let i=0;i<gp.count;i++)idx[io+i]=i+vo;
+      vo+=gp.count;io+=g.index?g.index.count:gp.count;cast=cast||o.castShadow;recv=recv||o.receiveShadow;o.parent.remove(o);}
+    const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(pos,3));geo.setAttribute('normal',new THREE.BufferAttribute(nor,3));
+    geo.setAttribute('uv',new THREE.BufferAttribute(uv,2));geo.setIndex(new THREE.BufferAttribute(idx,1));geo.computeBoundingSphere();
+    const mesh=new THREE.Mesh(geo,mat);mesh.castShadow=cast;mesh.receiveShadow=recv;mesh.userData.merged=list.length;
+    const tags=new Set(list.map(x=>x.o.userData.custom));if(tags.size===1&&list[0].o.userData.custom)mesh.userData.custom=list[0].o.userData.custom;   // avatars.js recolours 'cap' meshes by this tag
+    group.add(mesh);
+  }
+  return group;
+}
+
 // ---------- materials ----------
 const MC = new Map();
 export function mat(col, rough = .8, metal = 0) {
@@ -276,13 +310,15 @@ export function buildAvatar(hue, prof = {}, foot = 0, over = null) {
   const R = rig(L), root = new THREE.Group(), body = new THREE.Group();
   body.position.y = foot; body.scale.setScalar(L.scale); root.add(body);   // feet stay put: scaling is about the body origin
   const own = {shirt: new THREE.MeshStandardMaterial({color: L.shirt, roughness: .78}), skin: new THREE.MeshStandardMaterial({color: L.skin, roughness: .62})};   // L.shirt, not shirtC: an `over` shirt colour must win
-  const build = (parts, parent) => {   // merge parts sharing a material key into one mesh each
+  const build = (parts, parent) => {   // one mesh per bucket: the live-recolourable tags (shirt, skin) each get
+    // their own material; brass keeps its shine; EVERYTHING else (belt, vest, hair, hat, goggles, pants, shoe...)
+    // shares one vertex-coloured mesh per call, like crowdPerson. Draw calls per avatar: ~16 -> ~12.
     const buckets = new Map();
-    for (const p of parts) { if (p.face) continue; const k = p.tag || ('c' + p.col) + (p.uv ? 'u' : ''); (buckets.get(k) || buckets.set(k, []).get(k)).push(p); }
+    for (const p of parts) { if (p.face) continue; const k = p.tag || (p.uv ? 'u' + p.col : p.col === BRASS ? 'brass' : 'v'); (buckets.get(k) || buckets.set(k, []).get(k)).push(p); }
     for (const [k, ps] of buckets) {
       const tag = ps[0].tag;
-      const m = new THREE.Mesh(mergeParts(ps.map(p => ({g: p.g, m: p.m, uv: p.uv})), ps[0].uv ? 'uv' : 'color'), tag ? own[tag] : (ps[0].uv ? faceMat(L.skin, L.expr, L.eye) : mat(ps[0].col, .8)));
-      if (!tag && !ps[0].uv && ps[0].col != null) m.material = mat(ps[0].col, ps[0].col === BRASS ? .35 : .8, ps[0].col === BRASS ? .8 : 0);
+      const m = new THREE.Mesh(mergeParts(ps.map(p => ({g: p.g, m: p.m, uv: p.uv, col: p.col})), ps[0].uv ? 'uv' : 'color'),
+        tag ? own[tag] : ps[0].uv ? faceMat(L.skin, L.expr, L.eye) : k === 'brass' ? mat(BRASS, .35, .8) : VCOL);
       if (tag) m.userData.custom = tag;
       m.castShadow = tag === 'shirt'; parent.add(m);
     }
@@ -296,7 +332,7 @@ export function buildAvatar(hue, prof = {}, foot = 0, over = null) {
   const NECK = 1.52;
   const headPivot = new THREE.Group(); headPivot.position.y = NECK; if (L.kid) headPivot.scale.setScalar(1.32);
   const headRig = new THREE.Group(); headRig.position.y = -NECK; headPivot.add(headRig); body.add(headPivot);
-  build(R.hair, headRig); build(R.hat, headRig);
+  build([...R.hair, ...R.hat], headRig);   // hair + hat + goggles: one vertex-coloured mesh (+1 brass if any)
   const head = new THREE.Mesh(mergeParts(R.head.map(p => ({g: p.g, m: p.m, uv: p.uv})), 'uv'), faceMat(L.skin, L.expr, L.eye));
   head.userData.custom = 'skin'; head.userData.skinFace = L.expr + '|' + L.eye; head.castShadow = true; headRig.add(head);
   const arms = [], legs = [], hands = [], feet = [];
@@ -322,7 +358,7 @@ export function buildAvatar(hue, prof = {}, foot = 0, over = null) {
     back: sock(body, 0, 1.24, -.16),       // upper back: backpacks, guitars
     hip: sock(body, 0, .97, .1),           // waist: belts, fanny packs
   };
-  root.userData.headPivot = headPivot; root.userData.hands = hands; root.userData.feet = feet;
+  root.userData.headPivot = headPivot; root.userData.headRig = headRig; root.userData.hands = hands; root.userData.feet = feet;
   root.userData.arms = arms; root.userData.legs = legs; root.userData.head = head; root.userData.steamSkip = true;
   root.userData.look = L; root.userData.foot = foot; root.userData.scale = L.scale;
   return root;

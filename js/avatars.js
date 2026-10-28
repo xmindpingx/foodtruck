@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import {WX0, WX1, BW, FLOOR} from './truck.js?v=12';
 import {CONFIG} from './shop.js?v=8';
 import * as Account from './account.js?v=8';   // language picked at sign-up drives chips + docks
-import * as People from './people.js?v=6';     // realistic shared-geometry bodies (painted faces, swinging limbs)
+import * as People from './people.js?v=8';     // realistic shared-geometry bodies (painted faces, swinging limbs)
 
 const ID_KEY = 'eol-visitor-id', NAME_KEY = 'eol-visitor-name', PROFILE_KEY = 'eol-visitor-profile';
 const CAP_STYLES = ['', 'ball', 'cowboy', 'beret', 'cone', 'marge', 'bart', 'lisa', 'homer', 'duff', 'krusty', 'moes', 'flanders'];
@@ -444,7 +444,7 @@ export function makeBody(hue, prof = {}) {
   const root = People.buildAvatar(hue, {...prof, skinHex: SKIN_TONES[skIdx], face: prof.face === 'neutral' ? '' : prof.face}, -FLOOR);   // feet on the lawn
   const body = root.children[0];
   const cap = new THREE.MeshStandardMaterial({color: new THREE.Color().setHSL((prof.hue ?? hue) / 360, .6, .3), roughness: .7});
-  const g = new THREE.Group(); g.scale.setScalar(ACC_S); g.position.y = 1.6 - .92 * ACC_S; body.add(g);   // g = cartoon accessories
+  const g = new THREE.Group(); g.scale.setScalar(ACC_S); g.position.y = 1.6 - .92 * ACC_S; root.userData.headRig.add(g);   // g = cartoon accessories, on the neck pivot so they turn with the head (same body-space metres)
   const style = prof.cap || '';
   const hatY = 1.12;
   if (style === 'ball') {
@@ -521,6 +521,7 @@ export function makeBody(hue, prof = {}) {
     const hat = new THREE.Mesh(new THREE.ConeGeometry(.12, .1, 12), new THREE.MeshStandardMaterial({color: 0x2a6b35}));
     hat.position.y = hatY + .05; hat.userData.custom = 'cap'; g.add(hat);
   }
+  People.mergeStatic(g);   // a 'bart' is 7 cones, a 'lisa' 9: one mesh per material, the 'cap' recolour tag survives the merge
   // 🌱 render any sprouts clipped to this avatar (gifted by other visitors)
   const sprouts = (prof && Array.isArray(prof.sprouts)) ? prof.sprouts : [];
   for (const sp of sprouts) {
