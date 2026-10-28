@@ -259,14 +259,29 @@ export function init(o) {
         const t1 = (-bb - Math.sqrt(disc)) / (2 * aa);
         const t2 = (-bb + Math.sqrt(disc)) / (2 * aa);
         if ((t1 >= 0 && t1 <= 1) || (t2 >= 0 && t2 <= 1)) {
-          // route around the side with shorter path
-          const mid = (Math.max(0, Math.min(1, t1 >= 0 ? t1 : t2)));
+          const mid = Math.max(0, Math.min(1, t1 >= 0 ? t1 : t2));
           const px = s.x + dx * mid, pz = s.z + dz * mid;
           const ang = Math.atan2(pz - oz, px - ox);
-          const wx = ox + Math.cos(ang + Math.PI / 2) * (r + 0.5);
-          const wz = oz + Math.sin(ang + Math.PI / 2) * (r + 0.5);
-          const w = rig.localToWorld(V.set(wx, 0, wz));
-          return [w.x, w.z];
+          // try both sides, pick the one with shorter total path to target
+          let bestWp = null, bestD = Infinity;
+          for (const sign of [1, -1]) {
+            const wx = ox + Math.cos(ang + sign * Math.PI / 2) * (r + 0.5);
+            const wz = oz + Math.sin(ang + sign * Math.PI / 2) * (r + 0.5);
+            // check if waypoint itself is inside another obstacle
+            let blocked = false;
+            for (const o2 of obs) {
+              if (o2 === o) continue;
+              const ow2 = rig.worldToLocal(V3.set(o2.x, 0, o2.z));
+              if (Math.hypot(wx - ow2.x, wz - ow2.z) < o2.r + 0.3) { blocked = true; break; }
+            }
+            if (blocked) continue;
+            const d = Math.hypot(wx - s.x, wz - s.z) + Math.hypot(e.x - wx, e.z - wz);
+            if (d < bestD) { bestD = d; bestWp = {wx, wz}; }
+          }
+          if (bestWp) {
+            const w = rig.localToWorld(V.set(bestWp.wx, 0, bestWp.wz));
+            return [w.x, w.z];
+          }
         }
       }
     }
@@ -292,7 +307,15 @@ export function init(o) {
     const [wx, wz] = detour(a, tx, tz), dx = wx - a.x, dz = wz - a.z, d = Math.hypot(dx, dz);
     a.moving = d > .05;
     if (a.moving) { const st = Math.min(d, spd * dt); a.x += dx / d * st; a.z += dz / d * st; pushOut(a); a.yaw = lerpYaw(a.yaw, Math.atan2(dx, dz), dt * 8); a.gait += st * (a.kid ? 5.2 : 4.2); }
-    return Math.hypot(tx - a.x, tz - a.z) < .12;
+    const distToTarget = Math.hypot(tx - a.x, tz - a.z);
+    const key = tx.toFixed(1) + ',' + tz.toFixed(1);
+    if (a._lastTarget === key) {
+      if (distToTarget >= (a._lastDist || distToTarget) - 0.02) a._stuck = (a._stuck || 0) + 1;
+      else a._stuck = 0;
+    } else { a._lastTarget = key; a._stuck = 0; }
+    a._lastDist = distToTarget;
+    if ((a._stuck || 0) > 20) { a._stuck = 0; return true; }   // unstuck: force replan
+    return distToTarget < .12;
   }
   function begin(a, s) {
     a.t = 0; a.anim = 'idle';
