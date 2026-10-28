@@ -1,0 +1,28 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "opencode-go/beam-free",
+  "instructions": ["AGENTS.md", "ROADMAP.md"],
+  "permission": {
+    "edit": "allow",
+    "webfetch": "ask",
+    "bash": {
+      "*": "allow",
+      "sudo *": "deny",
+      "pm2 *": "deny",
+      "systemctl *": "deny",
+      "service *": "deny",
+      "docker *": "deny",
+      "rm -rf *": "deny",
+      "rm -r *": "deny",
+      "git push*": "deny",
+      "git commit --amend*": "deny",
+      "git reset --hard*": "deny",
+      "git add -A*": "deny",
+      "git add .*": "deny",
+      "cat data/settings.json": "deny",
+      "cat */.secrets/*": "deny",
+      "cloudflared *": "deny",
+      "curl * api.cloudflare.com*": "deny"
+    }
+  }
+}
