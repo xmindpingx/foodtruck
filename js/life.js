@@ -50,7 +50,7 @@ export function init(o) {
     let t = emojiTex.get(emoji);
     if (!t) { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); g.font = '44px serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(emoji, 32, 36); t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; emojiTex.set(emoji, t); }
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({map: t, transparent: true, depthTest: false}));
-    sp.scale.set(.35, .35, 1); sp.position.set(.15, 1.15, .12); a.root.children[0].add(sp); a._food = sp; a._foodEmoji = emoji;
+    sp.scale.set(.32, .32, 1); const hand = (a.g.hands && a.g.hands[1]) || a.root.children[0]; hand.add(sp); sp.position.set(0, .02, .06); a._food = sp; a._foodEmoji = emoji;
   };
   const removeFood = (a) => { if (a._food) { a._food.parent && a._food.parent.remove(a._food); a._food = null; a._foodEmoji = null; } };
 
