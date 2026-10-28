@@ -1,0 +1,355 @@
+{
+ "items": [
+  {
+   "id": "bling-gold-chain",
+   "label": "⛓️ Solid Gold Chain",
+   "theme": "steampunk",
+   "slot": "chest",
+   "cost": 220
+  },
+  {
+   "id": "bling-diamond-pendant",
+   "label": "💎 Diamond Pendant",
+   "theme": "steampunk",
+   "slot": "collar",
+   "cost": 260
+  },
+  {
+   "id": "bling-ruby-brooch",
+   "label": "🔴 Ruby Gear Brooch",
+   "theme": "steampunk",
+   "slot": "shoulderL",
+   "cost": 180
+  },
+  {
+   "id": "bling-gear-medallion",
+   "label": "⚙️ Emerald Gear Medallion",
+   "theme": "steampunk",
+   "slot": "chest",
+   "cost": 200
+  },
+  {
+   "id": "bling-crown",
+   "label": "👑 Jeweled Crown",
+   "theme": "steampunk",
+   "slot": "hat",
+   "cost": 300
+  },
+  {
+   "id": "bling-pocket-watch",
+   "label": "⌚ Golden Pocket Watch",
+   "theme": "steampunk",
+   "slot": "shoulderR",
+   "cost": 190
+  },
+  {
+   "id": "bling-pearl-necklace",
+   "label": "📿 Pearl Necklace",
+   "theme": "steampunk",
+   "slot": "collar",
+   "cost": 210
+  },
+  {
+   "id": "bling-golden-goggles",
+   "label": "🥽 Golden Aviator Goggles",
+   "theme": "steampunk",
+   "slot": "hat",
+   "cost": 170
+  },
+  {
+   "id": "bling-golden-boot",
+   "label": "👢 Gilded Boot",
+   "theme": "steampunk",
+   "slot": "shoeL",
+   "cost": 150
+  },
+  {
+   "id": "bling-sunburst-pin",
+   "label": "🌞 Sunburst Pin",
+   "theme": "steampunk",
+   "slot": "shoulderR",
+   "cost": 160
+  },
+  {
+   "id": "hw-witch-hat",
+   "label": "🧙 Witch Hat",
+   "theme": "halloween",
+   "slot": "hat",
+   "cost": 90
+  },
+  {
+   "id": "hw-jack-o-lantern-pin",
+   "label": "🎃 Jack-o-Lantern Pin",
+   "theme": "halloween",
+   "slot": "chest",
+   "cost": 70
+  },
+  {
+   "id": "hw-spider-brooch",
+   "label": "🕷️ Amethyst Spider Brooch",
+   "theme": "halloween",
+   "slot": "shoulderL",
+   "cost": 60
+  },
+  {
+   "id": "dm-marigold-crown",
+   "label": "🌼 Marigold Crown",
+   "theme": "muertos",
+   "slot": "hat",
+   "cost": 90
+  },
+  {
+   "id": "dm-sugar-skull-pendant",
+   "label": "💀 Sugar Skull Pendant",
+   "theme": "muertos",
+   "slot": "collar",
+   "cost": 70
+  },
+  {
+   "id": "dm-papel-picado-pin",
+   "label": "🎏 Papel Picado Pin",
+   "theme": "muertos",
+   "slot": "chest",
+   "cost": 60
+  },
+  {
+   "id": "tg-pilgrim-hat",
+   "label": "🎩 Pilgrim Hat",
+   "theme": "thanksgiving",
+   "slot": "hat",
+   "cost": 90
+  },
+  {
+   "id": "tg-turkey-pin",
+   "label": "🦃 Turkey Pin",
+   "theme": "thanksgiving",
+   "slot": "chest",
+   "cost": 70
+  },
+  {
+   "id": "tg-cornucopia-charm",
+   "label": "🍇 Cornucopia Charm",
+   "theme": "thanksgiving",
+   "slot": "shoulderL",
+   "cost": 60
+  },
+  {
+   "id": "xm-santa-hat",
+   "label": "🎅 Santa Hat",
+   "theme": "christmas",
+   "slot": "hat",
+   "cost": 90
+  },
+  {
+   "id": "xm-candy-cane-pin",
+   "label": "🍬 Candy Cane Pin",
+   "theme": "christmas",
+   "slot": "chest",
+   "cost": 70
+  },
+  {
+   "id": "xm-ornament-charm",
+   "label": "🔴 Ornament Charm",
+   "theme": "christmas",
+   "slot": "shoulderL",
+   "cost": 60
+  },
+  {
+   "id": "ny-party-hat",
+   "label": "🥳 Party Hat",
+   "theme": "newyear",
+   "slot": "hat",
+   "cost": 90
+  },
+  {
+   "id": "ny-champagne-pin",
+   "label": "🍾 Champagne Pin",
+   "theme": "newyear",
+   "slot": "chest",
+   "cost": 70
+  },
+  {
+   "id": "ny-sparkler-charm",
+   "label": "🎇 Sparkler Charm",
+   "theme": "newyear",
+   "slot": "shoulderL",
+   "cost": 60
+  },
+  {
+   "id": "vd-heart-crown",
+   "label": "💖 Heart Crown",
+   "theme": "valentine",
+   "slot": "hat",
+   "cost": 90
+  },
+  {
+   "id": "vd-rose-pin",
+   "label": "🌹 Velvet Rose Pin",
+   "theme": "valentine",
+   "slot": "chest",
+   "cost": 70
+  },
+  {
+   "id": "vd-cupid-wings-charm",
+   "label": "🏹 Cupid Wings Charm",
+   "theme": "valentine",
+   "slot": "shoulderL",
+   "cost": 60
+  },
+  {
+   "id": "sp-leprechaun-hat",
+   "label": "🍀 Leprechaun Hat",
+   "theme": "stpatrick",
+   "slot": "hat",
+   "cost": 90
+  },
+  {
+   "id": "sp-shamrock-pin",
+   "label": "☘️ Shamrock Pin",
+   "theme": "stpatrick",
+   "slot": "chest",
+   "cost": 70
+  },
+  {
+   "id": "sp-gold-coin-charm",
+   "label": "🪙 Lucky Coin Charm",
+   "theme": "stpatrick",
+   "slot": "shoulderL",
+   "cost": 60
+  },
+  {
+   "id": "ea-bunny-ears",
+   "label": "🐰 Bunny Ears",
+   "theme": "easter",
+   "slot": "hat",
+   "cost": 90
+  },
+  {
+   "id": "ea-egg-pin",
+   "label": "🥚 Painted Egg Pin",
+   "theme": "easter",
+   "slot": "chest",
+   "cost": 70
+  },
+  {
+   "id": "ea-chick-charm",
+   "label": "🐣 Chick Charm",
+   "theme": "easter",
+   "slot": "shoulderL",
+   "cost": 60
+  },
+  {
+   "id": "cm-sombrero",
+   "label": "🎉 Fiesta Sombrero",
+   "theme": "cinco",
+   "slot": "hat",
+   "cost": 90
+  },
+  {
+   "id": "cm-maraca-pin",
+   "label": "🪇 Maraca Pin",
+   "theme": "cinco",
+   "slot": "chest",
+   "cost": 70
+  },
+  {
+   "id": "cm-papel-flag-charm",
+   "label": "🇲🇽 Tricolor Banner Charm",
+   "theme": "cinco",
+   "slot": "shoulderL",
+   "cost": 60
+  },
+  {
+   "id": "j4-top-hat",
+   "label": "🎩 Uncle Sam Top Hat",
+   "theme": "july4",
+   "slot": "hat",
+   "cost": 90
+  },
+  {
+   "id": "j4-firework-pin",
+   "label": "🎆 Firework Pin",
+   "theme": "july4",
+   "slot": "chest",
+   "cost": 70
+  },
+  {
+   "id": "j4-flag-charm",
+   "label": "🇺🇸 Flag Charm",
+   "theme": "july4",
+   "slot": "shoulderL",
+   "cost": 60
+  },
+  {
+   "id": "mi-eagle-pin",
+   "label": "🦅 Eagle & Nopal Pin",
+   "theme": "mexindep",
+   "slot": "chest",
+   "cost": 70
+  },
+  {
+   "id": "mi-tricolor-ribbon",
+   "label": "🏅 Tricolor Rosette",
+   "theme": "mexindep",
+   "slot": "shoulderR",
+   "cost": 60
+  },
+  {
+   "id": "mi-grito-bell",
+   "label": "🔔 Grito Bell Charm",
+   "theme": "mexindep",
+   "slot": "shoulderL",
+   "cost": 60
+  }
+ ],
+ "themes": {
+  "steampunk": {
+   "label": "Steampunk",
+   "emoji": "⚙️"
+  },
+  "mexindep": {
+   "label": "Mexican Independence",
+   "emoji": "🇲🇽"
+  },
+  "halloween": {
+   "label": "Halloween",
+   "emoji": "🎃"
+  },
+  "muertos": {
+   "label": "Día de los Muertos",
+   "emoji": "💀"
+  },
+  "thanksgiving": {
+   "label": "Thanksgiving",
+   "emoji": "🦃"
+  },
+  "christmas": {
+   "label": "Christmas",
+   "emoji": "🎄"
+  },
+  "newyear": {
+   "label": "New Year's",
+   "emoji": "🎆"
+  },
+  "valentine": {
+   "label": "Valentine's Day",
+   "emoji": "💘"
+  },
+  "stpatrick": {
+   "label": "St. Patrick's Day",
+   "emoji": "☘️"
+  },
+  "easter": {
+   "label": "Easter",
+   "emoji": "🐣"
+  },
+  "cinco": {
+   "label": "Cinco de Mayo",
+   "emoji": "🪅"
+  },
+  "july4": {
+   "label": "Fourth of July",
+   "emoji": "🎇"
+  }
+ }
+}
