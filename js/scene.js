@@ -888,11 +888,12 @@ function cullCrowd(){
 }
 function spawnCrowd(cx,cz,n,faceStage){
   for(let i=0;i<n;i++){
-    const person=People.crowdPerson();
+    const looks=[0xd9a978,0xa8714a,0xf0c7a0,0xc78f5e,0x8a5a35,0xe6b98a,0xb07a4e,0x7a4a2a,0xd9a978,0xa8714a];
+    const sk=looks[Math.floor(Math.random()*looks.length)];
+    const person=buildPerformer(sk,0xd42a2a+Math.floor(Math.random()*0x800000),0x1a1a1a,'civilian');
     person.position.set(cx+(Math.random()-.5)*2.6,0,cz+(Math.random()-.5)*2.6);
     person.rotation.y=faceStage?Math.atan2(8-person.position.x,-70-person.position.z)+(Math.random()-.5)*.3:Math.random()*Math.PI*2;   // stage-front rows watch the band
     S.add(person);
-    if(Math.random()<.45) lightPipe(person);   // festival-goers puffing hand pipes
     cullable(person);
   }
 }
@@ -943,10 +944,10 @@ function tickPuff(p,dt){
 // figure per cluster - the dense mass of the festival lives in the panorama. Everyone fronts
 // the stage's truck-facing side now: a wide pit band across the full deck width plus flank
 // packs at either end - nobody hangs behind the deck.
-for(let i=0;i<13;i++) spawnCrowd(-28+Math.random()*72, -4+Math.random()*24, 1);
-for(let i=0;i<22;i++) spawnCrowd(-8+Math.random()*32, -61.5+Math.random()*8, 1, true);    // pit, at the stage front, watching the band
-for(let i=0;i<5;i++) spawnCrowd(-14.5+Math.random()*5, -61+Math.random()*7, 1, true);     // west flank pack, facing the stage
-for(let i=0;i<5;i++) spawnCrowd(26.5+Math.random()*5, -61+Math.random()*7, 1, true);      // east flank pack, facing the stage
+for(let i=0;i<6;i++) spawnCrowd(-28+Math.random()*72, -4+Math.random()*24, 1);
+for(let i=0;i<40;i++) spawnCrowd(-8+Math.random()*32, -61.5+Math.random()*8, 1, true);    // pit, at the stage front, watching the band
+for(let i=0;i<8;i++) spawnCrowd(-14.5+Math.random()*5, -61+Math.random()*7, 1, true);     // west flank pack, facing the stage
+for(let i=0;i<8;i++) spawnCrowd(26.5+Math.random()*5, -61+Math.random()*7, 1, true);      // east flank pack, facing the stage
 
 // ~200 extra festival-goers packed as the stage-front audience - but cheap: two InstancedMeshes
 // (bodies + heads) is the whole thing, two draw calls, no per-frame updates, no shadow casters.
