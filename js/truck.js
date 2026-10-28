@@ -436,22 +436,22 @@ export async function buildTruck(S,{img,done,MENU,money}){
   const bib=new THREE.Mesh(new THREE.PlaneGeometry(.19,.22),apronM);bib.position.set(0,1.37,.168);cookBody.add(bib);
   // cap: blue w/ logo badge, riding the head so it turns with it
   const cap=new THREE.Mesh(new THREE.SphereGeometry(.113,24,12,0,Math.PI*2,0,Math.PI/2),blue);
-  cap.position.y=1.615-NECK;headPivot.add(cap);
+  cap.position.y=1.635-NECK;headPivot.add(cap);
   const brim=new THREE.Mesh(new THREE.CylinderGeometry(.105,.105,.015,24,1,false,0,Math.PI),blue);
-  brim.position.set(0,1.612-NECK,.075);brim.rotation.y=-Math.PI/2;brim.scale.set(1,1,1.15);headPivot.add(brim);
+  brim.position.set(0,1.632-NECK,.075);brim.rotation.y=-Math.PI/2;brim.scale.set(1,1,1.15);headPivot.add(brim);
   const badgeC=document.createElement('canvas');badgeC.width=256;badgeC.height=80;const bb=badgeC.getContext('2d');bb.drawImage(logo,0,0,256,80);
   const badge=new THREE.Mesh(new THREE.PlaneGeometry(.15,.047),new THREE.MeshBasicMaterial({map:Object.assign(new THREE.CanvasTexture(badgeC),{colorSpace:THREE.SRGBColorSpace}),transparent:false}));
-  badge.position.set(0,1.676-NECK,.098);badge.rotation.x=-.35;headPivot.add(badge);
+  badge.position.set(0,1.696-NECK,.098);badge.rotation.x=-.35;headPivot.add(badge);
   // cool raybans: dark lenses + bridge + temples, riding the head so they turn with it
   const rbM=new THREE.MeshStandardMaterial({color:0x0a0a0c,roughness:.12,metalness:.4,transparent:true,opacity:.85});
   const rbFrame=new THREE.MeshStandardMaterial({color:0x1a1a1e,roughness:.3,metalness:.6});
   for(const sx of [-1,1]){
-    const lens=new THREE.Mesh(new THREE.BoxGeometry(.09,.045,.012),rbM);lens.position.set(sx*.055,1.605-NECK,.105);headPivot.add(lens);
-    const rim=new THREE.Mesh(new THREE.BoxGeometry(.105,.06,.014),rbFrame);rim.position.set(sx*.055,1.605-NECK,.10);headPivot.add(rim);
+    const lens=new THREE.Mesh(new THREE.BoxGeometry(.09,.045,.012),rbM);lens.position.set(sx*.055,1.625-NECK,.105);headPivot.add(lens);
+    const rim=new THREE.Mesh(new THREE.BoxGeometry(.105,.06,.014),rbFrame);rim.position.set(sx*.055,1.625-NECK,.10);headPivot.add(rim);
   }
-  const bridge=new THREE.Mesh(new THREE.CylinderGeometry(.006,.006,.03,8),rbFrame);bridge.rotation.z=Math.PI/2;bridge.position.set(0,1.605-NECK,.102);headPivot.add(bridge);
+  const bridge=new THREE.Mesh(new THREE.CylinderGeometry(.006,.006,.03,8),rbFrame);bridge.rotation.z=Math.PI/2;bridge.position.set(0,1.625-NECK,.102);headPivot.add(bridge);
   for(const sx of [-1,1]){
-    const temple=new THREE.Mesh(new THREE.BoxGeometry(.008,.012,.12),rbFrame);temple.position.set(sx*.11,1.605-NECK,.05);temple.rotation.y=sx*.15;headPivot.add(temple);
+    const temple=new THREE.Mesh(new THREE.BoxGeometry(.008,.012,.12),rbFrame);temple.position.set(sx*.11,1.625-NECK,.05);temple.rotation.y=sx*.15;headPivot.add(temple);
   }
   // worker stands in the aisle just in front of the counter run (the kitchen line rides the
   // serving-side wall now), facing the -z window with hands resting at the counter edge
