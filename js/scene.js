@@ -11,7 +11,7 @@ import * as FX from './themefx.js?v=5';       // re-skins everything but the tru
 import * as Life from './life.js?v=26';        // ambient crowd life: eat, queue, play, wander, greet the player
 import * as Waterpark from './waterpark.js?v=5';
 import * as Gfx from './gfx.js?v=4';
-import * as Model from './model.js?v=2';   // ComfyUI-generated meshes (tools/model_gen.py -> models/)   // ComfyUI photo textures (gfx/*.jpg) on tagged materials
+import * as Model from './model.js?v=3';   // ComfyUI-generated meshes (tools/model_gen.py -> models/)   // ComfyUI photo textures (gfx/*.jpg) on tagged materials
 import * as Rep from './rep.js?v=1';
 import * as Stuff from './stuff.js?v=5';
 import * as Quests from './quests.js?v=5';   // pun vendors, flash sales/dances, quests that earn Rep   // litter, lost items and micro-clutter, LOD'd by distance
@@ -770,7 +770,7 @@ truckRig.add(lexus);
 lexus.userData.hopSeed=Math.random()*6;lexus.userData.hopSide=Math.random()<.5?-1:1;
 // 🚗 swap in the ComfyUI-generated body (models/impala.*) when it loads. The hand-built shell stays
 // visible until then and remains the fallback, so a missing/!ok model never leaves a hole in the lot.
-if(CONFIG.sceneGenCar!==false){
+if(CONFIG.sceneGenCar===true){   // strict opt-in: a missing key must not turn the generated body on
   Model.load('impala',{small:LITE_MODE||IS_PHONE,materials:lexus.userData.mats}).then(mesh=>{
     mesh.scale.set(1.95/2.42,1,1);        // the generated body is wider than the lot's 1.95 m slot
     mesh.castShadow=mesh.receiveShadow=true;

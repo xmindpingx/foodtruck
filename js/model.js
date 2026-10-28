@@ -10,7 +10,7 @@
 // Nothing here is three.js-version specific beyond BufferGeometry/BufferAttribute.
 import * as THREE from 'three';
 
-const V = 2;   // bump when models/* are regenerated so browsers refetch
+const V = 3;   // bump when models/* are regenerated so browsers refetch
 
 // opts.materials: {<group name>: Material} — the generator bakes one colour field over the whole car, so
 // the packer splits it into paint/tyre/chrome/glass groups and the caller shades each properly.
@@ -19,13 +19,12 @@ export async function load(name, {small = false, base = '/models', materials = n
   const buf = await (await fetch(`${base}/${name}.bin?v=${V}`)).arrayBuffer();
   const n = meta.verts, tri = meta.tris * 3;
   let o = 0;
-  const pos = new Uint16Array(buf, o, n * 3); o += n * 6;
-  const nrm = new Int8Array(buf, o, n * 3); o += n * 3;
-  const uv = new Uint16Array(buf, o, n * 2); o += n * 4;
-  let col = null;
-  if (meta.vcol) { col = new Uint8Array(buf, o, n * 3); o += n * 3; }
-  o = (o + 3) & ~3;   // indices are 2- or 4-byte aligned in the blob
-  const idx = meta.idx === 32 ? new Uint32Array(buf, o, tri) : new Uint16Array(buf, o, tri);
+  const step = bytes => { const at = o; o = (o + bytes + 3) & ~3; return at; };   // each block is 4-byte padded
+  const pos = new Uint16Array(buf, step(n * 6), n * 3);
+  const nrm = new Int8Array(buf, step(n * 3), n * 3);
+  const uv = new Uint16Array(buf, step(n * 4), n * 2);
+  const col = meta.vcol ? new Uint8Array(buf, step(n * 3), n * 3) : null;
+  const idx = meta.idx === 32 ? new Uint32Array(buf, step(tri * 4), tri) : new Uint16Array(buf, step(tri * 2), tri);
 
   const g = new THREE.BufferGeometry();
   const [lx, ly, lz] = meta.lo, [hx, hy, hz] = meta.hi;

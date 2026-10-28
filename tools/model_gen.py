@@ -349,9 +349,9 @@ def pack(path, name, length=5.4, rot_x=0.0, yaw=0.0, sizes=(1024, 512), quality=
     # the generator bakes one colour field over everything, so tyres, glass and chrome would otherwise
     # take the body's candy paint. Classified per triangle from its generated colour plus its height.
     groups = []
-    if col is not None:
+    if True:
         tri = idx.reshape(-1, 3)
-        c = col[tri].mean(axis=1)
+        c = col[tri].mean(axis=1) if col is not None else np.zeros((len(tri), 3), 'f4')
         yv = pos[tri][:, :, 1].mean(axis=1)
         lum = c @ np.array([.2126, .7152, .0722], dtype='f4')
         mx, mn = c.max(1), c.min(1)
@@ -364,12 +364,13 @@ def pack(path, name, length=5.4, rot_x=0.0, yaw=0.0, sizes=(1024, 512), quality=
         gid = np.zeros(len(tri), dtype='i4')                       # 0 paint
         za = np.abs(pos[tri][:, :, 2].mean(axis=1))
         halfl = float(np.abs(pos[:, 2]).max())
-        bright = lum > .30
+        bright = (lum > .30) if col is not None else np.zeros(len(tri), bool)   # no colour (Hunyuan3D): geometry only
         # only call it chrome where chrome actually lives - bumper/grille ends and wheel-level whitewalls.
         # The generator bakes specular highlights into the colour, so "bright" alone speckles the flanks.
         gid[bright & ((za > .78 * halfl) | (yv < .34 * h))] = 2
-        gid[~bright & (yv < .34 * h) & (xa > .50 * halfw)] = 1      # 1 tyre: dark, low, outboard
-        gid[~bright & (yv > .58 * h) & (ny < .70)] = 3              # 3 glass: dark, high, steeply angled (roof stays paint)
+        dark = (lum < .30) if col is not None else np.ones(len(tri), bool)
+        gid[~bright & dark & (yv < .34 * h) & (xa > .50 * halfw)] = 1   # 1 tyre: low and outboard
+        gid[~bright & dark & (yv > .58 * h) & (ny < .70)] = 3           # 3 glass: high and steeply angled (roof stays paint)
         order = np.argsort(gid, kind='stable')
         tri = tri[order]; gid = gid[order]
         idx = tri.reshape(-1)
@@ -381,9 +382,10 @@ def pack(path, name, length=5.4, rot_x=0.0, yaw=0.0, sizes=(1024, 512), quality=
     parts = [qpos, qnrm, quv]
     if col is not None:
         parts.append(np.clip(col * 255.0, 0, 255).round().astype('u1'))
-    blob = b''.join(a.tobytes() for a in parts)
-    blob += b'\0' * (-len(blob) % 4)                     # js/model.js views the index block as Uint16/Uint32
-    blob += qidx.tobytes()
+    blob = b''                                           # every block is padded to 4 bytes: typed-array views
+    for part in parts + [qidx]:                          # need their offset aligned to the element size
+        blob += part.tobytes()
+        blob += b'\0' * (-len(blob) % 4)
     open(os.path.join(OUT, name + '.bin'), 'wb').write(blob)
 
     written = {}

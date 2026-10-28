@@ -53,9 +53,13 @@ Smoke now also checks: one `?v=` per module, gfx assets + private raw dir, accou
    backend outright (Python faulthandler dump inside the KSampler, ~20 GB peak, no kernel OOM — a GPU/driver
    fault, not RAM). The same pipeline on `impala-a0.png` completed fine, so the int8 fallback works but is not
    reliable under sustained load on this ROCm build; shrinking its row block (8192 -> 2048) did not help.
-   Hunyuan3D-2 (`hunyuan3d-dit-v2_fp16.safetensors`, fp16, no int8 path at all) is downloaded to
-   `~/ai-stacks/shareddata/comfyui/models/checkpoints/` and is the better next thing to try — it sidesteps the
-   fallback entirely — but it is **not yet test-run**.
+   Hunyuan3D-2 (`hunyuan3d-dit-v2_fp16.safetensors`, fp16, no int8 path at all) is installed in
+   `~/ai-stacks/shareddata/comfyui/models/checkpoints/` and **does run reliably** — 135 s, no crash, 29,714
+   tris — so it is the way to generate geometry on this GPU. But it is geometry only: no vertex colour, so
+   `pack` has nothing to split chrome from paint, and its mesh fuses the wheels into the body. Side by side
+   in the lot the TRELLIS body is clearly better (wheels, glass and real proportions); the Hunyuan one reads
+   as a smooth blob, so it was not kept. **Next:** either texture a Hunyuan mesh (its own paint/UV pass) or
+   get a flat-lit TRELLIS run to finish; `sceneGenCar` stays off and the hand-built shell ships.
 
 1. **No real-device performance data.** Budgets (crowd range, section radii, pixel ratio, 2048 shadow map) are estimates. Needs Safari Web Inspector on an iPhone 12; watch draw calls (life + stuff + park + vendors) and memory.
 2. The crowd uses 31-mesh `buildPerformer` bodies again (commit 779f65b, deliberate): ~2.7k meshes / ~830k triangles when all are in range — the biggest phone cost; `People.crowdPerson()` is 2 meshes. Static props (tables, booths) are hundreds of unmerged meshes that all cast into the sun shadow map. Lite mode still does not lower pixel ratio / antialiasing / lights on phones; `eol-lite=0` (3D page) on an iPhone 12 is the heavy path.
