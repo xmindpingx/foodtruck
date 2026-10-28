@@ -944,15 +944,28 @@ for(let i=0;i<6;i++) spawnCrowd(-28+Math.random()*72, -4+Math.random()*24, 1);
 for(let i=0;i<40;i++) spawnCrowd(-8+Math.random()*32, -61.5+Math.random()*8, 1, true);    // pit, at the stage front, watching the band
 for(let i=0;i<8;i++) spawnCrowd(-14.5+Math.random()*5, -61+Math.random()*7, 1, true);     // west flank pack, facing the stage
 for(let i=0;i<8;i++) spawnCrowd(26.5+Math.random()*5, -61+Math.random()*7, 1, true);      // east flank pack, facing the stage
-// blankets with people laying by the stage
-for(let i=0;i<6;i++){
-  const bx=8+(Math.random()-.5)*20, bz=-55+(Math.random()-.5)*8;
-  const blanket=new THREE.Mesh(new THREE.PlaneGeometry(2.2,1.6),new THREE.MeshStandardMaterial({color:[0xe8578a,0xf2c14e,0x4fc3d9,0x53a86e,0xd77bd0][i%5],roughness:.9,side:THREE.DoubleSide}));
+// blankets with people (families) laying/sitting by the stage
+const BLANKET_COLORS=[0xe8578a,0xf2c14e,0x4fc3d9,0x53a86e,0xd77bd0,0xb44dff,0xff6fa0,0x4a90d9];
+for(let i=0;i<8;i++){
+  const bx=8+(Math.random()-.5)*24, bz=-55+(Math.random()-.5)*12;
+  const bw=1.6+Math.random()*1.8, bh=1.2+Math.random()*1.4;
+  const shape = Math.random()<0.5 ? new THREE.PlaneGeometry(bw,bh) : new THREE.CircleGeometry(Math.min(bw,bh)/2, 24);
+  const blanket=new THREE.Mesh(shape,new THREE.MeshStandardMaterial({color:BLANKET_COLORS[i%BLANKET_COLORS.length],roughness:.9,side:THREE.DoubleSide}));
   blanket.rotation.x=-Math.PI/2; blanket.position.set(bx,.02,bz); S.add(blanket);
-  for(let j=0;j<2;j++){
+  const familySize = 2 + Math.floor(Math.random()*3);
+  for(let j=0;j<familySize;j++){
     const person=buildPerformer(0xd9a978,0xd42a2a,0x1a1a1a,'civilian');
-    person.position.set(bx+(j-.5)*.8,.3,bz+(Math.random()-.5)*.6);
-    person.rotation.x=Math.PI/2; person.rotation.z=(Math.random()-.5)*.3;
+    const px = bx + (Math.random()-.5)*bw*.6;
+    const pz = bz + (Math.random()-.5)*bh*.6;
+    if (Math.random() < 0.5) {
+      // lying down
+      person.position.set(px,.3,pz);
+      person.rotation.x=Math.PI/2; person.rotation.z=(Math.random()-.5)*.4;
+    } else {
+      // sitting
+      person.position.set(px,.4,pz);
+      person.rotation.x=-Math.PI/6;
+    }
     S.add(person);
   }
 }
