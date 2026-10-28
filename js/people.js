@@ -310,7 +310,7 @@ export function buildAvatar(hue, prof = {}, foot = 0, over = null) {
   const R = rig(L), root = new THREE.Group(), body = new THREE.Group();
   body.position.y = foot; body.scale.setScalar(L.scale); root.add(body);   // feet stay put: scaling is about the body origin
   const own = {shirt: new THREE.MeshStandardMaterial({color: L.shirt, roughness: .78}), skin: new THREE.MeshStandardMaterial({color: L.skin, roughness: .62})};   // L.shirt, not shirtC: an `over` shirt colour must win
-  const build = (parts, parent) => {   // one mesh per bucket: the live-recolourable tags (shirt, skin) each get
+  const build = (parts, parent, part) => {   // part: stamps userData.part so js/wear.js can hide a default hair/hat when one is worn   // one mesh per bucket: the live-recolourable tags (shirt, skin) each get
     // their own material; brass keeps its shine; EVERYTHING else (belt, vest, hair, hat, goggles, pants, shoe...)
     // shares one vertex-coloured mesh per call, like crowdPerson. Draw calls per avatar: ~16 -> ~12.
     const buckets = new Map();
@@ -320,6 +320,7 @@ export function buildAvatar(hue, prof = {}, foot = 0, over = null) {
       const m = new THREE.Mesh(mergeParts(ps.map(p => ({g: p.g, m: p.m, uv: p.uv, col: p.col})), ps[0].uv ? 'uv' : 'color'),
         tag ? own[tag] : ps[0].uv ? faceMat(L.skin, L.expr, L.eye) : k === 'brass' ? mat(BRASS, .35, .8) : VCOL);
       if (tag) m.userData.custom = tag;
+      if (part) m.userData.part = part;
       m.castShadow = tag === 'shirt'; parent.add(m);
     }
   };
@@ -332,7 +333,7 @@ export function buildAvatar(hue, prof = {}, foot = 0, over = null) {
   const NECK = 1.52;
   const headPivot = new THREE.Group(); headPivot.position.y = NECK; if (L.kid) headPivot.scale.setScalar(1.32);
   const headRig = new THREE.Group(); headRig.position.y = -NECK; headPivot.add(headRig); body.add(headPivot);
-  build([...R.hair, ...R.hat], headRig);   // hair + hat + goggles: one vertex-coloured mesh (+1 brass if any)
+  build(R.hair, headRig, 'hair'); build(R.hat, headRig, 'hat');   // separate meshes so a worn wig / hat can hide just its default
   const head = new THREE.Mesh(mergeParts(R.head.map(p => ({g: p.g, m: p.m, uv: p.uv})), 'uv'), faceMat(L.skin, L.expr, L.eye));
   head.userData.custom = 'skin'; head.userData.skinFace = L.expr + '|' + L.eye; head.castShadow = true; headRig.add(head);
   const arms = [], legs = [], hands = [], feet = [];

@@ -300,6 +300,24 @@
    "theme": "mexindep",
    "slot": "shoulderL",
    "cost": 60
+  },
+  {
+   "id": "wear-fedora",
+   "label": "🎩 Felt-ing Good Fedora",
+   "theme": "",
+   "slot": "hat",
+   "cost": 90,
+   "model": true,
+   "mat": "felt"
+  },
+  {
+   "id": "wear-shades",
+   "label": "🕶️ Shade Tree Shades",
+   "theme": "",
+   "slot": "glasses",
+   "cost": 70,
+   "model": true,
+   "mat": "black"
   }
  ],
  "themes": {

@@ -14,7 +14,7 @@ const mats = {}, geos = new Map();
 const mat = k => mats[k] || (mats[k] = new THREE.MeshStandardMaterial({color: (MATS[k] || MATS.cloth)[0], roughness: (MATS[k] || MATS.cloth)[1], metalness: (MATS[k] || MATS.cloth)[2]}));
 
 // catalog slot -> where it hangs (people.js userData.sock / hands / feet). 'shoes' goes on both feet.
-export const SLOTS = {hat: 'crown', glasses: 'face', beard: 'chin', ears: 'ear', collar: 'collar', chest: 'chest', back: 'back', waist: 'hip',
+export const SLOTS = {hat: 'crown', hair: 'crown', glasses: 'face', beard: 'chin', ears: 'ear', collar: 'collar', chest: 'chest', back: 'back', waist: 'hip',
   handL: 'hand0', handR: 'hand1', shoes: 'feet'};
 // where a ground-anchored, X/Z-centred prop sits relative to its socket (metres, body space); a row's own fit/dy/dz/ry win
 const FIT = {hat: {dy: -.06}, glasses: {dy: -.025, dz: .05}, beard: {dy: -.04, dz: .02}, collar: {dy: -.04, dz: .03}, back: {dy: -.2, dz: -.05},
@@ -38,6 +38,8 @@ export async function apply(root, rows) {
   const gen = root.userData.wearGen = (root.userData.wearGen || 0) + 1;
   for (const m of root.userData.worn || []) m.parent && m.parent.remove(m);
   const worn = root.userData.worn = [];
+  const hr = root.userData.headRig, hide = new Set(rows.filter(isWear).map(r => r.slot === 'hat' ? 'hat' : r.slot === 'hair' ? 'hair' : ''));
+  if (hr) hr.children.forEach(c => { if (c.userData.part) c.visible = !hide.has(c.userData.part); });   // worn hat/hair replaces the default one
   for (const it of rows) {
     if (!isWear(it)) continue;
     const g = await geometry(it.id); if (!g || root.userData.wearGen !== gen) continue;   // a newer apply() took over while we awaited

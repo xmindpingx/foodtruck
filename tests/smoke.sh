@@ -120,6 +120,17 @@ want /bling/bling-crown.webp 200
 want /js/life.js 200
 want /js/themes.js 200
 curl -s "http://127.0.0.1:$PORT/api/account/shop" | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if sum(1 for i in d['items'] if i.get('bling'))>=40 else 1)" && ok "shop lists the bling collectibles" || bad "shop is missing bling items"
+# every 3D wearable row (model:true) must be in the shop AND have its mesh served
+python3 - "$PORT" <<'PY2' && ok "3D wearables: in the shop and their meshes are served" || bad "a 3D wearable is missing from the shop or its mesh 404s"
+import json, sys, urllib.request
+port = sys.argv[1]
+cat = json.load(urllib.request.urlopen(f"http://127.0.0.1:{port}/bling/catalog.json"))
+shop = {i['item'] for i in json.load(urllib.request.urlopen(f"http://127.0.0.1:{port}/api/account/shop"))['items']}
+for r in cat['items']:
+    if r.get('model'):
+        assert r['id'] in shop, r['id']
+        for ext in ('json', 'bin'): assert urllib.request.urlopen(f"http://127.0.0.1:{port}/models/wear/{r['id']}.{ext}").status == 200, r['id']
+PY2
 for ep in gift-npc npc-friend-gift rep; do
   c=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{"phone":"0000000000"}' "http://127.0.0.1:$PORT/api/$([ $ep = rep ] && echo rep || echo $ep)")
   [ "$c" = "401" ] && ok "/api/$ep without an account -> 401" || bad "/api/$ep -> $c (wanted 401)"

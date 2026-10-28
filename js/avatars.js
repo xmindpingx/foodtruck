@@ -11,8 +11,8 @@ import * as THREE from 'three';
 import {WX0, WX1, BW, FLOOR} from './truck.js?v=12';
 import {CONFIG} from './shop.js?v=8';
 import * as Account from './account.js?v=8';   // language picked at sign-up drives chips + docks
-import * as People from './people.js?v=8';
-import * as Wear from './wear.js?v=1';     // realistic shared-geometry bodies (painted faces, swinging limbs)
+import * as People from './people.js?v=9';     // realistic shared-geometry bodies (painted faces, swinging limbs)
+import * as Wear from './wear.js?v=2';     // 3D wearable props on the avatar sockets
 
 const ID_KEY = 'eol-visitor-id', NAME_KEY = 'eol-visitor-name', PROFILE_KEY = 'eol-visitor-profile';
 const CAP_STYLES = ['', 'ball', 'cowboy', 'beret', 'cone', 'marge', 'bart', 'lisa', 'homer', 'duff', 'krusty', 'moes', 'flanders'];
@@ -446,7 +446,7 @@ export function makeBody(hue, prof = {}) {
   const root = People.buildAvatar(hue, {...prof, skinHex: SKIN_TONES[skIdx], face: prof.face === 'neutral' ? '' : prof.face}, -FLOOR);   // feet on the lawn
   const body = root.children[0];
   const cap = new THREE.MeshStandardMaterial({color: new THREE.Color().setHSL((prof.hue ?? hue) / 360, .6, .3), roughness: .7});
-  const g = new THREE.Group(); g.scale.setScalar(ACC_S); g.position.y = 1.6 - .92 * ACC_S; root.userData.headRig.add(g);   // g = cartoon accessories, on the neck pivot so they turn with the head (same body-space metres)
+  const g = new THREE.Group(); g.scale.setScalar(ACC_S); g.position.y = 1.6 - .92 * ACC_S; g.userData.part = 'hat'; root.userData.headRig.add(g);   // g = cartoon accessories, on the neck pivot so they turn with the head (same body-space metres)
   const style = prof.cap || '';
   const hatY = 1.12;
   if (style === 'ball') {

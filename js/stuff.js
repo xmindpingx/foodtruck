@@ -8,7 +8,7 @@
 //  - decor (confetti, leaves, flyers): just there, like a real festival lawn
 // Items are remembered in this browser for ~30 minutes (localStorage), picked-up ones stay picked up.
 import * as THREE from 'three';
-import {mergeParts} from './people.js?v=8';
+import {mergeParts} from './people.js?v=9';
 
 const rnd = (a, b) => a + Math.random() * (b - a), pick = a => a[Math.floor(Math.random() * a.length)];
 const KEY = 'eol-stuff', TTL = 30 * 60 * 1000;
