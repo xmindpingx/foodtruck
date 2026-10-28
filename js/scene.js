@@ -679,7 +679,7 @@ function buildLowriderImpala(){
   // (banks: front / back / left / right). Tap a switch to arm/disarm its bank, tap the car to make it hop.
   // Click wiring lives in the "interaction" block in scene.js. The stand is a child of the car so it rides
   // along in layout mode.
-  const remote=new THREE.Group(); remote.position.set(WID/2+1.15,0,0); car.add(remote);
+  const remote=new THREE.Group(); remote.position.set(8.73,0,5.37); truckRig.add(remote);   // sibling of the car: stays planted, never hops with the hydraulics
   const pole=new THREE.Mesh(new THREE.CylinderGeometry(.035,.045,.85,8),chrome); pole.position.set(0,.425,0); remote.add(pole);
   const base=new THREE.Mesh(new THREE.CylinderGeometry(.18,.22,.06,12),new THREE.MeshStandardMaterial({color:0x1a1a1e,roughness:.4,metalness:.6}));
   base.position.set(0,.03,0); remote.add(base);
@@ -702,7 +702,7 @@ function buildLowriderImpala(){
     led.position.set(sw.position.x,1.01,-.02);remote.add(led);leds.push(led);}
   remote.userData.switches=switches;remote.userData.switchLeds=leds;remote.userData.banks={front:true,back:false,left:false,right:false};
   car.userData.switches=switches;car.userData.switchLeds=leds;car.userData.banks={front:true,back:false,left:false,right:false};
-  car.userData.remote=remote; car.userData.steamSkip=true;   // candy purple is the car's identity: holiday palettes never repaint it
+  car.userData.steamSkip=true;   // candy purple is the car's identity: holiday palettes never repaint it
   car.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});
   return car;
 }
@@ -1462,8 +1462,7 @@ R.setAnimationLoop(()=>{const dt=Math.min(clock.getDelta(),0.1),t=(window.__EOL_
             vL=u.burst>0||!fresh?0:(b.left?pulse(2):0),vR=u.burst>0||!fresh?0:(b.right?pulse(3):0);
       hop=Math.max(hop,vF,vB,vL,vR);
       tiltX=(vB-vF)*.5;tiltZ=(vL-vR)*.45;}
-    car.position.y=base+hop;car.rotation.x=tiltX;car.rotation.z=tiltZ;
-    const _rem=car.userData.remote;if(_rem){_rem.position.y=-hop;_rem.rotation.x=-tiltX;_rem.rotation.z=-tiltZ;}
+    car.position.y=base+hop;car.rotation.x=tiltX;car.rotation.z=tiltZ;   // the remote is now a sibling, so it never moves with the car
   }
   Avatars.tick(t,dt);
   ctl.update();R.render(S,cam);});
