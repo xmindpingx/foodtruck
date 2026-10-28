@@ -100,7 +100,7 @@ addEventListener('hashchange',go);go();
 // "Lite mode: on" -> off: remember it (scene.js reads eol-lite) and load the 3D page, which this
 // host serves at /3d. Its own lite chip brings you back here.
 document.querySelectorAll('[data-lite-off]').forEach(b=>b.addEventListener('click',()=>{
-  try{localStorage.setItem('eol-lite','0');}catch(err){}
+  try{localStorage.setItem('eol-lite2','0');}catch(err){}
   location.href='/3d';}));
 try{await import('./js/shop.js?v=8');}   // renders the menu and wires the cart, checkout, status polling and contact form
 catch(err){document.getElementById('menuItems').innerHTML='<p class="muted">The menu could not load. Pull down to refresh, or come order at the window!</p>';}

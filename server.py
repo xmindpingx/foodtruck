@@ -339,6 +339,7 @@ DEFAULT_SETTINGS = {
     "sceneLifeRange": 0,         # meters the ambient AI cast is alive/reacting within; 0 = auto (22 / 48)
     "sceneClutterNear": 0,       # meters of detailed clutter; 0 = auto (9 phone / 16 desktop)
     "sceneClutterMid": 0,        # meters of simple clutter; 0 = auto (20 / 38), nothing beyond
+    "sceneTextures": True,      # 🖼️ ComfyUI photo textures on the lot (gfx/, tools/gfx_gen.py); off = flat colours, ~2.5 MB less to download
     "sceneShadows": "",          # "", off, 1024, 2048, 4096 (blank = auto: 2048 phone / 4096 desktop)
     "scenePixelRatio": 0,        # fixed renderer pixel ratio; 0 = auto (1.5 phone / 2 desktop)
     "sceneAntialias": True,      # antialiasing on (off = faster on weak GPUs)
@@ -420,7 +421,7 @@ PUBLIC_SETTINGS = ('businessName', 'tagline', 'brandLogo', 'copyrightLine', 'pho
                    'crowdAmount', 'actorsAmount', 'interactAmount', 'clutterAmount',
                    'sceneSmokePuffs', 'scenePipeSmokers', 'scenePipePuffs', 'sceneFallMult', 'sceneFloatMult',
                    'sceneRandomness', 'sceneCrowdRange', 'sceneLifeRange', 'sceneClutterNear', 'sceneClutterMid',
-                   'sceneShadows', 'scenePixelRatio', 'sceneAntialias',
+                   'sceneShadows', 'scenePixelRatio', 'sceneAntialias', 'sceneTextures',
                    # jukebox (public: catalog + on/off) + geocaching switch + saved #layout defaults for the lot props
                    'jukeboxOn', 'jukeboxSongs', 'geocacheOn', 'layoutProps')
 
@@ -659,7 +660,7 @@ CHAT_LOCK = threading.Lock()
 CHAT_RATE = {}                                     # id -> last post ts
 CHAT_MAX = 50
 NAME_RE = re.compile(r'[^\w \-\'.]', re.UNICODE)
-ACCOUNTS_LOCK = threading.Lock()                   # accounts.json is a small flat file; exclusive rewrites only
+ACCOUNTS_LOCK = threading.RLock()                   # accounts.json is a small flat file; exclusive rewrites only
 
 # ---------- trivia bot 🤖 (Mesa / Arizona Q&A race → arcade POINTS redeemable for collectibles) ----------
 # data/trivia.json: [{q, a:[keywords], cat}]. A question goes into shared chat and stays scoring for
@@ -2396,12 +2397,14 @@ class H(SimpleHTTPRequestHandler):
         super().send_header(keyword, value)
     def end_headers(self):
         if not getattr(self, '_sent_cc', False):
-            super().send_header('Cache-Control', 'no-cache')
+            top = self.path.split('?', 1)[0].lstrip('/').split('/', 1)[0]
+            cc = 'public, max-age=86400' if top in ('lib', 'bling', 'gfx', 'media', 'img') else 'public, max-age=3600' if top == 'tex' else 'no-cache'
+            super().send_header('Cache-Control', cc)
         self._sent_cc = False
         super().end_headers()
 
     # ---------- static-file safety ----------
-    PUBLIC_DIRS = ('lib', 'tex', 'img', 'js', 'css', 'media', 'bling')
+    PUBLIC_DIRS = ('lib', 'tex', 'img', 'js', 'css', 'media', 'bling', 'gfx')
     PUBLIC_FILES = ('index.html', 'admin.html', 'mobile.html', 'favicon.ico', 'robots.txt')
     def static_allowed(self):
         """Decide on the DECODED filesystem path (the raw URL can hide '/data' as '/%64ata')."""
@@ -2892,6 +2895,7 @@ class H(SimpleHTTPRequestHandler):
                             break
             return self.send_json({'received': True})
 
+        if p == '/api/admin/restore' and not self.authed(): return self.send_json({'error': 'unauthorized'}, 401)   # auth before reading 90 MB
         try:
             if p == '/api/admin/restore':
                 data = self.body_large(90_000_000)
@@ -2930,8 +2934,13 @@ class H(SimpleHTTPRequestHandler):
                         prof['bling'] = wb
                     # 🌱 sprouts clipped to this avatar ride along in the profile so everyone sees them
                     if isinstance(prf.get('sprouts'), list):
-                        prof['sprouts'] = [s for s in prf['sprouts'] if isinstance(s, dict)
-                                           and s.get('slot') and s.get('item')][:8]
+                        sp_ok = []
+                        for sp in prf['sprouts'][:8]:   # rebuilt from known fields only (it is re-sent to every visitor)
+                            if not isinstance(sp, dict): continue
+                            row = SHOP_MAP.get(str(sp.get('item', '')))
+                            if not row or not row.get('sprout') or sp.get('slot') not in BLING_SLOTS: continue
+                            sp_ok.append({'slot': sp['slot'], 'item': row['item'], 'from': _clean(str(sp.get('from') or ''))[:40]})
+                        prof['sprouts'] = sp_ok
                     if prof: e['profile'] = prof
                     elif 'profile' in e: e.pop('profile')   # emptied = back to the random character look
             name = _clean(NAME_RE.sub('', str(data.get('name', '')))).strip()[:24]   # 🧼 names are family-facing too
@@ -2970,76 +2979,82 @@ class H(SimpleHTTPRequestHandler):
         # other visitors). Points come from trivia (per-user, once per question); arcade minigames
         # mint prizes directly; points redeemed below buy SHOP collectibles.
         if p == '/api/account/enter':
-            a = load('accounts.json', {})
-            phone = ''.join(re.findall(r'\d', str(data.get('phone', ''))))[-10:]
-            lang = 'es' if str(data.get('lang', '')).lower().startswith('es') else 'en'
-            name = _clean(NAME_RE.sub('', str(data.get('name', '')).strip()))[:40]   # 🧼 family-facing scoreboard name
-            if len(phone) != 10: return self.send_json({'error': 'Enter a 10-digit phone number'}, 400)
-            if not name: return self.send_json({'error': 'Pick a display name — it shows on the scoreboard!'}, 400)
-            rec = a.setdefault(phone, {'created': int(time.time())})   # missing key MUST insert into a
-            if name: rec['name'] = name
-            rec.setdefault('name', 'Guest')
-            rec['lang'] = lang                        # language picked FIRST at sign-up — everything else follows
-            rec.setdefault('prizes', []); rec.setdefault('wins', {}); rec.setdefault('points', 0)
-            rec.setdefault('sprouts', [])   # 🌱 festival sprouts currently clipped to this avatar
-            with ACCOUNTS_LOCK: save('accounts.json', a)
-            return self.send_json({'ok': True, 'phone': phone, 'name': rec['name'], 'lang': lang,
-                                   'prizes': rec['prizes'], 'wins': rec['wins'], 'points': rec['points'], 'rep': int(rec.get('rep', 0))})
+            with ACCOUNTS_LOCK:   # whole read-modify-write under the lock (a stale save would drop other writes)
+                a = load('accounts.json', {})
+                phone = ''.join(re.findall(r'\d', str(data.get('phone', ''))))[-10:]
+                lang = 'es' if str(data.get('lang', '')).lower().startswith('es') else 'en'
+                name = _clean(NAME_RE.sub('', str(data.get('name', '')).strip()))[:40]   # 🧼 family-facing scoreboard name
+                if len(phone) != 10: return self.send_json({'error': 'Enter a 10-digit phone number'}, 400)
+                if not name: return self.send_json({'error': 'Pick a display name — it shows on the scoreboard!'}, 400)
+                rec = a.setdefault(phone, {'created': int(time.time())})   # missing key MUST insert into a
+                if name: rec['name'] = name
+                rec.setdefault('name', 'Guest')
+                rec['lang'] = lang                        # language picked FIRST at sign-up — everything else follows
+                rec.setdefault('prizes', []); rec.setdefault('wins', {}); rec.setdefault('points', 0)
+                rec.setdefault('sprouts', [])   # 🌱 festival sprouts currently clipped to this avatar
+                with ACCOUNTS_LOCK: save('accounts.json', a)
+                return self.send_json({'ok': True, 'phone': phone, 'name': rec['name'], 'lang': lang,
+                                       'prizes': rec['prizes'], 'wins': rec['wins'], 'points': rec['points'], 'rep': int(rec.get('rep', 0))})
         if p == '/api/account/lang':                # the language picked FIRST at sign-up is updatable later
-            a = load('accounts.json', {})
-            phone = ''.join(re.findall(r'\d', str(data.get('phone', ''))))[-10:]
-            lang = 'es' if str(data.get('lang', '')).lower().startswith('es') else 'en'
-            if len(phone) != 10: return self.send_json({'error': 'bad request'}, 400)
-            rec = a.get(phone)
-            if not rec: return self.send_json({'error': 'No account yet — sign in at the arcade.'}, 404)
-            rec['lang'] = lang
-            with ACCOUNTS_LOCK: save('accounts.json', a)
-            return self.send_json({'ok': True, 'phone': phone, 'lang': lang})
+            with ACCOUNTS_LOCK:   # whole read-modify-write under the lock (a stale save would drop other writes)
+                a = load('accounts.json', {})
+                phone = ''.join(re.findall(r'\d', str(data.get('phone', ''))))[-10:]
+                lang = 'es' if str(data.get('lang', '')).lower().startswith('es') else 'en'
+                if len(phone) != 10: return self.send_json({'error': 'bad request'}, 400)
+                rec = a.get(phone)
+                if not rec: return self.send_json({'error': 'No account yet — sign in at the arcade.'}, 404)
+                rec['lang'] = lang
+                with ACCOUNTS_LOCK: save('accounts.json', a)
+                return self.send_json({'ok': True, 'phone': phone, 'lang': lang})
         if p == '/api/account/prize':
-            a = load('accounts.json', {})
-            phone = ''.join(re.findall(r'\d', str(data.get('phone', ''))))[-10:]
-            item = re.sub(r'[^\w\-]', '', str(data.get('item', '')))[:40]
-            label = str(data.get('label', ''))[:48]
-            src = re.sub(r'[^\w\-]', '', str(data.get('src', 'game')))[:12]
-            if len(phone) != 10 or not item:
-                return self.send_json({'error': 'bad request'}, 400)
-            rec = a.setdefault(phone, {'created': int(time.time()), 'name': 'Guest',
-                                       'prizes': [], 'wins': {}, 'points': 0})
-            rows = rec.setdefault('prizes', [])
-            rec.setdefault('sprouts', [])   # 🌱 gift attachments ride the account too
-            row = next((e for e in rows if e.get('item') == item), None)
-            if row: row['count'] = row.get('count', 1) + 1
-            else: rows.append({'item': item, 'name': label or 'Mystery prize', 'src': src,
-                               'count': 1, 'got': int(time.time())})
-            if src: rec.setdefault('wins', {})[src] = rec['wins'].get(src, 0) + 1
-            with ACCOUNTS_LOCK: save('accounts.json', a)
-            if src in ('claw', 'pin'):              # label-bearing mints also feed the score ring
-                _score_record(src, rec.get('name', 'Guest'), 1, rows[-1]['name'])
-            return self.send_json({'ok': True, 'phone': phone, 'name': rec.get('name', 'Guest'),
-                                   'prizes': rows, 'wins': rec['wins'], 'points': rec.get('points', 0),
-                                   'won': {'item': item, 'name': label or 'Mystery prize'}})
+            with ACCOUNTS_LOCK:   # whole read-modify-write under the lock (a stale save would drop other writes)
+                a = load('accounts.json', {})
+                phone = ''.join(re.findall(r'\d', str(data.get('phone', ''))))[-10:]
+                item = re.sub(r'[^\w\-]', '', str(data.get('item', '')))[:40]
+                label = str(data.get('label', ''))[:48]
+                src = re.sub(r'[^\w\-]', '', str(data.get('src', 'game')))[:12]
+                if len(phone) != 10 or not item:
+                    return self.send_json({'error': 'bad request'}, 400)
+                if item in SHOP_MAP or item in BLING_MAP:   # shop collectibles / sprouts only via /api/account/redeem (costs points)
+                    return self.send_json({'error': 'bad request'}, 400)
+                rec = a.setdefault(phone, {'created': int(time.time()), 'name': 'Guest',
+                                           'prizes': [], 'wins': {}, 'points': 0})
+                rows = rec.setdefault('prizes', [])
+                rec.setdefault('sprouts', [])   # 🌱 gift attachments ride the account too
+                row = next((e for e in rows if e.get('item') == item), None)
+                if row: row['count'] = row.get('count', 1) + 1
+                else: rows.append({'item': item, 'name': label or 'Mystery prize', 'src': src,
+                                   'count': 1, 'got': int(time.time())})
+                if src: rec.setdefault('wins', {})[src] = rec['wins'].get(src, 0) + 1
+                with ACCOUNTS_LOCK: save('accounts.json', a)
+                if src in ('claw', 'pin'):              # label-bearing mints also feed the score ring
+                    _score_record(src, rec.get('name', 'Guest'), 1, rows[-1]['name'])
+                return self.send_json({'ok': True, 'phone': phone, 'name': rec.get('name', 'Guest'),
+                                       'prizes': rows, 'wins': rec['wins'], 'points': rec.get('points', 0),
+                                       'won': {'item': item, 'name': label or 'Mystery prize'}})
         if p == '/api/account/redeem':              # spend trivia points on SHOP collectibles
-            a = load('accounts.json', {})
-            phone = ''.join(re.findall(r'\d', str(data.get('phone', ''))))[-10:]
-            item = re.sub(r'[^\w\-]', '', str(data.get('item', '')))[:40]
-            row = SHOP_MAP.get(item)
-            if len(phone) != 10 or not row: return self.send_json({'error': 'bad request'}, 400)
-            rec = a.setdefault(phone, {'created': int(time.time()), 'name': 'Guest',
-                                       'prizes': [], 'wins': {}, 'points': 0})
-            pts = rec.setdefault('points', 0)
-            if pts < row['cost']:
-                return self.send_json({'error': 'Not enough points — ' + str(row['cost'] - pts) +
-                                       ' more to go. Answer trivia in chat!'}, 402)
-            rec['points'] = pts - row['cost']
-            rows = rec.setdefault('prizes', [])
-            ex = next((e for e in rows if e.get('item') == item), None)
-            if ex: ex['count'] = ex.get('count', 1) + 1
-            else: rows.append({'item': item, 'name': row['label'], 'src': 'trivia',
-                               'count': 1, 'got': int(time.time())})
-            with ACCOUNTS_LOCK: save('accounts.json', a)
-            return self.send_json({'ok': True, 'points': rec['points'], 'prizes': rows,
-                                   'wins': rec.get('wins', {}),
-                                   'won': {'item': item, 'name': row['label']}})
+            with ACCOUNTS_LOCK:   # whole read-modify-write under the lock (a stale save would drop other writes)
+                a = load('accounts.json', {})
+                phone = ''.join(re.findall(r'\d', str(data.get('phone', ''))))[-10:]
+                item = re.sub(r'[^\w\-]', '', str(data.get('item', '')))[:40]
+                row = SHOP_MAP.get(item)
+                if len(phone) != 10 or not row: return self.send_json({'error': 'bad request'}, 400)
+                rec = a.setdefault(phone, {'created': int(time.time()), 'name': 'Guest',
+                                           'prizes': [], 'wins': {}, 'points': 0})
+                pts = rec.setdefault('points', 0)
+                if pts < row['cost']:
+                    return self.send_json({'error': 'Not enough points — ' + str(row['cost'] - pts) +
+                                           ' more to go. Answer trivia in chat!'}, 402)
+                rec['points'] = pts - row['cost']
+                rows = rec.setdefault('prizes', [])
+                ex = next((e for e in rows if e.get('item') == item), None)
+                if ex: ex['count'] = ex.get('count', 1) + 1
+                else: rows.append({'item': item, 'name': row['label'], 'src': 'trivia',
+                                   'count': 1, 'got': int(time.time())})
+                with ACCOUNTS_LOCK: save('accounts.json', a)
+                return self.send_json({'ok': True, 'points': rec['points'], 'prizes': rows,
+                                       'wins': rec.get('wins', {}),
+                                       'won': {'item': item, 'name': row['label']}})
         if p == '/api/score':                       # ⛹ minigame + contest result reporting (no account needed)
             s = {**DEFAULT_SETTINGS, **load('settings.json', {})}
             if not _game_allowed(s, data.get('game')):
@@ -3194,7 +3209,10 @@ class H(SimpleHTTPRequestHandler):
                     if not prow: return self.send_json({'error': "You don't have one of those to gift!"}, 400)
                     prow['count'] -= 1
                     if prow['count'] <= 0: rec['prizes'].remove(prow)
-                    rec['rep'] = int(rec.get('rep', 0)) + 3
+                    gd = rec.setdefault('gift_day', {'d': today, 'n': 0})
+                    if gd.get('d') != today: gd['d'], gd['n'] = today, 0
+                    gd['n'] += 1
+                    if gd['n'] <= 10: rec['rep'] = int(rec.get('rep', 0)) + 3   # Rep for the first 10 gifts a day
                     rec['npc_gift'] = {'until': now + 300, 'cost': int(row['cost'])}
                     out = {'ok': True, 'gifted': row['label'], 'rep': rec['rep'], 'level': rep_level(rec['rep'])}
                 elif p == '/api/npc-friend-gift':   # one friend's thank-you per gift: a cheaper-or-equal sprout (never a profit), max 3/day
@@ -3220,11 +3238,12 @@ class H(SimpleHTTPRequestHandler):
                     amt = 1
                     if kind == 'quest':
                         try: amt = max(1, min(5, int(data.get('amount', 1))))
-                        except (TypeError, ValueError): amt = 1
+                        except (TypeError, ValueError, OverflowError): amt = 1
                         if rr.get('q', 0) + amt > 60: return self.send_json({'ok': True, 'rep': int(rec.get('rep', 0)), 'limited': True})
                     elif rr['n'] >= 40: return self.send_json({'ok': True, 'rep': int(rec.get('rep', 0)), 'limited': True})
-                    if now - rr.get('last', 0) < (8 if kind == 'quest' else 15): return self.send_json({'ok': True, 'rep': int(rec.get('rep', 0)), 'limited': True})
-                    rr['last'] = now
+                    if kind == 'react':   # greetings are spaced; quest awards can land together (quest + returned item)
+                        if now - rr.get('last', 0) < 15: return self.send_json({'ok': True, 'rep': int(rec.get('rep', 0)), 'limited': True})
+                        rr['last'] = now
                     if kind == 'quest': rr['q'] = rr.get('q', 0) + amt
                     else: rr['n'] += 1
                     rec['rep'] = int(rec.get('rep', 0)) + amt
@@ -3716,9 +3735,10 @@ class H(SimpleHTTPRequestHandler):
                 except (TypeError, ValueError): s[_ek] = DEFAULT_SETTINGS[_ek]
             for _ik, _hi in (('sceneSmokePuffs', 60), ('scenePipeSmokers', 100), ('scenePipePuffs', 8)):
                 try: s[_ik] = max(0, min(_hi, int(float(s.get(_ik, DEFAULT_SETTINGS[_ik])))))
-                except (TypeError, ValueError): s[_ik] = DEFAULT_SETTINGS[_ik]
+                except (TypeError, ValueError, OverflowError): s[_ik] = DEFAULT_SETTINGS[_ik]
             if s.get('sceneShadows') not in ('', 'off', '1024', '2048', '4096'): s['sceneShadows'] = ''
             s['sceneAntialias'] = bool(s.get('sceneAntialias'))
+            s['sceneTextures'] = bool(s.get('sceneTextures'))
             # 🎵 jukebox catalog rows + #layout's saved prop layout get the same care as the rest:
             # known-shape fields only, bounded, nothing executable ever lands in settings.json
             if not isinstance(s.get('jukeboxSongs'), list): s['jukeboxSongs'] = []

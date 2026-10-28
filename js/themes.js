@@ -77,7 +77,8 @@ export function nextHoliday(now = new Date()) {
 export function stored() {
   try {
     const q = new URLSearchParams(location.search).get('theme');
-    if (q) localStorage.setItem('eol-scene-theme', q);
+    const ok = x => x === 'auto' || x === 'classic' || Object.prototype.hasOwnProperty.call(THEMES, x);
+    if (q && ok(q)) localStorage.setItem('eol-scene-theme', q);
     const v = localStorage.getItem('eol-scene-theme');
     return v || 'auto';
   } catch (e) { return 'auto'; }
@@ -85,7 +86,7 @@ export function stored() {
 export function resolve() {   // → id of the theme to render, or 'default' for the untouched classic look
   const v = stored();
   if (v === 'classic' || v === 'default') return 'default';
-  if (v !== 'auto' && THEMES[v]) return v;
+  if (v !== 'auto' && Object.prototype.hasOwnProperty.call(THEMES, v)) return v;   // ?theme=constructor etc. must not resolve
   return autoTheme();
 }
 export const CYCLE = ['auto', 'steampunk', ...HOLIDAYS, 'classic'];

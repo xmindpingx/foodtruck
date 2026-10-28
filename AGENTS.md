@@ -30,32 +30,28 @@ Both are the same server process (pm2 app `foodtruck-site`, port 8095) behind a 
 Browser modules are imported with a cache-busting query string, e.g. `import ... from './shop.js?v=8'`.
 **Two different query strings for the same file load the module TWICE** (two copies of the state, menu
 rendered twice, events fired twice). So when you change a JS module you must bump its `?v=` in **every**
-importer, all to the same number. Current graph (importer → what it imports):
+importer, all to the same number. Versions change all the time, so never trust a number written in a
+doc — print the live graph instead:
 
-| file | imports |
-|---|---|
-| `index.html` | `js/scene.js?v=46`, `js/hotdog.js?v=8`, `js/jukebox.js?v=14`, `js/gps.js?v=21`, `js/pacman.js?v=22`, `js/uno.js?v=10`, `js/chess.js?v=70`, `js/cards.js?v=11`, `css/site.css?v=27`; inline module imports `./js/shop.js?v=8` |
-| `mobile.html` | `./js/shop.js?v=8`, `css/mobile.css?v=1` |
-| `scene.js` | `shop.js?v=8` `truck.js?v=6` `avatars.js?v=13` `people.js?v=4` `themes.js?v=1` `themefx.js?v=1` `life.js?v=6` `waterpark.js?v=1` `rep.js?v=1` `stuff.js?v=2` `quests.js?v=3` `account.js?v=8` `arcade.js?v=24` |
-| `avatars.js` | `truck.js` (no version) `shop.js?v=8` `account.js?v=8` `people.js?v=4` |
-| `arcade.js` | `avatars.js?v=13` `shop.js?v=8` `account.js?v=8` |
-| `hotdog.js` | `avatars.js?v=13` `shop.js?v=8` |
-| `jukebox.js` | `shop.js?v=8` `avatars.js?v=13` `account.js?v=8` |
-| `pacman.js` | `shop.js?v=8` `avatars.js?v=13` `account.js?v=8` |
-| `cards.js`, `chess.js`, `gps.js`, `uno.js` | `shop.js?v=8` `account.js?v=8` |
-| `shop.js`, `rep.js` | `account.js?v=8` |
-| `life.js`, `stuff.js`, `waterpark.js` | `people.js?v=4` |
+```bash
+grep -rnoE "(\./|js/)[a-z_]+\.(js|css)\?v=[0-9]+" index.html mobile.html js/*.js | sort -t: -k3
+```
 
-Recipe after editing, say, `people.js`: `grep -rn "people.js?v=" js/ index.html mobile.html` then change
-every hit from `?v=4` to `?v=5`. Then `scene.js` changed, so bump `scene.js?v=` in `index.html` too.
-Rule of thumb: **after any JS edit, bump the edited file's version everywhere, then bump `scene.js` in
-`index.html`** (scene.js is the entry point and is never imported by anyone else).
-`truck.js` is imported without a version by `avatars.js` and with `?v=6` by `scene.js` — leave that as is.
+Who imports what (stable): `index.html` loads `js/scene.js` (entry point, imported by nobody else),
+`hotdog jukebox gps pacman uno chess cards` and inline-imports `shop.js`; `mobile.html` imports only `shop.js`.
+`scene.js` imports almost every module (shop truck avatars people themes themefx life waterpark gfx rep stuff
+quests account arcade). `avatars.js` ← arcade hotdog jukebox pacman scene. `shop.js` / `account.js` ← most
+modules. `people.js` ← avatars life stuff waterpark scene.
+
+Recipe after editing, say, `people.js`: `grep -rn "people.js?v=" js/ index.html mobile.html`, then change
+every hit to the same new number (current + 1). Rule of thumb: **after any JS edit, bump the edited file's
+version everywhere, then bump `js/scene.js?v=` in `index.html`.** The smoke test fails ("a module is imported
+with two different ?v= strings") if you miss an importer — that check is your safety net, run it.
 
 ## 2. File map
 
 ```
-server.py        3847 lines. ThreadingHTTPServer on 127.0.0.1:$PORT (default 8095). Static files + JSON API.
+server.py        ~3900 lines. ThreadingHTTPServer on 127.0.0.1:$PORT (default 8095). Static files + JSON API.
                  Routing: class H → page_for() (which HTML a path maps to), do_GET, do_POST, static_allowed().
                  Only PUBLIC_FILES at the root and PUBLIC_DIRS ('lib','tex','img','js','css','media','bling')
                  are ever served. data/ is never served. Decisions use the DECODED real path.
@@ -72,7 +68,7 @@ js/shop.js       DOM only: fetch /api/settings + /api/menu, render menu, cart (w
 js/account.js    Arcade accounts (phone number = account). Pill + profile panel (points, Rep, collection,
                  "Wear on your avatar" bling buttons, redeem shop). Account.lang(), Account.phone, refresh().
 js/truck.js      three.js truck geometry only. Exports BL BW BH FLOOR WX0 WX1 WY0 WY1 bx0, buildTruck().
-js/scene.js      1420 lines, entry point. Renderer, camera, lite detection (detectLite), crowd + booths,
+js/scene.js      ~1450 lines, entry point. Renderer, camera, lite detection (detectLite), crowd + booths,
                  stage/band, picnic tables + seated eaters, walking avatar (arrow keys / thumb pad), click
                  raycasts, layout mode, and the animation loop (R.setAnimationLoop near the bottom) that ticks
                  every system below. Also wires: themes → themefx, waterpark, life, stuff, quests, rep.
@@ -81,9 +77,13 @@ js/avatars.js    Live presence avatars of other visitors (poll /api/presence eve
                  bling wearing, name sprites. makeBody(hue, prof) builds a people.js avatar.
 js/life.js       Ambient crowd life + player interactions + Rep hooks (section 6.2).
 js/stuff.js      Litter / lost items / decor with distance LOD, pick-up/deliver (section 6.4).
-js/quests.js     Six pun vendors, flash sales, flash dances, 40 pun quests (section 6.5).
+js/quests.js     Six pun vendors, flash sales, flash dances, ~37 pun quests (section 6.5).
 js/themes.js     Theme palettes + holiday calendar (section 6.3). js/themefx.js applies a theme to the lot.
 js/waterpark.js  West-side water park, per-section culling, "closed for repairs" placeholder (section 6.6).
+js/gfx.js        ComfyUI photo textures: tagged materials get gfx/*.jpg (section 6.9).
+gfx/             Built textures (JPEG): <name>.jpg desktop, <name>.m.jpg phone (half size), <name>.n.jpg normal map.
+tools/gfx_gen.py Renders the textures on the owner's ComfyUI and builds gfx/ (section 7, T11). Raw renders go
+                 to tools/gfx_raw/ (gitignored, never served). Dev tool: needs Pillow + numpy, not the server.
 js/rep.js        Rep score helpers (points/level/title/add) (section 6.7).
 js/arcade.js     Midway props + six minigames + HIGH SCORES board. js/pacman.js js/uno.js js/chess.js js/cards.js
                  js/hotdog.js js/jukebox.js js/gps.js: self-contained features (games, contest, music, geocaching).
@@ -107,7 +107,8 @@ ROADMAP.md       Known bugs + needed features. .claude/launch.json: a local prev
   (scatter/pose jitter), `sceneSmokePuffs` (stage fog, 0 = off), `scenePipeSmokers` (% of crowd with a pipe),
   `scenePipePuffs` (puffs per smoker), `sceneFallMult` / `sceneFloatMult` (theme particles/lanterns),
   meter overrides `sceneCrowdRange` / `sceneLifeRange` / `sceneClutterNear` / `sceneClutterMid` (0 = auto),
-  `sceneShadows` ("", off, 1024, 2048, 4096), `scenePixelRatio` (0 = auto) and `sceneAntialias`.
+  `sceneShadows` ("", off, 1024, 2048, 4096), `scenePixelRatio` (0 = auto), `sceneAntialias` and
+  `sceneTextures` (ComfyUI photo textures on/off, default on — section 6.9).
   Draw-distance + graphics rows apply after a reload of the 3D page.
   Older: `midwayOn`, `hotdogOn`, `triviaBotOn`, `gamePacmanOn`, `gameUnoOn`, `gameChessOn`, `geocacheOn`.
 - Env vars: `PORT`, `FOODTRUCK_DATA` (data dir; tests point it at a temp dir), `FOODTRUCK_NO_PREWARM=1`
@@ -141,7 +142,7 @@ echo '{"siteGateEnabled": false, "taxRate": 0.083, "payCash": true, "rewardsOn":
 PORT=8223 FOODTRUCK_DATA="$d" FOODTRUCK_NO_PREWARM=1 FOODTRUCK_MOBILE_HOSTS=localhost:8223 python3 server.py &
 # probes
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8223/3d          # 3D page (index.html)
-curl -s http://127.0.0.1:8223/ | grep -c 'id="mobileApp"'                   # lite page, because of FOODTRUCK_MOBILE_HOSTS
+curl -s http://localhost:8223/ | grep -c 'id="mobileApp"'                    # 1 = lite page (Host must match FOODTRUCK_MOBILE_HOSTS; 127.0.0.1 → 0)
 curl -s http://127.0.0.1:8223/api/menu | python3 -m json.tool | head
 curl -s http://127.0.0.1:8223/api/account/shop | python3 -c "import json,sys;print(len(json.load(sys.stdin)['items']),'shop items')"
 ```
@@ -162,13 +163,15 @@ __EOL_CROWD.list.filter(e=>e.obj.visible).length + '/' + __EOL_CROWD.list.length
 __EOL_LIFE.actors.map(a=>a.name+':'+a.anim)      // what every ambient actor is doing
 __EOL_STUFF.items.length                          // litter / lost items
 __EOL_QUESTS.vendors; __EOL_QUESTS.quests         // vendors + quest count
-__EOL_WALK_START(); __EOL_WALK_PRESS('ArrowUp')   // spawn + move your avatar (…_RELEASE to stop)
+__EOL_WALK_START(); __EOL_WALK_PRESS('ArrowUp')   // spawn + move your avatar (…_RELEASE to stop; Escape leaves walk mode)
+__EOL_VIEW(px,py,pz, tx,ty,tz)                    // park the orbit camera at p looking at t (walk mode must be off)
+__EOL_GFX.enabled; __EOL_CROWD.blobs.count       // photo textures on? / contact-shadow blobs in use
 // fast-forward the simulation 60 s (a hidden/background tab throttles the real animation loop):
 {let t=100;for(let i=0;i<600;i++){t+=.1;__EOL_LIFE.tick(t,.1);__EOL_QUESTS.tick(t,.1);__EOL_STUFF.tick(t,.1);}}
 // give the first actor a sprout and watch the hug → friends → return-gift chain:
 dispatchEvent(new CustomEvent('eol:npc-gift',{detail:{npc:0,slot:'collar',cost:0}}))
 ```
-Lite mode: scene.js `detectLite()` returns true on phones; `localStorage['eol-lite']='0'` or the path `/3d`
+Lite mode: scene.js `detectLite()` returns true on phones; `localStorage['eol-lite2']='0' (only explicit chip choices are stored)` or the path `/3d`
 forces full mode; the chip bottom-right toggles it. Themes: `?theme=steampunk|halloween|…|classic|auto`.
 
 ## 6. Systems reference (contracts you must keep)
@@ -186,8 +189,12 @@ forces full mode; the chip bottom-right toggles it. Themes: `?theme=steampunk|ha
 
 ### 6.2 life.js — ambient crowd + interactions
 - `Life.init(opts)` (wired in scene.js) returns `{tick(t,dt), actors, createStaff(spec), flashDance(x,z,secs,limit),
-  rush(x,z,secs,limit), dancersNear(x,z,r), pop(emoji,obj,y), toast(text), setMood(actor,expr,secs), cheer(actor,secs),
-  cans(), roster()}`.
+  rush(x,z,secs,limit), moshPit(x,z,secs,limit), dancersNear(x,z,r), pop(emoji,obj,y), toast(text),
+  setMood(actor,expr,secs), cheer(actor,secs), interactMenu(actor,clientX,clientY), cans(), roster()}`.
+- Movement: `walk()` routes around circular obstacles from `obstacles()` (truck, tables, props, vendor booths,
+  jukebox, lowrider, stage, water park) with `detour()` + `pushOut()`; circles that contain the start or the goal
+  are ignored (so seats, the queue and the stage pit are reachable). A leg counts as stuck only after 1 s of
+  real time without progress (frame-rate independent); `goDyn` steps time out after `s.max || 12` s.
 - Actor: `{id, name, kid, staff, root, g(=root.userData), x, z, yaw, plan:[steps], step, anim, near, seat, unit,
   quest, vendor, react, mood, expr}`. Plan step kinds: `go {x,z,spd}`, `goDyn {fn,d}`, `follow {t,dist}`,
   `wait {t,anim,fx,fz}`, `sit {x,z,yaw,key,t}`, `do {fn}`. Anims: idle chat watch dance cheer wave highfive
@@ -197,7 +204,9 @@ forces full mode; the chip bottom-right toggles it. Themes: `?theme=steampunk|ha
 - Player interactions: `interact()` every ~9–18 s ÷ (1 + 0.5·RepLevel); kinds wave / highfive / photo /
   dance / follow / sprout. Event `eol:npc-gift {npc, slot, cost}` = player gave actor #npc a sprout → hug,
   friends gossip, one friend brings a sprout (`POST /api/npc-friend-gift`). Tapping a greeting actor
-  (`a.react` set) = +1 Rep via `opts.onReact`. Tapping any other actor opens the gift panel for `npc:<id>`.
+  (`a.react` set) = +1 Rep via `opts.onReact`. Tapping any other actor opens `interactMenu` (4 random options of
+  wave / high-five (+1 Rep) / photo / dance / hug / cheer / give sprout / follow me). The serving window and the
+  ambient queue are on the truck's **-z** side (rig space).
 - Faces: `exprFor()` picks the expression from anim/mood; `setMood()` overrides for N seconds.
 
 ### 6.3 themes.js / themefx.js
@@ -231,7 +240,9 @@ forces full mode; the chip bottom-right toggles it. Themes: `?theme=steampunk|ha
   top-right, `localStorage['eol-quests-done']`. `onTap(actor)` is called by life.js before other tap handling.
 
 ### 6.6 waterpark.js
-- `Waterpark.init(S, {open, message, lite, phone, cam})` → `{tick, group, guards, towers, poi, closed?}`.
+- `Waterpark.init(S, {open, message, lite, phone, cam, player, onUse})` → `{tick, group, guards, towers, poi, bounds, zones,
+  splash(x,z), closed?}`. Walking into a `zones` entry calls `onUse(name)` (+1 Rep) once per entry (22 s cooldown).
+  Tapping the park (last in scene.js's click chain) splashes; Rep for taps at most every 20 s.
   Bounds `PARK = {x0:-72, x1:-36, z0:-28, z1:22, gate:{x:-36, z:-3}}`. Sections (deck, wave, river, boats,
   slides, guns, lounge) each hide beyond their own radius (phones use 60 %). `open:false` builds the
   "closed for repairs" gate + rotating pun sign instead. The whole group has `userData.steamSkip` (keeps its
@@ -259,15 +270,28 @@ forces full mode; the chip bottom-right toggles it. Themes: `?theme=steampunk|ha
   rewrites `/api/menu` image URLs to the thumbnail when it exists; `prewarm_thumbs()` at startup;
   `shrink_image(path, 512)` for uploaded logos.
 
+### 6.9 gfx.js — ComfyUI photo textures
+- `Gfx.init({R, small, enabled})` → `{apply(root), enabled}`; scene.js calls `apply(S)` after everything is built
+  (and again at 1.5 s). `small` (phones/lite) loads `gfx/<name>.m.jpg` and skips normal maps; desktop loads
+  `<name>.jpg` + `<name>.n.jpg`. `enabled` = `CONFIG.sceneTextures !== false`.
+- A builder opts a material in by tagging `material.userData`: `gfx:'<name>'` (grass wood canvas stone sand water
+  backdrop signboard deck food-<vendorId>), optional `gfxRepeat:[x,y]`, `gfxTint:true` (neutral fabric: keeps
+  material.color as the tint — themefx may recolour it), `gfxShade:0..1` (darker natural texture),
+  `gfxNoNormal:true`, `gfxMacro:texture` + `gfxMacroRepeat` (ground only: blends the old canvas over the photo
+  so 4 m tiles don't show), `gfxSign:fn(img)` (booth signs repaint their canvas on the board image).
+  Untagged materials — and the truck — are never touched. Every material gets its own texture object
+  (cheap: three.js shares the GPU image), so animating `material.map.offset` (the lazy river) is safe.
+- Where tags live today: ground + buildTable + buildBooth (+ sign) + buildStage backdrop in scene.js; water,
+  deck, rims, walls, beach, umbrellas in waterpark.js; vendor sandwich boards in quests.js.
+- Contact shadows: scene.js draws one soft blob per crowd body (`CROWD_BLOBS`, shown/hidden with the body)
+  and per AI actor (`ACTOR_BLOBS`, updated each frame) outside the sun's shadow box (|x|,|z| > 13 m).
+
 ## 7. Pick a task (scoped recipes — do one, verify, report)
 
 Each recipe lists files, steps and how to prove it works. Prefer these over inventing new features.
 
-**T1. Actors stop walking through tables and booths** — `js/life.js` `walk()`. Add a circle push-out like
-scene.js `walkCollide()`: after moving, for each table (`opts.tables`, world position via
-`t.getWorldPosition(v)`) and each vendor booth (positions in `quests.js VENDORS[].spot`), if the actor is
-within r (0.95 table, 1.6 booth) push it out along the radius. Verify: console fast-forward 120 s, then
-`__EOL_LIFE.actors.every(a => __EOL_SEATS().every(s => Math.hypot(a.x-s.x,a.z-s.z) > .9 || a.seat))`.
+**T1. (done)** Actor collision with tables/booths/props exists (life.js `obstacles()`); if you touch it, keep goals
+inside obstacle circles reachable and re-run the 120 fps fast-forward (section 5) — no actor may stay in one step.
 
 **T2. Server-side ownership check for worn bling** — `js/avatars.js` heartbeat already sends `profile`;
 add `phone: Account.phone` to that POST body; in `server.py` `/api/presence`, when `phone` is a 10-digit
@@ -281,11 +305,12 @@ highfive / photo / give / hug / chat set `headPivot.rotation.y` toward the playe
 clamp ±0.8). Bump `people.js?v=` in life.js, stuff.js, waterpark.js, avatars.js, scene.js, then scene.js in
 index.html. Verify with `node --check` + smoke + the console fast-forward (no errors).
 
-**T4. Phone performance tier** — `js/scene.js`: next to `IS_PHONE`, add `const PERF = IS_PHONE ? 1 : 2`
-and use it: `R.setPixelRatio(Math.min(devicePixelRatio, IS_PHONE ? 1.5 : 2))`, pass `small` counts into
-`Life.init` (actor cast ≈ 8), and skip `antialias` on phones (`new THREE.WebGLRenderer({canvas, antialias: !IS_PHONE})`).
-Report the draw-call count via the console: `__EOL_FX && R` is not exposed — add `window.__EOL_R = R` for
-`__EOL_R.info.render.calls`. Verify nothing else changed (smoke).
+**T4. Phone performance defaults** — pixel ratio, antialias and shadows are already admin knobs (`scenePixelRatio`,
+`sceneAntialias`, `sceneShadows`, scene.js top) and life.js shrinks its cast on phones. Only add *phone defaults for
+when a knob is unset*. Careful: `const IS_PHONE` is declared below `const R=` — move it above before using it there
+(using a `const` before its line is a runtime crash that `node --check` cannot see). Expose `window.__EOL_R = R` to
+read `__EOL_R.info.render.calls`. Biggest known cost: the crowd uses 31-mesh `buildPerformer` bodies (commit 779f65b,
+deliberate); `People.crowdPerson()` is 2 meshes — ask the owner before switching back.
 
 **T5. Eyeball + tune the other holiday palettes** — needs a browser. For each id in `themes.js HOLIDAYS`
 open `/3d?theme=<id>`, screenshot, and adjust that theme's `fog`, `tint`, `fab`, `string`, `fall` so text
@@ -297,19 +322,26 @@ clean; add ≥5 rows; make sure each goal's poi exists. Verify: smoke + console
 
 **T7. Admin theme override** — add `sceneTheme` (default `''`) to `DEFAULT_SETTINGS` + `PUBLIC_SETTINGS`
 and a `<select data-s="sceneTheme">` in admin.html (options: blank=auto, classic, steampunk, each holiday id);
-in `js/scene.js` resolve the theme with `CONFIG.sceneTheme || Themes.resolve()` (visitor `?theme=` still
-wins when present). Smoke: `/api/settings` contains `sceneTheme`.
+in `js/scene.js` resolve the theme so a visitor's stored/`?theme=` choice wins and the admin value is the default:
+`const st = Themes.stored(); SCENE_THEME = (st === 'auto' && CONFIG.sceneTheme) ? CONFIG.sceneTheme : Themes.resolve();`. Smoke: `/api/settings` contains `sceneTheme`.
 
 **T8. Water-park collision for the player** — `js/scene.js walkCollide()`: add box push-outs for the wave
 pool (`WP`), bumper pond (`BP`, circle), lazy river ring (keep the player out of the ring between `LR.r0`
 and `LR.r1`) and slide towers; numbers are in `js/waterpark.js`. Export them from waterpark.js
-(`export const LAYOUT = {...}`) instead of duplicating.
+(`export const LAYOUT = {...}`) instead of duplicating. Keep every `zones` entry reachable after the push-outs
+(widen zones that sit over water) or the water-park Rep stops working.
 
 **T9. Theme-date unit test for every holiday** — `tests/smoke.sh` already checks 12 dates; extend to
 include the Easter/Thanksgiving edge days (the day before the window, first day, last day, day after).
 
 **T10. Sounds (no assets)** — a tiny `js/sfx.js` using WebAudio oscillators for splash / trash / hug /
 flash-sale bell; trigger from life.js `pop()` kinds and quests.js; respect `localStorage['eol-chat-quiet']`.
+
+**T11. New / better ComfyUI texture** — `tools/gfx_gen.py` (`TEX` table: name → prompt, width, height, kind:
+`seamless` | `seamx` (planks: left/right wrap only) | `tint` (neutral fabric) | `photo`). Add or edit a row, then
+`python3 tools/gfx_gen.py gen <name>` (ComfyUI at http://127.0.0.1:8888 wakes on demand, ~20–70 s per image;
+`--redo` re-renders) and `python3 tools/gfx_gen.py build <name>`. Look at `gfx/<name>.jpg` before using it.
+Tag the material (section 6.9) and bump `gfx.js`'s `V` constant when you re-render an existing name.
 
 ## 8. Definition of done (copy into your final message)
 

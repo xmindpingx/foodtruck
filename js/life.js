@@ -44,7 +44,7 @@ export function init(o) {
   // ---------- points of interest (always world x,z) ----------
   const poi = {
     pit: () => ({x: rnd(-6, 22), z: rnd(-60.6, -54)}),
-    queue: k => { const w = worldOf(rig, win.x1 - .45 - (k % 4) * .62, 0, win.z + 1.5); return {x: w.x, z: w.z}; },
+    queue: k => { const lx = win.x1 - .45 - (k % 4) * .62, w = worldOf(rig, lx, 0, -(win.z + 1.5)), f = worldOf(rig, lx, 0, -win.z); return {x: w.x, z: w.z, fx: f.x, fz: f.z}; },   // the serving window is on the truck's -z side
     wander: () => ({x: rnd(-20, 24), z: rnd(5, 17)}),
     game: () => {
       const ps = props().map(q => q && (typeof q.getWorldPosition === 'function' ? q : (q.group || q.obj || q.root))).filter(q => q && typeof q.getWorldPosition === 'function'); if (!ps.length) return poi.wander();
@@ -66,7 +66,8 @@ export function init(o) {
 
   // ---------- cast ----------
   function makeActor(kid, unit) {
-    const look = People.randomLook();
+    let look = People.randomLook();
+    while (!kid && look.kid) look = People.randomLook();   // randomLook makes ~20% kids itself: adults must not inherit the kid head rig
     if (kid) Object.assign(look, {kid: true, scale: .62 + Math.random() * .1, beard: false, vest: 0, hat: null, sleeve: 'short', dress: Math.random() < .4, hair: pick(['short', 'long', 'bun'])});
     else look.scale = .95 + Math.random() * .1;
     const root = People.buildAvatar(Math.floor(Math.random() * 360), {}, 0, look);
@@ -99,7 +100,7 @@ export function init(o) {
   const go = (p, spd) => ({k: 'go', x: p.x, z: p.z, spd, fx: p.fx, fz: p.fz});
   const wait = (t, anim, p) => ({k: 'wait', t, anim, fx: p && p.fx, fz: p && p.fz, fy: p && p.fy});
   const off = (p, i, n) => ({x: p.x + (i - (n - 1) / 2) * .85, z: p.z + (i % 2 ? .2 : -.2), fx: p.fx, fz: p.fz});
-  const seatStep = (a) => { const s = freeSeat(); if (!s) return null; taken.set(s.key, a); a.seatKey = s.key; return [go(s), {k: 'sit', x: s.x, z: s.z, yaw: s.yaw, key: s.key, t: rnd(28, 55)}]; };
+  const seatStep = (a) => { const s = freeSeat(); if (!s) return null; if (a.seatKey) taken.delete(a.seatKey); taken.set(s.key, a); a.seatKey = s.key; return [go(s), {k: 'sit', x: s.x, z: s.z, yaw: s.yaw, key: s.key, t: rnd(28, 55)}]; };
   const trashSteps = () => { const c = poi.can(); return c ? [go(c), wait(1.5, 'toss', c)] : []; };
 
   function soloPlan(a) {
@@ -115,7 +116,7 @@ export function init(o) {
     return P;
   }
   function orderEat(a) {
-    const q = poi.queue(Math.floor(Math.random() * 4)), P = [go(q), wait(rnd(6, 10), 'queue', {fx: q.x, fz: q.z - 5})], s = seatStep(a);
+    const q = poi.queue(Math.floor(Math.random() * 4)), P = [go(q), wait(rnd(6, 10), 'queue', q)], s = seatStep(a);
     if (s) P.push(...s, ...trashSteps());
     return P;
   }
@@ -205,18 +206,19 @@ export function init(o) {
 
   // player gave one of us a sprout: hug → tell friends → a friend returns the favour
   function playerGave(id, slot, cost) {
-    const a = actors[id], p = player(); if (!a || !p) return;
+    const a = actors[id], pl = player(); if (!a || a.staff) return;
+    const p = pl || {obj: a.root, get x() { return a.x; }, get z() { return a.z; }};   // no avatar out: hug in place, friends still bring a sprout
     const u = a.unit; u.interact = true;
     const friends = u.members.filter(m => m !== a); if (friends.length === 0) friends.push(...actors.filter(m => m !== a && !m.kid).sort((m, n) => dist2(m.x, m.z, a.x, a.z) - dist2(n.x, n.z, a.x, a.z)).slice(0, 2));
     a.step = null; a.locked = false; if (a.seat) release(a);
     setMood(a, 'surprised', 1.4); a.mood.until += 0;
-    a.plan = [{k: 'goDyn', fn: () => ({x: p.x, z: p.z}), d: .75, spd: 2.1}, {k: 'do', fn: () => setMood(a, 'smile', 6)}, wait(2.6, 'hug', null), {k: 'do', fn: () => { pop('❤️', a.root); pop('❤️', p.obj); }}, wait(1.2, 'cheer')];
+    a.plan = [{k: 'goDyn', fn: () => ({x: p.x, z: p.z}), d: .75, spd: 2.1}, {k: 'do', fn: () => setMood(a, 'smile', 6)}, wait(2.6, 'hug', null), {k: 'do', fn: () => { pop('❤️', a.root); if (pl) pop('❤️', p.obj); }}, wait(1.2, 'cheer')];
     friends.forEach((f, i) => {
       if (f.seat) release(f); f.step = null; f.unit.interact = true;
       setMood(f, 'surprised', 2.2);
       f.plan = [{k: 'goDyn', fn: () => ({x: a.x, z: a.z}), d: 1, spd: 1.9}, {k: 'do', fn: () => setMood(f, 'smile', 4)}, wait(2.4, 'chat', null), {k: 'do', fn: () => pop('💬', f.root)}];
       if (i === 0) f.plan.push({k: 'goDyn', fn: () => ({x: p.x, z: p.z}), d: 1.1, spd: 1.9}, wait(1.8, 'give', null), {k: 'do', fn: async () => {
-        attachSprout(p.obj, pick(['collar', 'chest', 'shoulderL']), 120000); pop('🌱', p.obj);
+        if (pl) { attachSprout(p.obj, pick(['collar', 'chest', 'shoulderL']), 120000); pop('🌱', p.obj); } else pop('🌱', f.root, 2.1);
         try { const j = await (await fetch('/api/npc-friend-gift', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({phone: o.acctPhone(), given: cost})})).json();
           toast(j && j.gift ? '🌱 ' + f.name + ' brought you a ' + j.gift + '!' : '🌱 ' + f.name + ' says thanks for being kind!'); if (j && j.gift) o.refresh(); } catch (e) {}
       }}, wait(1.5, 'cheer'));
@@ -243,6 +245,7 @@ export function init(o) {
       if (o === null) continue;
       const ow = rig.worldToLocal(V3.set(o.x, 0, o.z));
       const ox = ow.x, oz = ow.z, r = o.r + 0.4;
+      if (Math.hypot(s.x - ox, s.z - oz) < r || Math.hypot(e.x - ox, e.z - oz) < r) continue;
       const dx = e.x - s.x, dz = e.z - s.z;
       const fx = s.x - ox, fz = s.z - oz;
       const aa = dx * dx + dz * dz;
@@ -286,7 +289,7 @@ export function init(o) {
     const tb = o.truckBox; if (tb) { const cx = (tb.x0+tb.x1)/2, cz = (tb.z0+tb.z1)/2; const w = rig.localToWorld(new THREE.Vector3(cx,0,cz)); out.push({x:w.x, z:w.z, r: Math.hypot((tb.x1-tb.x0)/2,(tb.z1-tb.z0)/2)+0.3}); }   // circumradius so the whole truck (cab + box) is covered
     for (const t of (o.tables||[])) { if (t && t.parent) { V.set(0,0,0); t.getWorldPosition(V); out.push({x:V.x,z:V.z,r:.95}); } }
     const ps = (o.props ? (o.props() || []) : []); for (const p of (Array.isArray(ps) ? ps : [])) { if (p && p.parent) { V.set(0,0,0); p.getWorldPosition(V); out.push({x:V.x,z:V.z,r:1.1}); } }
-    const vs = (o.vendors ? (o.vendors() || []) : []); for (const v of (Array.isArray(vs) ? vs : [])) { if (v && v.spot) out.push({x:v.spot[0],z:v.spot[1],r:1.6}); }
+    const vs = o.vendors ? (o.vendors() || []) : []; for (const v of (Array.isArray(vs) ? vs : Object.values(vs))) { const sp = v && (v.spot || (v.V && v.V.spot)); if (sp) out.push({x:sp[0],z:sp[1],r:1.6}); }
     if (o.jukebox && o.jukebox.parent) { V.set(0,0,0); o.jukebox.getWorldPosition(V); out.push({x:V.x,z:V.z,r:(o.jukebox.userData&&o.jukebox.userData.obstacleR)||1.2}); }
     const lrs = Array.isArray(o.lowriders) ? o.lowriders : (typeof o.lowriders === 'function' ? (o.lowriders()||[]) : []);
     for (const lr of lrs) { if (lr && lr.parent) { V.set(0,0,0); lr.getWorldPosition(V); out.push({x:V.x,z:V.z,r:(lr.userData&&lr.userData.obstacleR)||3.2}); } }
@@ -304,8 +307,9 @@ export function init(o) {
     }
     return out;
   }
-  function pushOut(a) {
+  function pushOut(a, tx, tz) {
     for (const o of obstacles()) {
+      if (tx != null && Math.hypot(tx - o.x, tz - o.z) < o.r + .3) continue;
       const dx = a.x - o.x, dz = a.z - o.z, dd = Math.hypot(dx, dz);
       if (dd < o.r && dd > 1e-4) { a.x = o.x + dx/dd*o.r; a.z = o.z + dz/dd*o.r; }
     }
@@ -317,34 +321,30 @@ export function init(o) {
       a._detourWp = detour(a, tx, tz); a._detourKey = _key; a._detourFrames = 0;
     }
     a._detourFrames = (a._detourFrames || 0) + 1;
-    const [wx, wz] = a._detourWp, dx = wx - a.x, dz = wz - a.z, d = Math.hypot(dx, dz);
+    const x0 = a.x, z0 = a.z, [wx, wz] = a._detourWp, dx = wx - a.x, dz = wz - a.z, d = Math.hypot(dx, dz);
     a.moving = d > .05;
-    if (a.moving) { const st = Math.min(d, spd * dt); a.x += dx / d * st; a.z += dz / d * st; pushOut(a); const _t = Math.atan2(dx, dz); const _dd = (((( _t - a.yaw + Math.PI) % (Math.PI*2)) + Math.PI*2) % (Math.PI*2)) - Math.PI; a.yaw += Math.sign(_dd) * Math.min(Math.abs(_dd), 0.15); a.gait += st * (a.kid ? 5.2 : 4.2); }
+    if (a.moving) { const st = Math.min(d, spd * dt); a.x += dx / d * st; a.z += dz / d * st; pushOut(a, tx, tz); const _t = Math.atan2(dx, dz); const _dd = (((( _t - a.yaw + Math.PI) % (Math.PI*2)) + Math.PI*2) % (Math.PI*2)) - Math.PI; a.yaw += Math.sign(_dd) * Math.min(Math.abs(_dd), 0.15); a.gait += st * (a.kid ? 5.2 : 4.2); }
     // actor-actor: if bumping into another actor, interact instead of clipping (with a cooldown so they don't freeze mid-walk)
     if (!a._greetCd || a._greetCd <= 0) {
       for (const o of actors) {
         if (o === a || !o.root || !o.root.visible) continue;
         const dd = Math.hypot(o.x - a.x, o.z - a.z);
         if (dd < 0.5 && dd > 1e-4 && (!o._greetCd || o._greetCd <= 0)) {
-          a.moving = false; a.anim = 'chat'; a.idle = true; a._stuck = 0; a._greetCd = 4;
-          o._greetCd = 4;
+          a.moving = false; a.anim = 'chat'; a._stuck = 0; a._greetCd = 1.5;
+          o._greetCd = 1.5;
           a.face = Math.atan2(o.x - a.x, o.z - a.z);
-          return true;
+          return false;   // a bump pauses the walk; it is not an arrival
         }
       }
     }
-    if (a._greetCd) a._greetCd--;
+    if (a._greetCd > 0) a._greetCd -= dt;
     const distToTarget = Math.hypot(tx - a.x, tz - a.z);
-    const key = tx.toFixed(1) + ',' + tz.toFixed(1);
-    if (a._lastTarget === key) {
-      if (distToTarget >= (a._lastDist || distToTarget) - 0.02) a._stuck = (a._stuck || 0) + 1;
-      else a._stuck = 0;
-    } else { a._lastTarget = key; a._stuck = 0; }
-    a._lastDist = distToTarget;
-    if ((a._stuck || 0) > 30) { a._stuck = 0; return true; }   // unstuck: force replan
+    if (a.moving && Math.hypot(a.x - x0, a.z - z0) < spd * dt * .25) a._stuck = (a._stuck || 0) + dt; else a._stuck = 0;
+    if (a._stuck > 1) { a._stuck = 0; return true; }   // really blocked for 1 s (time-based, any frame rate): give up this leg
     return distToTarget < .12;
   }
   function begin(a, s) {
+    if (s.k !== 'sit' && a.seat) release(a);   // any new step after an interrupted meal: stand up, free the seat
     a.t = 0; a.anim = 'idle'; a._detourKey = null; a._detourWp = null; a._detourFrames = 0; a._lastTarget = null; a._stuck = 0;
     if (s.k === 'wait') a.anim = s.anim || 'idle';
     else if (s.k === 'sit') { a.seat = s; a.x = s.x; a.z = s.z; a.yaw = s.yaw; a.anim = 'eat'; }
@@ -378,8 +378,8 @@ export function init(o) {
         const s = a.step;
         if (s.k === 'go') { if (walk(a, s.x, s.z, s.spd || a.spd, dt)) { a.step = null; a.moving = false; if (s.fx != null) a.face = yawTo(a.x, a.z, s.fx, s.fz); } }
         else if (s.k === 'goDyn') {
-          const tp = s.fn(), d = Math.hypot(tp.x - a.x, tp.z - a.z);
-          if (d > s.d) walk(a, tp.x - (tp.x - a.x) / d * s.d, tp.z - (tp.z - a.z) / d * s.d, s.spd || a.spd * 1.15, dt); else { a.moving = false; a.face = yawTo(a.x, a.z, tp.x, tp.z); a.step = null; }
+          const tp = s.fn(), d = Math.hypot(tp.x - a.x, tp.z - a.z); a.t += dt;
+          if (d > s.d + .1 && a.t < (s.max || 12)) walk(a, tp.x - (tp.x - a.x) / d * s.d, tp.z - (tp.z - a.z) / d * s.d, s.spd || a.spd * 1.15, dt); else { a.moving = false; a.face = yawTo(a.x, a.z, tp.x, tp.z); a.step = null; }
         }
         else if (s.k === 'follow') {
           const p = player(); a.t += dt; if (!p || a.t > s.t) { a.step = null; a.moving = false; }
@@ -475,7 +475,7 @@ export function init(o) {
       {label: '🤗 Hug', fn: () => { a.anim = 'hug'; setMood(a, 'smile', 4); pop('🤗', a.root, 2.0); } },
       {label: '👏 Cheer', fn: () => { cheer(a, 3); pop('👏', a.root, 2.0); } },
       {label: '🌱 Give sprout', fn: () => { dispatchEvent(new CustomEvent('eol:npc-gift', {detail: {npc: a.id, slot: 'collar', cost: 0}})); } },
-      {label: '🚶 Follow me', fn: () => { a.plan = [{k: 'follow', t: 0, dist: 2.2, spd: 1.6}]; a.step = null; a.idle = false; setMood(a, 'smile', 4); } },
+      {label: '🚶 Follow me', fn: () => { if (a.staff) { pop('🙅', a.root, 2.0); return; } if (a.seat) release(a); a.plan = [{k: 'follow', t: 20, dist: 2.2}, wait(2, 'wave')]; a.step = null; a.idle = false; setMood(a, 'smile', 4); } },   // t = seconds to tag along (0 used to end it on the next frame)
     ];
     // pick 4 random, dedup by label
     const shuffled = opts.slice().sort(() => Math.random() - .5).slice(0, 4);
@@ -542,7 +542,7 @@ export function init(o) {
     for (const u of units.sort(() => Math.random() - .5)) {
       if (u.kind === 'staff' || u.interact || n >= limit) continue;
       u.interact = true; n++;
-      u.members.forEach((m, i) => { if (m.seat) release(m); m.step = null; const sp = {x: x + (i - 1) * .8 + rnd(-.4, .4), z: z + rnd(1.6, 2.4), fx: x, fz: z}; m.plan = [go(sp, 2), wait(Math.min(secs, rnd(5, 9)), 'queue', sp)]; const st = seatStep(m); if (st) m.plan.push(...st, ...trashSteps()); });
+      u.members.forEach((m, i) => { if (m.seat) release(m); m.step = null; const sp = {x: x + (i - 1) * .8 + rnd(-.4, .4), z: z + rnd(-.4, .4), fx: x, fz: z}; /* quests passes the booth's front point */ m.plan = [go(sp, 2), wait(Math.min(secs, rnd(5, 9)), 'queue', sp)]; const st = seatStep(m); if (st) m.plan.push(...st, ...trashSteps()); });
     }
     return n;
   }

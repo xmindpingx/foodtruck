@@ -229,3 +229,5 @@ body.panel-open #eolModalBackdrop{display:block}
 body.panel-open .panel{z-index:1001}
 
 .eolAcctChip.wear{cursor:pointer;color:#f6e7c8}.eolAcctChip.wear.on{background:rgba(242,193,78,.4);border-color:#f2c14e}
+
+@media(max-width:640px){#eolChatIn{font-size:16px}}   /* below 16px iOS zooms the page on focus */

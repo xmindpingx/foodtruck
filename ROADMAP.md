@@ -16,20 +16,38 @@ Restart needed after pulling: `pm2 restart foodtruck-site`.
 | Bling / collectibles | `bling/*.webp`, `bling/catalog.json`, `avatars.js`, `account.js` | 43 ComfyUI-generated sprites (10 steampunk + 3 per holiday), wear from the account panel |
 | Rep | `js/rep.js`, `server.py` (`/api/rep`, `/api/gift-npc`, `/api/npc-friend-gift`) | levels 0-5; more Rep = more crowd greetings |
 | Clutter | `js/stuff.js` | trash / lost items / decor, near+mid LOD, local persistence 30 min |
-| Vendors + quests | `js/quests.js` | 6 pun vendors, flash sales, flash dances, 40 pun quests |
+| Vendors + quests | `js/quests.js` | 6 pun vendors (with food-photo sandwich boards), flash sales, flash dances, ~37 pun quests |
+| Photo textures | `tools/gfx_gen.py`, `gfx/`, `js/gfx.js` | 14 ComfyUI renders (grass, wood, canvas, stone, sand, water, LED wall, sign board, 6 vendor dishes) → tileable JPEG + phone size + normal maps; admin `sceneTextures`; contact-shadow blobs in scene.js |
 | Water park | `js/waterpark.js` | wave pool, lazy river, bumper boats, slides, cannons; per-section culling; admin switch -> "closed for repairs" |
 | Admin switches | `admin.html` Environment tab (Games card) | `waterparkOn`, `waterparkClosedMsg`, `ambientLifeOn`, `questsOn` |
+
+## Fixed in the 2026-10-27 evening bug check (six-lens review + runtime checks)
+
+Themes never re-skinned anything (themefx skipped the Scene root's subtree); AI walks were frame-rate dependent
+(actors abandoned walks and teleported into seats at ≥60 fps) and goDyn steps never timed out (frozen greeters);
+seat reservations leaked; the ambient queue formed behind the truck (window is on -z); vendor booths were never
+obstacles and goals inside obstacle circles were unreachable; "Follow me" ended on the next frame; the sprout gift
+chain did nothing without an avatar out; water-park taps stole taps from people/tables/menu and paid Rep per tap;
+walkCollide's truck push-out never moved the avatar; Safari/Firefox desktops were forced into lite mode (and the
+auto value was saved — key renamed to `eol-lite2`); fall/float multipliers of 0 could not turn effects off;
+`?theme=constructor` crashed the page; avatars added a PointLight each (shader recompiles) and were never disposed;
+the 3D loop kept running under the full-screen phone menu; PMREM env maps leaked; truck.js loaded twice.
+Server: accounts.json read-modify-writes now hold `ACCOUNTS_LOCK` (RLock) for the whole handler; `/api/account/prize`
+can no longer mint shop collectibles/sprouts; presence sprouts are rebuilt from a whitelist; `/api/admin/restore`
+checks auth before reading 90 MB; quest Rep is no longer dropped by greeting spacing; gift-npc Rep capped at 10/day;
+OverflowError on infinite numbers; big static dirs (lib bling gfx media img tex) are cacheable again.
+Smoke now also checks: one `?v=` per module, gfx assets + private raw dir, account/presence hardening.
 
 ## Known bugs / rough edges
 
 1. **No real-device performance data.** Budgets (crowd range, section radii, pixel ratio, 2048 shadow map) are estimates. Needs Safari Web Inspector on an iPhone 12; watch draw calls (life + stuff + park + vendors) and memory.
-2. Lite mode still does not lower pixel ratio / antialiasing / lights on phones; `eol-lite=0` (3D page) on an iPhone 12 is the heavy path.
+2. The crowd uses 31-mesh `buildPerformer` bodies again (commit 779f65b, deliberate): ~2.7k meshes / ~830k triangles when all are in range — the biggest phone cost; `People.crowdPerson()` is 2 meshes. Static props (tables, booths) are hundreds of unmerged meshes that all cast into the sun shadow map. Lite mode still does not lower pixel ratio / antialiasing / lights on phones; `eol-lite=0` (3D page) on an iPhone 12 is the heavy path.
 3. Hidden/background browser panes throttle `requestAnimationFrame`; the sim was verified by manually ticking `__EOL_LIFE.tick`, not by watching real time.
 4. Actors avoid the truck (full circumradius, no more corner clipping), picnic tables, arcade props, vendor booths, the jukebox, the Impala lowrider, the main stage and the water park (its real bounds, not a stray circle at the origin). Seats still ignore the player's own avatar; slide/pool interiors remain walkable.
 5. Sit/eat/play/hug are approximate joint poses; heads do not turn (head mesh has no pivot); kids' bodies clip slightly when seated.
 6. Band performers, seated eaters, the truck worker and the 200 instanced audience still use the old low-realism bodies.
 7. Live avatars: `makeBody` uses the shared rig but each avatar gets own materials (~15 meshes). 14 avatars + 27 actors + park bathers can be heavy together; no global cap yet.
-8. Bling "worn" list is cosmetic and **not ownership-checked** by the server (anyone can claim to wear any catalog id via the presence profile).
+8. Admin: media/logo upload re-renders settings and drops unsaved edits; "Save environment" posts every Settings field too (an invalid hidden field aborts it). Bling "worn" list is cosmetic and **not ownership-checked** by the server (anyone can claim to wear any catalog id via the presence profile).
 9. Rep for guests is local only (`eol-rep`); easy to edit, resets with the browser.
 10. Water park: visual QA only from code review; water transparency sorting, slide riders (plain capsules) and the closed-sign placeholder were not eyeballed. Players can walk through slides/pools (no collision). `walk.x` limit was widened to -76.
 11. Holiday palettes: only Halloween and steampunk were seen on screen. Others are untested; colour contrast (e.g. Christmas haze, New Year dark fog) may need tuning.

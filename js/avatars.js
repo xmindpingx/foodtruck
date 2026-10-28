@@ -8,7 +8,7 @@
 // NOTE: visitor chat here is live and NOT moderated in real time. The admin "Live chat" tab
 // is an after-the-fact audit log, and Settings has an on/off switch if it's ever misused.
 import * as THREE from 'three';
-import {WX0, WX1, BW, FLOOR} from './truck.js';
+import {WX0, WX1, BW, FLOOR} from './truck.js?v=6';
 import {CONFIG} from './shop.js?v=8';
 import * as Account from './account.js?v=8';   // language picked at sign-up drives chips + docks
 import * as People from './people.js?v=4';     // realistic shared-geometry bodies (painted faces, swinging limbs)
@@ -56,7 +56,7 @@ function reskinLive() {
 }
 function rebuildSelf() {
   const a = live.get(myId);
-  if (a) { try { S.remove(a.group); } catch (e) {} live.delete(myId); }
+  if (a) { try { S.remove(a.group); disposeBody(a.group); } catch (e) {} live.delete(myId); }
   const me = spawn(myId, selfHue(), myName, myProfile);
   me.self = true;
   live.set(myId, me);
@@ -72,12 +72,12 @@ let BLING = {items: [], themes: {}}, BLING_BY = {}, npcLister = () => [];
 export const setNpcLister = f => { npcLister = f; };
 const BLING_SIZE = {hat: .62, collar: .36, chest: .42, shoulderL: .32, shoulderR: .32, shoeL: .28, shoeR: .28};
 const BLING_POS = {hat: [0, 1.86, .02], collar: [0, 1.4, .13], chest: [0, 1.2, .19], shoulderL: [-.26, 1.36, .12], shoulderR: [.26, 1.36, .12], shoeL: [-.09, .1, .17], shoeR: [.09, .1, .17]};
-const blingMats = new Map(), blingLoader = new THREE.TextureLoader();
+const BLING_SPRITE = new WeakSet(), blingMats = new Map(), blingLoader = new THREE.TextureLoader();
 function blingMat(id) {
   let m = blingMats.get(id);
   if (!m) {
     const t = blingLoader.load('/bling/' + id + '.webp'); t.colorSpace = THREE.SRGBColorSpace;
-    m = new THREE.SpriteMaterial({map: t, transparent: true, depthWrite: false, alphaTest: .02}); blingMats.set(id, m);
+    m = new THREE.SpriteMaterial({map: t, transparent: true, depthWrite: false, alphaTest: .02}); blingMats.set(id, m); BLING_SPRITE.add(m);
   }
   return m;
 }
@@ -613,7 +613,7 @@ function selfHue() {
 }
 
 function queueSpot(k) {   // a numbered spot in the walk-up line at the service window
-  const x = WX1 - .45 - (k % 6) * .62, z = BW / 2 + 1.5 + Math.floor(k / 6) * 1.1;
+  const x = WX1 - .45 - (k % 6) * .62, z = -(BW / 2 + 1.5 + Math.floor(k / 6) * 1.1);   // the serving window is on the truck's -z side
   return new THREE.Vector3(x, FLOOR, z);
 }
 function seatSpot(id) {   // a lunch-table seat on the lawn (world coords, drag-corrected live)
@@ -631,17 +631,28 @@ function spawn(id, hue, name, prof) {
     bg: 'rgba(10,8,5,.55)', w: 220, h: 56});
   nameSpr.scale.set(.85, .22, 1); nameSpr.position.y = 1.28; group.add(nameSpr);
   const bubbleAnchor = new THREE.Group(); bubbleAnchor.position.y = 1.55; group.add(bubbleAnchor);
-  const glow = new THREE.PointLight(new THREE.Color().setHSL(hue / 360, .8, .6), 0, 2.4, 2);
-  glow.position.y = .6; group.add(glow);
+  // "ordered" glow = the shirt's own emissive (a PointLight per avatar recompiled every lit shader on join/leave)
+  let glow = null; group.traverse(o => { if (!glow && o.isMesh && o.userData.custom === 'shirt') glow = o.material; });
+  if (glow) { glow.emissive = new THREE.Color().setHSL(hue / 360, .8, .5); glow.emissiveIntensity = 0; }
   S.add(group); applyBling(group, (prof && prof.bling) || []);
   return {id, group, nameSpr, bubbleAnchor, bubble: null, bubbleUntil: 0, glow, name,
     target: randSpot(), wait: 1 + Math.random() * 3, status: 'browsing', phase: Math.random() * 10, blingIds: (prof && prof.bling) || []};
 }
 
-function despawn(a) { S.remove(a.group); }
+// free an avatar's GPU memory: its merged geometries, per-avatar materials and sprite canvases. Cached people.js
+// materials (faces, palette colours) and bling sprite materials are shared, so they stay.
+export function disposeBody(grp) {
+  grp.traverse(o => {
+    if (o.isSprite) { if (o.material && !BLING_SPRITE.has(o.material)) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } return; }
+    if (!o.isMesh) return;
+    if (o.geometry) o.geometry.dispose();
+    if (o.userData.custom && !o.userData.skinFace && o.material) o.material.dispose();
+  });
+}
+function despawn(a) { S.remove(a.group); disposeBody(a.group); }
 
 function setStatus(a, status, name, self) {
-  if (name && name !== a.name) { a.name = name; a.group.remove(a.nameSpr);
+  if (name && name !== a.name) { a.name = name; a.group.remove(a.nameSpr); a.nameSpr.material.map.dispose(); a.nameSpr.material.dispose();
     a.nameSpr = textSprite({text: name, font: 'bold 26px Inter, sans-serif', fg: '#fff', bg: 'rgba(10,8,5,.55)', w: 220, h: 56});
     a.nameSpr.scale.set(.85, .22, 1); a.nameSpr.position.y = 1.28; a.group.add(a.nameSpr);
   }
@@ -695,7 +706,7 @@ export function tick(t, dt) {
       if (legs[0]) legs[0].rotation.x = 0;
       if (legs[1]) legs[1].rotation.x = 0;
     }
-    if (a.glow) { const gt = a.status === 'ordering' ? 1.1 : 0; a.glow.intensity += (gt - a.glow.intensity) * Math.min(1, dt * 4); }
+    if (a.glow) { const gt = a.status === 'ordering' ? .55 : 0; a.glow.emissiveIntensity += (gt - a.glow.emissiveIntensity) * Math.min(1, dt * 4); }
     if (a.bubble && now > a.bubbleUntil) { a.bubbleAnchor.remove(a.bubble); a.bubble.material.map.dispose(); a.bubble.material.dispose(); a.bubble = null; }
   }
 }

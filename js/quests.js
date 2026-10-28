@@ -66,6 +66,15 @@ export function init(o) {
   // ---------- vendors ----------
   for (const V of VENDORS) {
     const [x, z] = V.spot, g = buildBooth(V.name, V.hue); g.position.set(x, 0, z); g.rotation.y = V.south ? Math.PI : 0; S.add(g);
+    {   // sandwich board at the booth corner: the vendor's dish (gfx/food-<id>.jpg, rendered on ComfyUI; plain card until it loads)
+      const fb = new THREE.Group(), wm = new THREE.MeshStandardMaterial({color: 0x5a3a22, roughness: .8}), pm = new THREE.MeshStandardMaterial({color: 0xf4efe2, roughness: .55});
+      Object.assign(wm.userData, {gfx: 'wood', gfxShade: .5, gfxRepeat: [.5, .5]}); Object.assign(pm.userData, {gfx: 'food-' + V.id, gfxNoNormal: true});
+      for (const s of [1, -1]) {
+        const b = new THREE.Mesh(new THREE.BoxGeometry(.62, .9, .03), wm); b.position.set(0, .44, s * .075); b.rotation.x = -s * .17; b.castShadow = true; fb.add(b);
+        const ph = new THREE.Mesh(new THREE.PlaneGeometry(.5, .5), pm); ph.position.set(0, .1, .017); if (s < 0) ph.rotation.y = Math.PI; if (s < 0) ph.position.z = -.017; b.add(ph);
+      }
+      fb.position.set(1.7, 0, 1.45); fb.rotation.y = -.35; g.add(fb);
+    }
     const st = createStaff({x, z: z + (V.south ? .2 : -.2), yaw: V.south ? Math.PI : 0, name: V.name.split(' ')[0] + ' Pat'}); st.quest = 'vendor'; st.vendor = V.id;
     const c = document.createElement('canvas'); c.width = 512; c.height = 160; const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
     const ban = new THREE.Sprite(new THREE.SpriteMaterial({map: tex, transparent: true, depthTest: false})); ban.scale.set(3.4, 1.06, 1); ban.position.set(x, 4.1, z); ban.renderOrder = 997; ban.visible = false; S.add(ban);
@@ -83,7 +92,7 @@ export function init(o) {
 
   // ---------- points of interest (world x,z) ----------
   const poi = {
-    stage: () => ({x: 8, z: -58, n: 'the stage'}), window: () => { const w = rig.localToWorld(new THREE.Vector3(win.x1 - .4, 0, win.z + 1.6)); return {x: w.x, z: w.z, n: 'the truck window'}; },
+    stage: () => ({x: 8, z: -58, n: 'the stage'}), window: () => { const w = rig.localToWorld(new THREE.Vector3(win.x1 - .4, 0, -(win.z + 1.6))); return {x: w.x, z: w.z, n: 'the truck window'}; },
     games: () => { const ps = o.props().map(p => p && p.getWorldPosition ? p : null).filter(Boolean); const w = (ps[0] || rig).getWorldPosition(new THREE.Vector3()); return {x: w.x + 2, z: w.z + 2, n: 'the games'}; },
     park: () => ({x: park.poi.gate ? park.poi.gate.x : -38, z: park.poi.gate ? park.poi.gate.z : -3, n: 'the water park gate'}), lost: () => { const w = new THREE.Vector3(); stuff.crate().getWorldPosition(w); return {x: w.x, z: w.z, n: 'the Lost & Found'}; },
     tables: () => { const t = pick(o.tables), w = t.getWorldPosition(new THREE.Vector3()); return {x: w.x, z: w.z, n: 'the picnic tables'}; },
@@ -126,9 +135,9 @@ export function init(o) {
     const pool = Q.filter(q => !active_recent.includes(q[1])); const q = pick(pool.length ? pool : Q), g = giverActor(q), [k, a] = parse(q[3]);
     active = {q, t: 150, giver: g, giverName: g ? g.name : 'The band', stage: 0, count: 0, hint: goalText(q[3]), dwell: 0, lostId: null};
     active_recent.push(q[1]); if (active_recent.length > 14) active_recent.shift();
-    if (k === 'lost') { const spot = stuff.items.filter(i => !i.gone && i.k).sort(() => Math.random() - .5)[0]; const it = stuff.spawnLost(pick(['teddy', 'duck', 'cap', 'ball', 'shoe']), rnd(-20, 40), rnd(6, 28), active.giverName); active.lostId = it.id; active.hint += ' (somewhere on the lawn — look for ❗)'; }
+    if (k === 'lost') { const spot = stuff.items.filter(i => !i.gone && i.k).sort(() => Math.random() - .5)[0]; const it = stuff.spawnLost(pick(['teddy', 'duck', 'cap', 'ball', 'shoe']), rnd(-20, 40), rnd(6, 28), active.giverName); active.lostId = it.id; active.hint += ' (somewhere on the lawn)'; }
     if (k === 'deliver') { active.from = resolve(a.split('>')[0]); active.to = resolve(a.split('>')[1]); }
-    if (k === 'dance') { life.flashDance(p.x + rnd(-8, 8), p.z + rnd(6, 12), 20, small ? 6 : 12); danceAt = {x: p.x, z: p.z, t: 0, got: false, until: 25}; }
+    if (k === 'dance') { const cx = p.x + rnd(-8, 8), cz = p.z + rnd(6, 12); life.flashDance(cx, cz, 20, small ? 6 : 12); danceAt = {x: cx, z: cz, t: 0, got: false, until: 25}; }   // the reward zone is where the dancers are
     if (g) { life.pop('❗', g.root, 2.2); g.react = performance.now() + 12000; }
     life.toast('❗ New quest: ' + q[1]); render();
   }
@@ -145,7 +154,7 @@ export function init(o) {
   addEventListener('eol:stuff-delivered', e => {
     if (!active) return; const g = active.q[3], [k, a] = parse(g), d = e.detail || {};
     if (k === 'litter' && d.kind === 'trash') { active.count++; active.hint = goalText(g) + ` — ${active.count}/${a}`; if (active.count >= +a) finish(true); else render(); }
-    if (k === 'lost' && d.kind === 'lost' && (d.id === active.lostId || !active.lostId)) finish(true);
+    if (k === 'lost' && d.kind === 'lost') finish(true);   // any returned lost item counts
   });
   // tapping a giver / vendor
   const onTap = a => {

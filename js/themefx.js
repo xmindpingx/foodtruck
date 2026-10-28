@@ -26,7 +26,7 @@ function classify(m) {
 function restyle(m) {
   if (!m || DONE.has(m) || PROTECT.has(m)) return;
   DONE.add(m);
-  if (!(m.isMeshStandardMaterial || m.isMeshPhysicalMaterial) || m.map || m.emissiveMap || m.alphaMap || m.vertexColors) return;
+  if (!(m.isMeshStandardMaterial || m.isMeshPhysicalMaterial) || (m.map && !(m.userData && m.userData.gfxTint)) || m.emissiveMap || m.alphaMap || m.vertexColors) return;   // gfxTint: neutral fabric photo, colour = tint
   if (m.emissive && m.emissive.getHex() !== 0 && m.emissiveIntensity > 0) return;   // lit bulbs / screens stay lit
   if (m.transparent && m.opacity < .9) return;
   const [hex, rough, metal] = classify(m);
@@ -36,8 +36,10 @@ function restyle(m) {
 }
 export function restyleScene(root, skip) {
   const walk = o => {
-    if (skip.has(o) || (o.userData && o.userData.steamSkip)) return;
-    if ((o.isMesh || o.isInstancedMesh) && !(o.isInstancedMesh && o.instanceColor)) {
+    if (o.userData && o.userData.steamSkip) return;
+    // `skip` holds every object that existed when the truck was built — including the Scene root and the truck's
+    // parents — so skip only their own materials and keep walking: returning here used to skip the whole lot
+    if (!skip.has(o) && (o.isMesh || o.isInstancedMesh) && !(o.isInstancedMesh && o.instanceColor)) {
       if (Array.isArray(o.material)) o.material.forEach(restyle); else restyle(o.material);
     }
     for (const c of o.children) walk(c);
@@ -86,7 +88,8 @@ function softDot() {   // round soft sprite for falling particles
 
 export function init(S, o) {
   const {skip, lite, theme: T} = o;
-  const FM = Math.max(0, Math.min(3, Number(o.fallMult) || 1)), FT = Math.max(0, Math.min(3, Number(o.floatMult) || 1));   // Admin → Environment multipliers
+  const _n = (v, d) => { const n = Number(v); return v === '' || v == null || !Number.isFinite(n) ? d : n; };   // 0 must mean off, not 'default'
+  const FM = Math.max(0, Math.min(3, _n(o.fallMult, 1))), FT = Math.max(0, Math.min(3, _n(o.floatMult, 1)));   // Admin → Environment multipliers
   PAL = T;
   skip.forEach(ob => { if (ob.isMesh) (Array.isArray(ob.material) ? ob.material : [ob.material]).forEach(m => m && PROTECT.add(m)); });
   const run = () => restyleScene(S, skip);

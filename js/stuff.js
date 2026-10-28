@@ -164,7 +164,7 @@ export function init(o) {
     tick(t, dt) {
       acc += dt; if (acc > .35) { acc = 0; lod(); deliver(); }
       dropT -= dt; if (CL > 0 && dropT <= 0) { dropT = rnd(14, 30) / CL; const p = spot(); add(pick(weights.filter(k => K[k].t === 'trash')), p.x, p.z); if (items.filter(i => !i.gone && K[i.k].t === 'trash').length > (small ? 60 : 130)) { const old = items.find(i => !i.gone && K[i.k].t === 'trash'); if (old) old.gone = true; } }
-      if ((nextSave -= dt) <= 0) { nextSave = 20; save(); }
+      if ((nextSave -= dt) <= 0) { nextSave = 20; for (let i = items.length - 1; i >= 0; i--) if (items[i].gone && items[i] !== carry) items.splice(i, 1); save(); }   // prune picked-up/expired items
     },
     items, carrying: () => carry, crate: () => crate,
   };

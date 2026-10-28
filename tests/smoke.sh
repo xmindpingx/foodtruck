@@ -68,6 +68,46 @@ for pat in (r'<div id="smsOptIn".*?</label>\s*<div style[^>]*>.*?</div>\s*</div>
     assert grab('index.html', pat) == grab('mobile.html', pat), pat
 PYX
 
+echo "== module versions: one URL per module (two different ?v= strings load the module twice)"
+python3 - <<'PYX' && ok "every module is imported with a single ?v= everywhere" || bad "a module is imported with two different ?v= strings (it would load twice)"
+import re, glob, collections
+seen = collections.defaultdict(set)
+for f in ['index.html', 'mobile.html'] + glob.glob('js/*.js'):
+    for m in re.finditer(r"""(?:from\s*|import\(\s*|src=)['"](?:\./|/)?(?:js/)?([a-z_]+\.js)(\?v=\d+)?['"]""", open(f, encoding='utf-8').read()):
+        seen[m.group(1)].add(m.group(2) or '(none)')
+bad = {k: sorted(v) for k, v in seen.items() if len(v) > 1}
+assert not bad, bad
+PYX
+
+echo "== account / presence hardening"
+python3 - "$PORT" <<'PYX' && ok "no free shop mints, sprouts sanitized, restore needs auth first" || bad "account/presence hardening"
+import json, sys, urllib.request, urllib.error
+B = f'http://127.0.0.1:{sys.argv[1]}'
+def post(path, body, raw=None):
+    r = urllib.request.Request(B + path, raw if raw is not None else json.dumps(body).encode(), {'Content-Type': 'application/json'})
+    try: return urllib.request.urlopen(r).status, json.load(urllib.request.urlopen(urllib.request.Request(B + path, r.data, r.headers))) if False else (urllib.request.urlopen(r).status, None)
+    except urllib.error.HTTPError as e: return e.code, None
+post('/api/account/enter', {'phone': '4805550111', 'name': 'Smoke'})
+assert post('/api/account/prize', {'phone': '4805550111', 'item': 'bling-crown', 'label': 'x'})[0] == 400, 'shop item minted for free'
+assert post('/api/account/prize', {'phone': '4805550111', 'item': 'sprout-tiny', 'label': 'x'})[0] == 400, 'sprout minted for free'
+post('/api/presence', {'id': 'smokevis', 'profile': {'hue': 1, 'sprouts': [{'slot': 'collar', 'item': 'sprout-tiny', 'from': 'A', 'x': 'y' * 5000}, {'slot': 'nope', 'item': 'zz'}]}})
+others = json.load(urllib.request.urlopen(B + '/api/presence?id=other'))['others']
+sp = next(o for o in others if o['id'] == 'smokevis')['profile'].get('sprouts')
+assert sp == [{'slot': 'collar', 'item': 'sprout-tiny', 'from': 'A'}], sp
+r = urllib.request.Request(B + '/api/admin/restore', b'{}', {'Content-Type': 'application/json', 'Content-Length': '80000000'})
+try: urllib.request.urlopen(r, timeout=5); assert False
+except urllib.error.HTTPError as e: assert e.code == 401, e.code
+PYX
+
+echo "== ComfyUI photo textures (gfx/, built by tools/gfx_gen.py)"
+want /gfx/grass.jpg 200
+want /gfx/grass.m.jpg 200
+want /gfx/backdrop.jpg 200
+want /js/gfx.js 200
+want /tools/gfx_gen.py 404
+want /tools/gfx_raw/grass.png 404
+curl -s "http://127.0.0.1:$PORT/api/settings" | grep -q '"sceneTextures"' && ok "/api/settings exposes sceneTextures" || bad "/api/settings is missing sceneTextures"
+
 echo "== bling catalog + new endpoints"
 want /bling/catalog.json 200
 want /bling/bling-crown.webp 200

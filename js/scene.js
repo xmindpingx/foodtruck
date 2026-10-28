@@ -4,15 +4,16 @@ import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {CONFIG,MENU,money,open,hooks} from './shop.js?v=8';
 import {buildTruck,WX0,WX1,WY0,WY1,BW,BL,BH,bx0,FLOOR,CL} from './truck.js?v=6';
-import * as Avatars from './avatars.js?v=13';
+import * as Avatars from './avatars.js?v=15';
 import * as People from './people.js?v=4';
-import * as Themes from './themes.js?v=1';   // steampunk by default, a theme per big holiday around its date
-import * as FX from './themefx.js?v=3';       // re-skins everything but the truck + gears/lamps/airships or lights/bunting/confetti
-import * as Life from './life.js?v=24';        // ambient crowd life: eat, queue, play, wander, greet the player
-import * as Waterpark from './waterpark.js?v=3';
+import * as Themes from './themes.js?v=2';   // steampunk by default, a theme per big holiday around its date
+import * as FX from './themefx.js?v=5';       // re-skins everything but the truck + gears/lamps/airships or lights/bunting/confetti
+import * as Life from './life.js?v=26';        // ambient crowd life: eat, queue, play, wander, greet the player
+import * as Waterpark from './waterpark.js?v=5';
+import * as Gfx from './gfx.js?v=1';   // ComfyUI photo textures (gfx/*.jpg) on tagged materials
 import * as Rep from './rep.js?v=1';
-import * as Stuff from './stuff.js?v=4';
-import * as Quests from './quests.js?v=3';   // pun vendors, flash sales/dances, quests that earn Rep   // litter, lost items and micro-clutter, LOD'd by distance
+import * as Stuff from './stuff.js?v=5';
+import * as Quests from './quests.js?v=5';   // pun vendors, flash sales/dances, quests that earn Rep   // litter, lost items and micro-clutter, LOD'd by distance
 import * as Account from './account.js?v=8';   // phone-number arcade profiles (language-first sign-up)
 import * as Arcade from './arcade.js?v=24';    // 🎪 The Midway props + six minigames + HIGH SCORES board + Pac-Man cabinet
 
@@ -32,10 +33,10 @@ const S=new THREE.Scene();   // S.environment gets a panorama-buffered env map o
 // ---------- lite mode for limited/older devices ----------
 function detectLite(){
   if (location.pathname.replace(/\/+$/, '') === '/3d') return false;   // /3d is the full site by definition (the lite page links here)
-  try { if (localStorage.getItem('eol-lite') === '1') return true; if (localStorage.getItem('eol-lite') === '0') return false; } catch(e){}
+  try { if (localStorage.getItem('eol-lite2') === '1') return true; if (localStorage.getItem('eol-lite2') === '0') return false; } catch(e){}
   const ua = navigator.userAgent || '';
   const mobile = /Mobi|Android|iPhone|iPad/i.test(ua);
-  const lowMem = (navigator.deviceMemory || 4) <= 4;
+  const lowMem = navigator.deviceMemory !== undefined && navigator.deviceMemory <= 4;   // Safari/Firefox don't report it: unknown is not 'low'
   const lowCpu = (navigator.hardwareConcurrency || 4) <= 4;
   const slowConn = !!(navigator.connection && /2g|3g/.test(navigator.connection.effectiveType||''));
   let noWebGL2 = false;
@@ -45,7 +46,7 @@ function detectLite(){
 const LITE_MODE = detectLite();
 window.__EOL_LITE = LITE_MODE;
 dispatchEvent(new Event('eol:lite'));   // the lite chip in index.html mirrors this
-try { localStorage.setItem('eol-lite', LITE_MODE ? '1' : '0'); } catch(e){}
+// only an explicit choice (the lite chips) is stored; the auto-detected value is not (key renamed to drop old auto-saved '1's)
 const IS_PHONE=/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent||'');   // phone-tier budgets (crowd range, shadow map) apply even with lite mode off
 const ALL_HYDRAULICS=[];   // lowriders "on switches" - cars that get a random hydraulic hop in the main render loop below
 export const cam=new THREE.PerspectiveCamera(50,innerWidth/innerHeight,0.1,400);
@@ -187,7 +188,9 @@ const panoC=document.createElement('canvas');panoC.width=2048;panoC.height=1024;
 const panoT=new THREE.CanvasTexture(panoC);panoT.colorSpace=THREE.SRGBColorSpace;panoT.anisotropy=8;
 var panoDome=new THREE.Mesh(new THREE.SphereGeometry(180,48,24),new THREE.MeshBasicMaterial({map:panoT,side:THREE.BackSide,fog:false}));
 S.add(panoDome);
-S.environment=new THREE.PMREMGenerator(R).fromEquirectangular(panoT).texture;   // panorama lights every material
+const PMG=new THREE.PMREMGenerator(R);let envRT=null;
+const setEnv=src=>{const rt=PMG.fromEquirectangular(src);if(envRT)envRT.dispose();envRT=rt;S.environment=rt.texture;};   // one generator; the replaced env map is freed
+setEnv(panoT);   // panorama lights every material
 // steampunk is the default look; /?theme=classic (or ?theme=steampunk) switches and is remembered
 var SCENE_THEME = Themes.resolve();   // theme id, or 'default' for the untouched classic look
 var TH = Themes.THEMES[SCENE_THEME] || null; window.__EOL_THEME = SCENE_THEME;
@@ -197,9 +200,9 @@ const panoFile = (SCENE_THEME === 'steampunk') ? 'tex/panorama-steampunk.jpg' : 
 TL.load(panoFile,t=>{   // themed equirect; owner can drop a real one later
   t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;
   panoDome.material.map=t;panoDome.material.color.setHex(SCENE_THEME==='steampunk'?0xffffff:(TH?TH.tint:0xffffff));panoDome.material.needsUpdate=true;
-  if(SCENE_THEME!=='steampunk')S.environment=new THREE.PMREMGenerator(R).fromEquirectangular(t).texture;},undefined,()=>{});
+  if(SCENE_THEME!=='steampunk')setEnv(t);},undefined,()=>{});
 // steampunk repaints only the backdrop: lighting/reflections (what the truck sees) keep the original panorama
-if(SCENE_THEME==='steampunk')TL.load('tex/panorama.jpg',t=>{t.colorSpace=THREE.SRGBColorSpace;S.environment=new THREE.PMREMGenerator(R).fromEquirectangular(t).texture;},undefined,()=>{});}
+if(SCENE_THEME==='steampunk')TL.load('tex/panorama.jpg',t=>{t.colorSpace=THREE.SRGBColorSpace;setEnv(t);t.dispose();},undefined,()=>{});}
 }
 
 // lights (Arizona midday sun — harsh overhead with warm bounce)
@@ -242,6 +245,7 @@ const grsC=document.createElement('canvas');grsC.width=grsC.height=1024;
 const grsT=new THREE.CanvasTexture(grsC);grsT.wrapS=grsT.wrapT=THREE.RepeatWrapping;grsT.repeat.set(10,10);grsT.anisotropy=16;grsT.colorSpace=THREE.SRGBColorSpace;
 const ground=new THREE.Mesh(new THREE.PlaneGeometry(300,300),new THREE.MeshStandardMaterial({map:grsT,roughness:.95,metalness:0,envMapIntensity:.35}));
 ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;S.add(ground);
+Object.assign(ground.material.userData,{gfx:'grass',gfxRepeat:[75,75],gfxMacro:grsT,gfxMacroRepeat:6});   // photo grass (4 m tiles) × this canvas as large-scale variation
 
 await document.fonts.ready.catch(()=>{});
 const T=await buildTruck(S,{img,done,MENU,money});
@@ -475,6 +479,7 @@ function buildTable(canopyHex){
   const wood=new THREE.MeshStandardMaterial({color:0x9a6b3f,roughness:.85});
   const woodD=new THREE.MeshStandardMaterial({color:0x7a5028,roughness:.9});
   const steel=new THREE.MeshStandardMaterial({color:0x2b2b2b,roughness:.6});
+  wood.userData.gfx='wood';Object.assign(woodD.userData,{gfx:'wood',gfxShade:.78,gfxRepeat:[1,.4]});
   const top=new THREE.Mesh(new THREE.BoxGeometry(1.5,.06,.9),wood);top.position.y=.72;g.add(top);
   const post=new THREE.Mesh(new THREE.CylinderGeometry(.05,.06,.72,10),steel);post.position.y=.36;g.add(post);
   const foot=new THREE.Mesh(new THREE.CylinderGeometry(.3,.34,.05,14),steel);foot.position.y=.025;g.add(foot);
@@ -490,7 +495,7 @@ function buildTable(canopyHex){
   // market umbrella: pole + scalloped canopy rim
   const pole=new THREE.Mesh(new THREE.CylinderGeometry(.025,.03,2.4,8),steel);pole.position.set(0,1.2,.08);g.add(pole);
   const canopy=new THREE.Mesh(new THREE.ConeGeometry(1.45,.5,12),new THREE.MeshStandardMaterial({color:canopyHex,roughness:.55,side:THREE.DoubleSide}));
-  canopy.position.set(0,2.34,.08);g.add(canopy);
+  canopy.position.set(0,2.34,.08);g.add(canopy);Object.assign(canopy.material.userData,{gfx:'canvas',gfxTint:true,gfxRepeat:[6,1]});
   const fringe=new THREE.Mesh(new THREE.TorusGeometry(1.42,.028,6,24),new THREE.MeshStandardMaterial({color:0xf6e7c8,roughness:.5}));
   fringe.rotation.x=Math.PI/2;fringe.position.y=2.09;g.add(fringe);
   g.traverse(o=>o.castShadow=true);
@@ -761,6 +766,7 @@ function buildStage(o={}){
   const backT=new THREE.CanvasTexture(bc);backT.colorSpace=THREE.SRGBColorSpace;
   const backH=.42*W;
   const backdrop=new THREE.Mesh(new THREE.PlaneGeometry(W-.4,backH),new THREE.MeshStandardMaterial({map:backT,roughness:.8,side:THREE.DoubleSide}));
+  backdrop.material.userData.gfx='backdrop';   // gfx.js swaps in the ComfyUI LED-wall visuals (emissive)
   backdrop.position.set(0,H+backH/2,-D/2+0.15);g.add(backdrop);
   // truss towers + top beam + colored spotlights aimed at the front of the deck
   const trussM=new THREE.MeshStandardMaterial({color:0x1b1b1b,metalness:.6,roughness:.5});
@@ -878,20 +884,37 @@ const pick=arr=>arr[Math.floor(Math.random()*arr.length)];
 // desktops - with 3 m of hysteresis so nobody flickers at the boundary. The 200-body instanced
 // audience is two draw calls and is never culled, so the stage front still reads as packed.
 const CROWD_RANGE=_meters('sceneCrowdRange',(LITE_MODE||IS_PHONE)?16:40);
-const CULLED=[];   // {obj, p: world position}
-window.__EOL_CROWD={range:CROWD_RANGE,list:CULLED};   // console check: __EOL_CROWD.list.filter(e=>e.obj.visible).length
+const CULLED=[];   // {obj, p: world position, bi: blob index, bs: blob size (0 = none)}
+// contact-shadow blobs: the sun's shadow map only covers ±14 m around the truck, so people beyond it would float.
+// One soft dark disc per crowd person (shown/hidden with them) + one per ambient AI actor — one instanced draw each.
+const SHADOW_BOX=13,outsideSun=(x,z)=>Math.abs(x)>SHADOW_BOX||Math.abs(z)>SHADOW_BOX;
+const BLOB_T=(()=>{const c=document.createElement('canvas');c.width=c.height=64;const g=c.getContext('2d');
+  const r=g.createRadialGradient(32,32,1,32,32,31);r.addColorStop(0,'rgba(0,0,0,.62)');r.addColorStop(.5,'rgba(0,0,0,.34)');r.addColorStop(1,'rgba(0,0,0,0)');
+  g.fillStyle=r;g.fillRect(0,0,64,64);return new THREE.CanvasTexture(c);})();
+function blobSet(max){const m=new THREE.InstancedMesh(new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2),
+  new THREE.MeshBasicMaterial({map:BLOB_T,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}),max);
+  m.count=0;m.frustumCulled=false;m.userData.steamSkip=true;m.renderOrder=1;S.add(m);return m;}
+const CROWD_BLOBS=blobSet(600),ACTOR_BLOBS=blobSet(64),_bm=new THREE.Matrix4(),_bq=new THREE.Quaternion(),_bp=new THREE.Vector3(),_bs=new THREE.Vector3();
+const blobAt=(mesh,i,x,z,sz)=>mesh.setMatrixAt(i,_bm.compose(_bp.set(x,.045,z),_bq,_bs.set(sz,1,sz)));
+window.__EOL_CROWD={range:CROWD_RANGE,list:CULLED,blobs:CROWD_BLOBS,actorBlobs:ACTOR_BLOBS};   // console check: __EOL_CROWD.list.filter(e=>e.obj.visible).length
 function cullable(obj){
   obj.updateWorldMatrix(true,false);
   const p=new THREE.Vector3();obj.getWorldPosition(p);
   obj.visible=false;
-  CULLED.push({obj,p});
+  const e={obj,p,bi:CULLED.length,bs:0};CULLED.push(e);
+  if(e.bi<600){   // blob pool size: every slot below .count gets a matrix (zero-scale until the person shows)
+    if(outsideSun(p.x,p.z))e.bs=.95*(obj.scale.x||1);
+    blobAt(CROWD_BLOBS,e.bi,p.x,p.z,0);CROWD_BLOBS.count=e.bi+1;CROWD_BLOBS.instanceMatrix.needsUpdate=true;}
 }
 const _camP=new THREE.Vector3();
 function cullCrowd(){
   cam.getWorldPosition(_camP);
   const near=CROWD_RANGE*CROWD_RANGE,far=(CROWD_RANGE+3)*(CROWD_RANGE+3);
-  for(const e of CULLED){const d=e.p.distanceToSquared(_camP);
-    if(e.obj.visible){if(d>far)e.obj.visible=false;}else if(d<near)e.obj.visible=true;}
+  let dirty=false;
+  for(const e of CULLED){const d=e.p.distanceToSquared(_camP),was=e.obj.visible;
+    if(was){if(d>far)e.obj.visible=false;}else if(d<near)e.obj.visible=true;
+    if(e.bs&&was!==e.obj.visible){blobAt(CROWD_BLOBS,e.bi,e.p.x,e.p.z,e.obj.visible?e.bs:0);dirty=true;}}
+  if(dirty)CROWD_BLOBS.instanceMatrix.needsUpdate=true;
 }
 function spawnCrowd(cx,cz,n,faceStage){
   const RJ=RAND;   // randomness multiplier (Admin → Environment); 0 = tidy rows, 2 = wild lot
@@ -970,9 +993,9 @@ function buildBooth(name,hue){
   for(const sx of [-1,1])for(const sz of [-1,1]){const leg=new THREE.Mesh(new THREE.CylinderGeometry(.04,.04,H,8),legM);
     leg.position.set(sx*(W/2-.1),H/2,sz*(D/2-.1));g.add(leg);}
   const canopy=new THREE.Mesh(new THREE.ConeGeometry(Math.max(W,D)*.78,.9,4),new THREE.MeshStandardMaterial({color:hue,roughness:.75,side:THREE.DoubleSide}));
-  canopy.rotation.y=Math.PI/4;canopy.position.y=H+.45;canopy.castShadow=true;g.add(canopy);
+  canopy.rotation.y=Math.PI/4;canopy.position.y=H+.45;canopy.castShadow=true;g.add(canopy);Object.assign(canopy.material.userData,{gfx:'canvas',gfxTint:true,gfxRepeat:[3,1]});
   const table=new THREE.Mesh(new THREE.BoxGeometry(W*.85,.5,.55),new THREE.MeshStandardMaterial({color:0x6b4a2f,roughness:.85}));
-  table.position.set(0,.25,D/2-.35);g.add(table);
+  table.position.set(0,.25,D/2-.35);g.add(table);Object.assign(table.material.userData,{gfx:'wood',gfxShade:.62,gfxRepeat:[1.5,.55]});
   // random merch piled on the table - folded-fabric stacks, jars/bottles, small pouches - just
   // varied low-poly shapes, not any specific product.
   const merchColors=[0xe8623a,0x4a90d9,0xe8c23a,0x7aa04a,0xb44dff,0xff6fa0,0xd42a2a,0xf2c14e,0x2e8b3d,0x1a1a1a,0xffffff];
@@ -989,19 +1012,23 @@ function buildBooth(name,hue){
   // a couple of tie-dye-ish fabric swatches hanging off the canopy edge
   for(const sx of [-1,1]){
     const sw=new THREE.Mesh(new THREE.PlaneGeometry(.5,.7),new THREE.MeshStandardMaterial({color:merchColors[Math.floor(Math.random()*merchColors.length)],side:THREE.DoubleSide,roughness:.95}));
-    sw.position.set(sx*(W/2-.15),H+.05,D/2-.4);sw.rotation.y=sx*.3;g.add(sw);
+    sw.position.set(sx*(W/2-.15),H+.05,D/2-.4);sw.rotation.y=sx*.3;g.add(sw);Object.assign(sw.material.userData,{gfx:'canvas',gfxTint:true});
   }
   const sc=document.createElement('canvas');sc.width=512;sc.height=160;
-  const sg=sc.getContext('2d');sg.fillStyle='#fff8ec';sg.fillRect(0,0,512,160);
-  sg.strokeStyle='#2b2420';sg.lineWidth=8;sg.strokeRect(6,6,500,148);
-  sg.fillStyle='#2b2420';sg.textAlign='center';sg.font='700 48px Georgia';
-  const words=name.split(' ');let lines=[],cur='';
-  for(const w of words){const t=(cur?cur+' ':'')+w;if(sg.measureText(t).width>460&&cur){lines.push(cur);cur=w;}else cur=t;}
-  if(cur)lines.push(cur);
-  const lh=56,startY=80-((lines.length-1)*lh)/2;
-  lines.forEach((ln,i)=>sg.fillText(ln,256,startY+i*lh+16));
+  const sg=sc.getContext('2d');
   const signT=new THREE.CanvasTexture(sc);signT.colorSpace=THREE.SRGBColorSpace;
+  const paint=bg=>{   // plain card now; gfx.js repaints it on the ComfyUI weathered-board image once that loads
+    if(bg)sg.drawImage(bg,0,0,512,160);else{sg.fillStyle='#fff8ec';sg.fillRect(0,0,512,160);sg.strokeStyle='#2b2420';sg.lineWidth=8;sg.strokeRect(6,6,500,148);}
+    sg.fillStyle=bg?'#4a1c14':'#2b2420';sg.textAlign='center';sg.font='700 '+(bg?44:48)+'px Georgia';
+    const words=name.split(' ');let lines=[],cur='';
+    for(const w of words){const t=(cur?cur+' ':'')+w;if(sg.measureText(t).width>(bg?430:460)&&cur){lines.push(cur);cur=w;}else cur=t;}
+    if(cur)lines.push(cur);
+    const lh=bg?50:56,startY=80-((lines.length-1)*lh)/2;
+    lines.forEach((ln,i)=>sg.fillText(ln,256,startY+i*lh+16));
+    signT.needsUpdate=true;};
+  paint(null);
   const sign=new THREE.Mesh(new THREE.PlaneGeometry(1.9,0.6),new THREE.MeshStandardMaterial({map:signT,roughness:.6}));
+  Object.assign(sign.material.userData,{gfx:'signboard',gfxSign:paint});
   sign.position.set(0,H-0.55,D/2-.02);g.add(sign);
   g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
   return g;
@@ -1053,8 +1080,6 @@ canvas.addEventListener('click',e=>{m2.set(e.clientX/innerWidth*2-1,-(e.clientY/
       else if((car.userData.burst||0)<3)car.userData.burst=(car.userData.burst||0)+1;}
   }else if(Arcade.targets().length&&ray.intersectObjects(Arcade.targets(),true).length){   // 🎪 midway prop → its minigame / score board
     Arcade.openFrom(ray.intersectObjects(Arcade.targets(),true)[0].object);
-  }else if(wp&&wp.group&&ray.intersectObject(wp.group,true).length){   // 💦 water park → splash + Rep
-    const _wh=ray.intersectObject(wp.group,true)[0]; if(_wh){wp.splash(_wh.point.x,_wh.point.z); Rep.add('react',1).then(()=>{if(life)life.toast('💦 splash! +1 Rep');});}
   }else if(jukebox.parent&&ray.intersectObject(jukebox,true).length){   // 💿 jukebox → pay points to play a song (js/jukebox.js)
     dispatchEvent(new Event('eol:juke-open'));
   }else if(Avatars.liveAvatars().length && ray.intersectObjects(Avatars.liveAvatars().map(a=>a.group),true).length){   // 🌱 tap another visitor → gift a sprout
@@ -1065,7 +1090,11 @@ canvas.addEventListener('click',e=>{m2.set(e.clientX/innerWidth*2-1,-(e.clientY/
     dispatchEvent(new Event('eol:hd-open-table'));
   }else if(TV_HIT.length && ray.intersectObjects(TV_HIT,true).length){   // tap a TV monitor → play/pause the shared video
     const v=window.__EOL_TV_VIDEO; if(v){ if(v.paused) v.play().catch(()=>{}); else v.pause(); }
-  }else if(ray.intersectObjects(CLICK,true).length){open('menu');goWindow();}});
+  }else if(ray.intersectObjects(CLICK,true).length){open('menu');goWindow();
+  }else if(wp&&wp.group&&!wp.closed){   // 💦 water park (last: never steals taps meant for people, tables, TVs or the menu)
+    const _wh=ray.intersectObject(wp.group,true).find(h=>{for(let o=h.object;o;o=o.parent)if(!o.visible)return false;return true;});
+    if(_wh){wp.splash(_wh.point.x,_wh.point.z);const n=performance.now();
+      if(n-(wp._lastRep||0)>20000){wp._lastRep=n;Rep.add('react',1).then(()=>{if(life)life.toast('💦 splash! +1 Rep');});}}}});
 canvas.addEventListener('pointermove',e=>{m2.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1);ray.setFromCamera(m2,cam);
   const hit=ray.intersectObjects(CLICK,true).length>0;
   const hitTruck=CAR_HIT.length?ray.intersectObjects(CAR_HIT,true).length>0:false;
@@ -1082,7 +1111,8 @@ canvas.addEventListener('pointermove',e=>{m2.set(e.clientX/innerWidth*2-1,-(e.cl
 // straight back to the orbit camera at the walker's spot.
 const walk={on:false,keys:new Set(),yaw:0,py:0,vy:0,x:0,z:0,hold:0,grp:null};
 window.__EOL_WALK=()=>({x:+walk.x.toFixed(2),z:+walk.z.toFixed(2),on:walk.on,yaw:+walk.yaw.toFixed(2)});   // 📱 GPS app: your ground position + heading
-window.__EOL_LOOK=()=>({x:+ctl.target.x.toFixed(2),z:+ctl.target.z.toFixed(2)});   // 📱 GPS app: where you're looking when not walking (stable while orbiting)
+window.__EOL_LOOK=()=>({x:+ctl.target.x.toFixed(2),z:+ctl.target.z.toFixed(2)});
+window.__EOL_VIEW=(px,py,pz,tx,ty,tz)=>{fly=null;cam.position.set(px,py,pz);ctl.target.set(tx,ty,tz);ctl.update();};   // debug/QA: park the orbit camera (orbit limits still apply)   // 📱 GPS app: where you're looking when not walking (stable while orbiting)
 const walkTyping=()=>{const a=document.activeElement;
   return !!a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.isContentEditable);};
 const walkUI=()=>(!!document.querySelector('.panel.open'))||
@@ -1123,12 +1153,11 @@ function walkCollide(){
   for(const b of Arcade.walkBalls())clear(b.x,b.z,b.r);   // claw machine, bean-bag boards, tag flag, score board
   truckRig.updateMatrixWorld();
   _wv.set(walk.x,FLOOR,walk.z).applyMatrix4(_wm.copy(truckRig.matrixWorld).invert());
-  if(_wv.x>bx0-.55&&_wv.x<bx0+BL+.55&&Math.abs(_wv.z)<BW/2+.55){   // truck footprint, in rig space
-    const dl=_wv.x-(bx0-.55),dr=(bx0+BL+.55)-_wv.x,dz=(BW/2+.55)-Math.abs(_wv.z);
-    const back=()=>_wv.applyMatrix4(truckRig.matrixWorld);        // carry it back to world
-    if(dz<=dl&&dz<=dr){_wv.z=Math.sign(_wv.z||1)*(BW/2+.55);back();}
-    else{_wv.x=_wv.x<bx0+BL/2?bx0-.55:bx0+BL+.55;back();}
-  }
+  {const x0=bx0-BL/2-CL-.55,x1=bx0+BL/2+.55,zr=BW/2+.55;   // truck footprint (cab front .. rear bumper), in rig space
+   if(_wv.x>x0&&_wv.x<x1&&Math.abs(_wv.z)<zr){
+    const dl=_wv.x-x0,dr=x1-_wv.x,dz=zr-Math.abs(_wv.z);
+    if(dz<=dl&&dz<=dr)_wv.z=Math.sign(_wv.z||1)*zr;else _wv.x=dl<dr?x0:x1;
+    _wv.applyMatrix4(truckRig.matrixWorld);walk.x=_wv.x;walk.z=_wv.z;}}   // actually move the avatar out (used to stay in _wv)
   walkPushEdge(-8,24,-76.5,-63.5);            // stage deck box (world: 32x13 at 8,0,-70)
   walk.x=Math.max(-76,Math.min(62,walk.x));     // stay inside the painted lot
   walk.z=Math.max(-60,Math.min(34,walk.z));
@@ -1158,7 +1187,7 @@ function walkStart(){
 function walkStop(){
   if(!walk.on)return;
   walk.on=false;walk.keys.clear();
-  if(walk.grp){S.remove(walk.grp);walk.grp=null;}
+  if(walk.grp){S.remove(walk.grp);Avatars.disposeBody(walk.grp);walk.grp=null;}
   walkChip.hidden=true;walkPad.style.display='none';ctl.enabled=true;
   ctl.target.set(walk.x,1.15,walk.z);      // orbit resumes pivoting right where they stood
 }
@@ -1304,7 +1333,7 @@ function goWindow(){   // frame the service window + menu board, wherever the tr
   if(portrait()) flyTo(toWorld(-1.55,1.9,-fitDist(2.4,4.6)),toWorld(-1.55,1.9,0));
   else flyTo(toWorld(-2.1,1.8,-4.6),toWorld(-2.1,1.9,0));}
 let tour=false;
-addEventListener('resize',()=>{cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();R.setSize(innerWidth,innerHeight);});
+addEventListener('resize',()=>{cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();R.setSize(innerWidth,innerHeight);R.render(S,cam);});   // repaint once (the loop may be paused under a panel)
 const clock=new THREE.Clock();
 if(TH&&LITE_MODE)panoDome.material.color.setHex(TH.tint);   // tint the painted fallback sky
 const fx=TH?(()=>{
@@ -1345,6 +1374,8 @@ if(life&&stuff&&CONFIG.questsOn!==false){
     props:()=>['claw','bbt','tag','pin','c4','ttt'].map(id=>Arcade.prop(id))});
 }
 window.__EOL_LIFE=life;window.__EOL_QUESTS=quests;
+// 🖼️ ComfyUI photo textures on every tagged material (ground, wood, fabric, stage wall, signs, water park, vendor boards)
+const gfx=Gfx.init({R,small:LITE_MODE||IS_PHONE,enabled:CONFIG.sceneTextures!==false});gfx.apply(S);setTimeout(()=>gfx.apply(S),1500);window.__EOL_GFX=gfx;
 { // theme chip: tap to cycle auto → steampunk → each holiday → classic
   const b=document.createElement('button');b.id='themeChip';
   b.style.cssText='position:fixed;bottom:84px;right:10px;z-index:99999;font:600 12px Inter,sans-serif;color:#fff;background:rgba(0,0,0,.5);padding:6px 10px;border-radius:8px;cursor:pointer;border:1px solid rgba(255,255,255,.3)';
@@ -1353,8 +1384,11 @@ window.__EOL_LIFE=life;window.__EOL_QUESTS=quests;
   b.onclick=()=>{const i=Themes.CYCLE.indexOf(cur),next=Themes.CYCLE[(i+1)%Themes.CYCLE.length];try{localStorage.setItem('eol-scene-theme',next);}catch(e){}location.reload();};
   document.body.appendChild(b);}
 R.setAnimationLoop(()=>{const dt=Math.min(clock.getDelta(),0.1),t=clock.elapsedTime;
+  if(!fly&&innerWidth<=640&&document.body.classList.contains('panel-open'))return;   // 📱 the menu/checkout panel covers the whole screen: don't simulate or draw behind it
   cullCrowd();
-  if(fx)fx.tick(t,dt);if(wp)wp.tick(t,dt);if(life)life.tick(t,dt);if(stuff)stuff.tick(t,dt);if(quests)quests.tick(t,dt);
+  if(fx)fx.tick(t,dt);if(wp)wp.tick(t,dt);if(life){life.tick(t,dt);let n=0;   // AI cast contact shadows (outside the sun's shadow box only)
+    for(const a of life.actors){if(n>=64)break;if(a.near&&outsideSun(a.x,a.z))blobAt(ACTOR_BLOBS,n++,a.x,a.z,.85*((a.g&&a.g.scale)||1));}
+    ACTOR_BLOBS.count=n;ACTOR_BLOBS.instanceMatrix.needsUpdate=true;}if(stuff)stuff.tick(t,dt);if(quests)quests.tick(t,dt);
   if(fly){const k=Math.min(1,(performance.now()-fly.s)/fly.ms),e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;cam.position.lerpVectors(fly.p0,fly.p,e);ctl.target.lerpVectors(fly.t0,fly.t,e);if(k>=1)fly=null;}
   {const w=T.worker;w.children[1].rotation.y=Math.sin(t*.7)*.25;w.position.y=WY0-.12+Math.sin(t*1.6)*.006;}
   for(const e of eaters){e.userData.head.rotation.x=Math.sin(t*1.2+e.userData.ph)*.07;e.position.y=e.userData.by+Math.sin(t*.9+e.userData.ph)*.004;}

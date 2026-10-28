@@ -77,15 +77,15 @@ export function init(S, o) {
   mkSec('deck', -53, -3, 120);
   const std = (color, rough = .6, metal = 0, extra) => new THREE.MeshStandardMaterial({color, roughness: rough, metalness: metal, ...extra});
   const waterM = new THREE.MeshStandardMaterial({map: waterTex(), color: 0xbfeaf5, transparent: true, opacity: .86, roughness: .12, metalness: .1});
-  waterM.map.repeat.set(6, 6);
+  waterM.map.repeat.set(6, 6); waterM.userData.gfx = 'water';   // gfx.js: ComfyUI caustics photo (each material gets its own texture copy)
   const add = (m, x, y, z, parent = cur) => { m.position.set(x, y, z); parent.add(m); return m; };
   const W = (x0, x1) => (x0 + x1) / 2;
 
   // ---------- deck, walls, gate ----------
   const dt = tileTex(); dt.repeat.set(10, 14);
   const deck = new THREE.Mesh(new THREE.PlaneGeometry(PARK.x1 - PARK.x0, PARK.z1 - PARK.z0), std(0xffffff, .85, 0, {map: dt}));
-  deck.rotation.x = -Math.PI / 2; deck.receiveShadow = true; add(deck, W(PARK.x0, PARK.x1), .03, W(PARK.z0, PARK.z1));
-  const wallM = std(0xf4efe2, .8), trimM = std(0x2fb8d8, .5);
+  deck.material.userData.gfx = 'deck'; deck.rotation.x = -Math.PI / 2; deck.receiveShadow = true; add(deck, W(PARK.x0, PARK.x1), .03, W(PARK.z0, PARK.z1));
+  const wallM = std(0xf4efe2, .8), trimM = std(0x2fb8d8, .5); Object.assign(wallM.userData, {gfx: 'stone', gfxShade: .97, gfxRepeat: [12, .4]});
   for (const [w, d, x, z] of [[PARK.x1 - PARK.x0, .3, W(PARK.x0, PARK.x1), PARK.z0], [PARK.x1 - PARK.x0, .3, W(PARK.x0, PARK.x1), PARK.z1], [.3, PARK.z1 - PARK.z0, PARK.x0, W(PARK.z0, PARK.z1)]]) {
     add(new THREE.Mesh(new THREE.BoxGeometry(w, 1.1, d), wallM), x, .55, z); add(new THREE.Mesh(new THREE.BoxGeometry(w + .05, .12, d + .1), trimM), x, 1.15, z);
   }
@@ -100,13 +100,13 @@ export function init(S, o) {
   // ---------- wave pool ----------
   mkSec('wave', -53, -19, 95);
   const WP = {x: CX, z: -19, w: 18, d: 12};
-  const rim = (x, z, w, d) => { const r = new THREE.Mesh(new THREE.BoxGeometry(w + .8, .16, d + .8), std(0xdfe8ee, .5)); add(r, x, .08, z); const bed = new THREE.Mesh(new THREE.BoxGeometry(w, .1, d), std(0x1f9ac0, .8)); add(bed, x, .06, z); };
+  const rim = (x, z, w, d) => { const r = new THREE.Mesh(new THREE.BoxGeometry(w + .8, .16, d + .8), std(0xdfe8ee, .5)); Object.assign(r.material.userData, {gfx: 'stone', gfxRepeat: [6, 4]}); add(r, x, .08, z); const bed = new THREE.Mesh(new THREE.BoxGeometry(w, .1, d), std(0x1f9ac0, .8)); add(bed, x, .06, z); };
   rim(WP.x, WP.z, WP.w, WP.d);
   const wg = new THREE.PlaneGeometry(WP.w, WP.d, small ? 18 : 36, small ? 12 : 24); wg.rotateX(-Math.PI / 2);
   const wave = new THREE.Mesh(wg, waterM); add(wave, WP.x, .4, WP.z);
   const wpos = wg.attributes.position, wbase = Float32Array.from(wpos.array);
   add(new THREE.Mesh(new THREE.BoxGeometry(.9, 1.4, WP.d), std(0x2f6f8f, .5, .3)), WP.x - WP.w / 2 - .2, .7, WP.z);   // the wave machine
-  const beach = new THREE.Mesh(new THREE.BoxGeometry(2.2, .3, WP.d + .8), std(0xe8d6a8, .95)); beach.rotation.z = .12; add(beach, WP.x + WP.w / 2 + 1, .2, WP.z);
+  const beach = new THREE.Mesh(new THREE.BoxGeometry(2.2, .3, WP.d + .8), std(0xe8d6a8, .95)); beach.rotation.z = .12; Object.assign(beach.material.userData, {gfx: 'sand', gfxRepeat: [1, 5]}); add(beach, WP.x + WP.w / 2 + 1, .2, WP.z);
   const waveH = (x, t) => { const env = Math.max(0, Math.sin(t * .5)) ** 2, k = .55; return Math.sin(k * (x + WP.w / 2) * 1.0 - t * 2.6) * .16 * env + Math.sin(x * .9 + t * 1.3) * .02; };
 
   // ---------- lazy river ----------
@@ -207,6 +207,7 @@ export function init(S, o) {
     const lg = new THREE.InstancedMesh(new THREE.BoxGeometry(.8, .18, 1.9), std(0xffffff, .7), ok.length), um = new THREE.InstancedMesh(new THREE.ConeGeometry(1.5, .55, 10), new THREE.MeshStandardMaterial({color: 0xffffff, roughness: .6, side: THREE.DoubleSide}), ok.length), up = new THREE.InstancedMesh(new THREE.CylinderGeometry(.04, .04, 2.4, 6), std(0xdfe8ee, .5), ok.length);
     const C = new THREE.Color(), cols = [0xff5a7a, 0xffd23a, 0x3ad8ff, 0x6aff7a, 0xff9a3a];
     ok.forEach(([x, z], i) => { lg.setMatrixAt(i, M4.compose(P.set(x, .3, z), Q.identity(), Sc)); lg.setColorAt(i, C.setHex(pick(cols))); um.setMatrixAt(i, M4.compose(P.set(x + 1.1, 2.5, z), Q.identity(), Sc)); um.setColorAt(i, C.setHex(pick(cols))); up.setMatrixAt(i, M4.compose(P.set(x + 1.1, 1.2, z), Q.identity(), Sc)); });
+    Object.assign(um.material.userData, {gfx: 'canvas', gfxTint: true, gfxRepeat: [5, 1]});
     lg.castShadow = um.castShadow = true; cur.add(lg, um, up);
   }
   // lifeguard stands (staff actors are added by the scene next to them)
@@ -224,7 +225,7 @@ export function init(S, o) {
     }
     if (!G.visible) return;
     // interactive: stepping into an attraction splashes + grants Rep (per-zone cooldown)
-    if (player) { const pp = (typeof player === 'function' ? player() : player); if (pp) for (const z of zones) { if (Math.hypot(pp.x - z.x, pp.z - z.z) < z.r && (t - z.last) > 22) { z.last = t; splash(pp.x, pp.z); if (onUse) onUse(z.name); } } }
+    if (player) { const pp = (typeof player === 'function' ? player() : player); if (pp) for (const z of zones) { const inside = Math.hypot(pp.x - z.x, pp.z - z.z) < z.r; if (inside && !z.in && (t - z.last) > 22) { z.last = t; splash(pp.x, pp.z); if (onUse) onUse(z.name); } z.in = inside; } }   // Rep on entering, not for standing still
     if (sec.wave.on && sec.wave.d < (small ? 40 : 75)) {   // wave pool vertices + bobbing bathers
       const a = wpos.array;
       for (let i = 0; i < wpos.count; i++) a[i * 3 + 1] = wbase[i * 3 + 1] + waveH(wbase[i * 3], t);
