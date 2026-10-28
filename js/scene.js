@@ -945,62 +945,43 @@ for(let i=0;i<3;i++) spawnCrowd(-28+Math.random()*72, -4+Math.random()*24, 1);
 for(let i=0;i<60;i++) spawnCrowd(-8+Math.random()*32, -61.5+Math.random()*8, 1, true);    // pit, at the stage front, watching the band
 for(let i=0;i<12;i++) spawnCrowd(-14.5+Math.random()*5, -61+Math.random()*7, 1, true);     // west flank pack, facing the stage
 for(let i=0;i<12;i++) spawnCrowd(26.5+Math.random()*5, -61+Math.random()*7, 1, true);      // east flank pack, facing the stage
-// lawn chairs with people, with and without umbrellas
-for(let i=0;i<10;i++){
-  const cx=8+(Math.random()-.5)*30, cz=-50+(Math.random()-.5)*20;
-  const chair=new THREE.Group();
-  const seat=new THREE.Mesh(new THREE.BoxGeometry(.7,.08,.6),new THREE.MeshStandardMaterial({color:0x4a6fb5,roughness:.7}));
-  seat.position.y=.35; chair.add(seat);
-  const back=new THREE.Mesh(new THREE.BoxGeometry(.7,.9,.08),new THREE.MeshStandardMaterial({color:0x4a6fb5,roughness:.7}));
-  back.position.set(0,.8,-.26); back.rotation.x=.15; chair.add(back);
-  const leg=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.35,6),new THREE.MeshStandardMaterial({color:0x888,roughness:.5}));
-  leg.position.y=.17; chair.add(leg);
-  chair.position.set(cx,0,cz); chair.rotation.y=Math.random()*Math.PI*2;
-  S.add(chair);
-  const person=buildPerformer(0xd9a978,0xd42a2a,0x1a1a1a,'civilian');
-  person.position.set(cx,.4,cz); person.rotation.y=chair.rotation.y; person.rotation.x=-Math.PI/8;
-  S.add(person);
-    if (Math.random() < .3) lightPipe(person);
-  if (Math.random()<0.5) {
-    const umbrella=new THREE.Mesh(new THREE.ConeGeometry(1.1,.6,12),new THREE.MeshStandardMaterial({color:0xe8578a,roughness:.6,side:THREE.DoubleSide}));
-    umbrella.position.set(cx,.9,cz); S.add(umbrella);
-    const pole=new THREE.Mesh(new THREE.CylinderGeometry(.02,.02,1.0,6),new THREE.MeshStandardMaterial({color:0x888,roughness:.5}));
-    pole.position.set(cx,.4,cz); S.add(pole);
-  }
-}
-// blankets with people (families) laying/sitting by the stage
-const BLANKET_COLORS=[0xe8578a,0xf2c14e,0x4fc3d9,0x53a86e,0xd77bd0,0xb44dff,0xff6fa0,0x4a90d9];
-for(let i=0;i<8;i++){
-  const bx=8+(Math.random()-.5)*24, bz=-55+(Math.random()-.5)*12;
-  const bw=1.6+Math.random()*1.8, bh=1.2+Math.random()*1.4;
-  const shape = Math.random()<0.5 ? new THREE.PlaneGeometry(bw,bh) : new THREE.CircleGeometry(Math.min(bw,bh)/2, 24);
-  const blanket=new THREE.Mesh(shape,new THREE.MeshStandardMaterial({color:BLANKET_COLORS[i%BLANKET_COLORS.length],roughness:.9,side:THREE.DoubleSide}));
-  blanket.rotation.x=-Math.PI/2; blanket.position.set(bx,.02,bz); S.add(blanket);
-  const familySize = 2 + Math.floor(Math.random()*3);
-  for(let j=0;j<familySize;j++){
-    const person=buildPerformer(0xd9a978,0xd42a2a,0x1a1a1a,'civilian');
-    const px = bx + (Math.random()-.5)*bw*.6;
-    const pz = bz + (Math.random()-.5)*bh*.6;
-    if (Math.random() < 0.2) {
-      // lying down
-      person.position.set(px,.3,pz);
-      person.rotation.x=Math.PI/2; person.rotation.z=(Math.random()-.5)*.4;
-    } else {
-      // sitting variants
-      const v = Math.random();
-      person.position.set(px,.4,pz);
-      if (v < 0.25) { person.rotation.x = -Math.PI/4; }            // 45° hip bend, legs out
-      else if (v < 0.5) { person.rotation.x = 0; person.rotation.z = (Math.random()-.5)*.2; }  // legs straight out
-      else if (v < 0.75) { person.rotation.x = 0; person.rotation.y += Math.PI/4; }            // indian style (crossed)
-      else { person.rotation.x = -Math.PI/3; person.position.y = .35; }  // kneeling
-    }
+
+// ---------- crowd: random loose clusters of festival-goers filling the open ground between
+// the house/truck cluster and the two stages. Same low-poly figure as the truck's queue, just
+// recolored per person and scattered - not a factual record of attendance, pure scene dressing.
+// reggae/cannabis-fest palette: Rasta-leaning reds/golds/greens/black plus a few bright
+// tie-dye-ish accents, instead of generic streetwear colors.
+// ---------- crowd draw distance. A performer body is ~9.5k triangles and ~31 draw calls, and
+// most of the crowd stands 50-60 m away at the stage pit. Each one stays invisible (no draw, no
+// shadow pass) until the camera comes within CROWD_RANGE - 16 m on phones / lite mode, 40 m on
+// desktops - with 3 m of hysteresis so nobody flickers at the boundary. The 200-body instanced
+// audience is two draw calls and is never culled, so the stage front still reads as packed.
+  for(let i=0;i<n;i++){
+    const looks=[0xd9a978,0xa8714a,0xf0c7a0,0xc78f5e,0x8a5a35,0xe6b98a,0xb07a4e,0x7a4a2a,0xd9a978,0xa8714a];
+    const sk=looks[Math.floor(Math.random()*looks.length)];
+    const person=buildPerformer(sk,0xd42a2a+Math.floor(Math.random()*0x800000),0x1a1a1a,'civilian');
+    person.position.set(cx+(Math.random()-.5)*2.6,0.56,cz+(Math.random()-.5)*2.6);
+    person.rotation.y=faceStage?Math.atan2(8-person.position.x,-70-person.position.z)+(Math.random()-.5)*.3:Math.random()*Math.PI*2;   // stage-front rows watch the band
     S.add(person);
-    if (Math.random() < .3) lightPipe(person);
+    if(Math.random()<.35) lightPipe(person);
+    cullable(person);
   }
-}
-
-// (instanced cylindrical audience removed; stage crowd now uses performer-style bodies)
-
+// ----------
+// pipe smokers: a bowl-and-stem pipe held to the mouth, plus two staggered smoke puffs that
+// rise off the bowl and fade instead of one shared fog-machine plume. Per-puff sprite
+// material so each puff fades on its own; the shared texture keeps it cheap.
+ const pg=pc.getContext('2d');const pgr=pg.createRadialGradient(32,32,0,32,32,32);
+ pgr.addColorStop(0,'rgba(235,235,238,.85)');pgr.addColorStop(.45,'rgba(230,230,235,.4)');pgr.addColorStop(1,'rgba(230,230,235,0)');
+ pg.fillStyle=pgr;pg.fillRect(0,0,64,64);
+ window.__EOL_PUFF_TEX=new THREE.CanvasTexture(pc);
+// (x:[-17,17] z:[-45,-8]), the truck's current spot and the lawn table ring. Thinned to one
+// figure per cluster - the dense mass of the festival lives in the panorama. Everyone fronts
+// the stage's truck-facing side now: a wide pit band across the full deck width plus flank
+// packs at either end - nobody hangs behind the deck.
+for(let i=0;i<3;i++) spawnCrowd(-28+Math.random()*72, -4+Math.random()*24, 1);
+for(let i=0;i<60;i++) spawnCrowd(-8+Math.random()*32, -61.5+Math.random()*8, 1, true);    // pit, at the stage front, watching the band
+for(let i=0;i<12;i++) spawnCrowd(-14.5+Math.random()*5, -61+Math.random()*7, 1, true);     // west flank pack, facing the stage
+for(let i=0;i<12;i++) spawnCrowd(26.5+Math.random()*5, -61+Math.random()*7, 1, true);      // east flank pack, facing the stage
 // ---------- vendor booths: little canopy stalls with punny signs, scattered in the same two
 // ground areas as the crowd. Fictional stall names for scene flavor, not real businesses.
 const BOOTH_NAMES=['Lettuce Turnip the Beet','Thai Tanic','Nacho Average Churro','Kiln It',

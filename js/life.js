@@ -484,7 +484,7 @@ export function init(o) {
         m.plan = [go({x: x + Math.cos(a) * r, z: z + Math.sin(a) * r}, 2.6), wait(secs, 'dance', {fx: x, fz: z})];
       });
     }
-    pop('🤘', null, 0); // placeholder
+
     return n;
   };
   const dancersNear = (x, z, r) => actors.filter(a => a.near && a.anim === 'dance' && !a.moving && dist2(a.x, a.z, x, z) < r * r).length;
