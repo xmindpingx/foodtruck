@@ -640,7 +640,7 @@ function buildLowriderImpala(){
       vent.position.set(sx*(WID/2+.012),.60,1.02-v*.13);car.add(vent);}}
 
   // ---- wire wheels: a tyre torus with photographed rubber + a photographed 72-spoke face each side
-  const tyreGeo=new THREE.TorusGeometry(.268,.072,12,30);   // skinny lowrider rubber; outer radius .34 = the hub height, so it rests on the grasstyreGeo.rotateY(Math.PI/2);
+  const tyreGeo=new THREE.TorusGeometry(.268,.045,12,30);   // skinny lowrider rubber; outer radius .34 = the hub height, so it rests on the grasstyreGeo.rotateY(Math.PI/2);
   const faceGeo=new THREE.CircleGeometry(.285,30);
   for(const sx of [-1,1])for(const sz of [-1,1]){
     const hub=new THREE.Group();hub.position.set(sx*(WID/2-.055),.34,sz*(LEN/2-1.05));car.add(hub);
@@ -675,26 +675,32 @@ function buildLowriderImpala(){
   amp.position.set(0,.68,-LEN/2+.3);amp.rotation.x=.35;car.add(amp);
   const glow=new THREE.Mesh(new THREE.BoxGeometry(.5,.02,.02),new THREE.MeshStandardMaterial({color:0x39d0ff,emissive:0x39d0ff,emissiveIntensity:1.2}));
   glow.position.set(0,.725,-LEN/2+.3);glow.rotation.x=.35;car.add(glow);
-  // ---- hydraulics switch console on the trunk lip: engraved panel + 4 gold toggles with
-  // status LEDs (banks: front / back / left / right). Tap a switch to arm/disarm its bank,
-  // tap the car to make it hop. Click wiring lives in the "interaction" block in scene.js.
-  const panel=new THREE.Mesh(new THREE.BoxGeometry(.34,.16,.14),new THREE.MeshStandardMaterial({color:0x101014,roughness:.45,metalness:.35}));
-  panel.position.set(.44,.8,-LEN/2+.9);panel.rotation.x=-.35;car.add(panel);
+  // ---- hand remote on a stand beside the car: engraved console + 4 gold toggles with status LEDs
+  // (banks: front / back / left / right). Tap a switch to arm/disarm its bank, tap the car to make it hop.
+  // Click wiring lives in the "interaction" block in scene.js. The stand is a child of the car so it rides
+  // along in layout mode.
+  const remote=new THREE.Group(); remote.position.set(WID/2+1.15,0,0); car.add(remote);
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(.035,.045,.85,8),chrome); pole.position.set(0,.425,0); remote.add(pole);
+  const base=new THREE.Mesh(new THREE.CylinderGeometry(.18,.22,.06,12),new THREE.MeshStandardMaterial({color:0x1a1a1e,roughness:.4,metalness:.6}));
+  base.position.set(0,.03,0); remote.add(base);
+  const consoleBox=new THREE.Mesh(new THREE.BoxGeometry(.34,.16,.14),new THREE.MeshStandardMaterial({color:0x101014,roughness:.45,metalness:.35}));
+  consoleBox.position.set(0,.92,0); remote.add(consoleBox);
   const engrave=new THREE.Mesh(new THREE.BoxGeometry(.30,.10,.005),new THREE.MeshStandardMaterial({color:0x2a2a30,roughness:.3,metalness:.6}));
-  engrave.position.set(.44,.805,-LEN/2+.895);engrave.rotation.x=-.35;car.add(engrave);
+  engrave.position.set(0,.925,.072); remote.add(engrave);
   const label=document.createElement('canvas');label.width=128;label.height=48;const lg=label.getContext('2d');
   lg.fillStyle='#0a0a0e';lg.fillRect(0,0,128,48);lg.fillStyle='#e8c23a';lg.font='bold 15px Inter';lg.textAlign='center';
-  lg.fillText('ON SWITCHES',64,20);lg.font='11px Inter';lg.fillStyle='#e8ecef';lg.fillText('F B L R',64,40);
+  lg.fillText('REMOTE',64,20);lg.font='11px Inter';lg.fillStyle='#e8ecef';lg.fillText('F B L R',64,40);
   const plateT=new THREE.CanvasTexture(label);plateT.colorSpace=THREE.SRGBColorSpace;
   const plate=new THREE.Mesh(new THREE.PlaneGeometry(.23,.086),new THREE.MeshBasicMaterial({map:plateT}));
-  plate.position.set(.44,.815,-LEN/2+.828);plate.rotation.x=-.35+Math.PI;plate.rotation.z=Math.PI;car.add(plate);
+  plate.position.set(0,.935,.075); remote.add(plate);
   const banks=['front','back','left','right'];const switches=[],leds=[];
   for(let i=0;i<4;i++){
     const on=banks[i]==='front';
-    const sw=new THREE.Mesh(new THREE.CylinderGeometry(.018,.018,.085,8),new THREE.MeshStandardMaterial({color:0xf3d98a,metalness:.9,roughness:.15}));
-    sw.position.set(.44-.115+i*.077,.84,-LEN/2+.85);sw.rotation.x=on?-.45:.5;sw.userData.bank=banks[i];car.add(sw);switches.push(sw);
-    const led=new THREE.Mesh(new THREE.SphereGeometry(.014,8,6),new THREE.MeshStandardMaterial({color:0x330000,emissive:0xff2020,emissiveIntensity:on?1.8:.15}));
-    led.position.set(sw.position.x,.885,-LEN/2+.79);car.add(led);leds.push(led);}
+    const sw=new THREE.Mesh(new THREE.CylinderGeometry(.022,.022,.1,8),new THREE.MeshStandardMaterial({color:0xf3d98a,metalness:.9,roughness:.15}));
+    sw.position.set(-.115+i*.077,.96,-.02);sw.rotation.x=on?-.45:.5;sw.userData.bank=banks[i];remote.add(sw);switches.push(sw);
+    const led=new THREE.Mesh(new THREE.SphereGeometry(.016,8,6),new THREE.MeshStandardMaterial({color:0x330000,emissive:0xff2020,emissiveIntensity:on?1.8:.15}));
+    led.position.set(sw.position.x,1.01,-.02);remote.add(led);leds.push(led);}
+  remote.userData.switches=switches;remote.userData.switchLeds=leds;remote.userData.banks={front:true,back:false,left:false,right:false};
   car.userData.switches=switches;car.userData.switchLeds=leds;car.userData.banks={front:true,back:false,left:false,right:false};
   car.userData.steamSkip=true;   // candy purple is the car's identity: holiday palettes never repaint it
   car.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});
