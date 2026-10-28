@@ -962,8 +962,6 @@ for(let i=0;i<12;i++) spawnCrowd(26.5+Math.random()*5, -61+Math.random()*7, 1, t
  const pg=pc.getContext('2d');const pgr=pg.createRadialGradient(32,32,0,32,32,32);
  pgr.addColorStop(0,'rgba(235,235,238,.85)');pgr.addColorStop(.45,'rgba(230,230,235,.4)');pgr.addColorStop(1,'rgba(230,230,235,0)');
  pg.fillStyle=pgr;pg.fillRect(0,0,64,64);
- window.__EOL_PUFF_TEX=new THREE.CanvasTexture(pc);
-// (x:[-17,17] z:[-45,-8]), the truck's current spot and the lawn table ring. Thinned to one
 // figure per cluster - the dense mass of the festival lives in the panorama. Everyone fronts
 // the stage's truck-facing side now: a wide pit band across the full deck width plus flank
 // packs at either end - nobody hangs behind the deck.
