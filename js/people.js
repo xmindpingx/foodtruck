@@ -223,7 +223,8 @@ function rig(L) {
       {g: g.shin, m: M(0, 0, 0), col: L.dress ? L.skin : L.pants, ...(L.dress ? {tag: 'skin'} : {})},
       {g: g.sphereLo, m: M(0, -.428, .035, 0, 0, 0, .056, .044, .118), col: L.shoe || 0x1c1816}]};
   }
-  if (L.kid) {   // kid proportions: head (+hair, hat, goggles) scaled 1.32× about the neck
+  if (L.kid && !L.livePivot) {   // kid proportions: head (+hair, hat, goggles) scaled 1.32× about the neck
+    // buildAvatar sets livePivot and scales its headPivot instead, so worn props scale with a kid's head too
     const up = new THREE.Matrix4().makeTranslation(0, 1.52, 0), down = new THREE.Matrix4().makeTranslation(0, -1.52, 0), sc = new THREE.Matrix4().makeScale(1.32, 1.32, 1.32);
     const k = new THREE.Matrix4().multiplyMatrices(up, new THREE.Matrix4().multiplyMatrices(sc, down));
     for (const grp of [out.head, out.hair, out.hat]) for (const p of grp) p.m = new THREE.Matrix4().multiplyMatrices(k, p.m);
@@ -271,6 +272,7 @@ export function buildAvatar(hue, prof = {}, foot = 0, over = null) {
     hat: prof.cap ? null : (hue % 4 === 0 ? 'top' : hue % 4 === 1 ? 'bowler' : null), goggles: !prof.cap && hue % 5 === 2, beard: hue % 7 === 3 && hue % 2 === 0, scale: 1};
   if (hue % 6 === 5) Object.assign(L, {kid: true, scale: .68, beard: false, vest: 0, hat: null, sleeve: 'short', dress: hue % 4 === 1});   // ~1 in 6 live avatars are kids
   if (over) Object.assign(L, over);
+  L.livePivot = true;   // articulated avatars get a real neck pivot (below) instead of a baked kid head matrix
   const R = rig(L), root = new THREE.Group(), body = new THREE.Group();
   body.position.y = foot; body.scale.setScalar(L.scale); root.add(body);   // feet stay put: scaling is about the body origin
   const own = {shirt: new THREE.MeshStandardMaterial({color: shirtC, roughness: .78}), skin: new THREE.MeshStandardMaterial({color: L.skin, roughness: .62})};
@@ -285,16 +287,42 @@ export function buildAvatar(hue, prof = {}, foot = 0, over = null) {
       m.castShadow = tag === 'shirt'; parent.add(m);
     }
   };
-  build(R.torso, body); build(R.hair, body); build(R.hat, body);
+  build(R.torso, body);
+  // ---- neck pivot: the head, hair and hat are merged meshes whose vertices sit up at y~1.6, so rotating a
+  // mesh would swing it in an arc. headRig undoes the pivot's own translation, which keeps every part matrix
+  // in body space exactly as rig() built it, while headPivot.rotation.y turns the whole head. A kid's head
+  // is scaled here instead of by rig()'s baked matrix (same 1.32 about the same y=1.52), so anything worn on
+  // the head scales with it. js/truck.js's cook and the wearable sockets below both hang off this.
+  const NECK = 1.52;
+  const headPivot = new THREE.Group(); headPivot.position.y = NECK; if (L.kid) headPivot.scale.setScalar(1.32);
+  const headRig = new THREE.Group(); headRig.position.y = -NECK; headPivot.add(headRig); body.add(headPivot);
+  build(R.hair, headRig); build(R.hat, headRig);
   const head = new THREE.Mesh(mergeParts(R.head.map(p => ({g: p.g, m: p.m, uv: p.uv})), 'uv'), faceMat(L.skin, L.expr, L.eye));
-  head.userData.custom = 'skin'; head.userData.skinFace = L.expr + '|' + L.eye; head.castShadow = true; body.add(head);
-  const arms = [], legs = [];
+  head.userData.custom = 'skin'; head.userData.skinFace = L.expr + '|' + L.eye; head.castShadow = true; headRig.add(head);
+  const arms = [], legs = [], hands = [], feet = [];
   for (const k of ['armL', 'armR', 'legL', 'legR']) {
     const piv = new THREE.Group(); piv.position.set(...R[k].pivot); build(R[k], piv); body.add(piv);
     const sub = new THREE.Group(); sub.position.set(...R[k].sub.pivot); sub.rotation.x = R[k].sub.rot; build(R[k].sub.parts, sub); piv.add(sub);
     piv.userData.sub = sub; piv.userData.rest = R[k].sub.rot;   // elbow / knee: rotate .sub.rotation.x for bends
-    (k[0] === 'a' ? arms : legs).push(piv);
+    const arm = k[0] === 'a';
+    const tip = new THREE.Group();   // hand / foot socket: rides the elbow or knee, so props follow the swing
+    tip.position.set(0, arm ? -.30 : -.428, arm ? 0 : .035); sub.add(tip);
+    (arm ? arms : legs).push(piv); (arm ? hands : feet).push(tip);
   }
+  // ---- wearable sockets. Head-side ones hang off headRig so they turn with the face; the rest ride the body.
+  // All are given in the same body-space metres as avatars.js BLING_POS, before look.scale.
+  const sock = (parent, x, y, z) => { const g = new THREE.Group(); g.position.set(x, y, z); parent.add(g); return g; };
+  root.userData.sock = {
+    crown: sock(headRig, 0, 1.712, 0),     // top of the skull: hats, hair pieces
+    face: sock(headRig, 0, 1.602, .098),   // brow line: glasses, goggles, monocle
+    chin: sock(headRig, 0, 1.545, .055),   // jaw: beards, moustaches
+    ear: sock(headRig, 0, 1.598, 0),       // ear line: headphones, earrings (prop straddles both ears)
+    collar: sock(body, 0, 1.46, .05),      // neck: scarves, ties, chains
+    chest: sock(body, 0, 1.22, .16),       // front of the torso: medallions, cameras, aprons
+    back: sock(body, 0, 1.24, -.16),       // upper back: backpacks, guitars
+    hip: sock(body, 0, .97, .1),           // waist: belts, fanny packs
+  };
+  root.userData.headPivot = headPivot; root.userData.hands = hands; root.userData.feet = feet;
   root.userData.arms = arms; root.userData.legs = legs; root.userData.head = head; root.userData.steamSkip = true;
   root.userData.look = L; root.userData.foot = foot; root.userData.scale = L.scale;
   return root;

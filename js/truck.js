@@ -1,7 +1,7 @@
 // truck.js — builds the 1990 GMC step-van (textures painted from the real photos), kitchen,
 // worker, props and the clickable 3D menu board. Pure geometry; no DOM, no camera.
 import * as THREE from 'three';
-import * as People from './people.js?v=4';   // the cook uses the same realistic bodies as the crowd
+import * as People from './people.js?v=5';   // the cook uses the same realistic bodies as the crowd
 
 // ---------- dimensions (m) : 1990 GMC step van ----------
 export const BL=5.4, BW=2.3, BH=2.25, FLOOR=0.75;           // box
@@ -424,9 +424,7 @@ export async function buildTruck(S,{img,done,MENU,money}){
   const cookBody=cook.children[0];
   W.add(cook);
   // the head is one merged mesh with its vertices up at y~1.6, so give it a neck pivot to turn about
-  const head=cook.userData.head, NECK=1.52;
-  const headPivot=new THREE.Group();headPivot.position.y=NECK;
-  cookBody.remove(head);head.position.y=-NECK;headPivot.add(head);cookBody.add(headPivot);
+  const NECK=1.52, headPivot=cook.userData.headPivot;   // people.js builds the neck pivot now; just borrow it
   W.userData.headPivot=headPivot;W.userData.arms=cook.userData.arms;
   // hands resting on the counter edge: shoulders forward, elbows bent
   const [armL,armR]=cook.userData.arms;

@@ -4,7 +4,7 @@
 // merged people (2 draw calls each); the whole park is hidden until the camera is within range, and water
 // animation (wave vertices, droplets, boats, riders) only runs while it is visible.
 import * as THREE from 'three';
-import * as People from './people.js?v=4';
+import * as People from './people.js?v=5';
 
 const rnd = (a, b) => a + Math.random() * (b - a), pick = a => a[Math.floor(Math.random() * a.length)];
 const CX = -53;   // park centre line
