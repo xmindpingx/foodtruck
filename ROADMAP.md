@@ -108,11 +108,7 @@ standing next to each other see different crowd behaviour.
   *Status: first 8 items (fedora, shades, oxfords, cowboy boots, backpack, bowtie, cane,
   top hat) generated this session; commit + restart pending.*
 - **Phase 2 — Deterministic ambient crowd (done).** `Math.random()` replaced with a seeded PRNG (mulberry32) in all 6 modules; `/api/time` endpoint added; `t` driven by shared clock; seed passed to all init functions; seats/queues use deterministic selection (first free seat sorted by key, queue by actor id). *Remaining: late-joiner replay (pure init of seed+t0) — needs state to be a function of t or expensive replay. Full byte-for-byte sync requires replay or stateless simulation.*
-- **Phase 3 — Live avatar action sync.** Extend `POST /api/presence` profile with a
-  `action`/`anim` field and broadcast it; `avatars.js` `setStatus()` already maps status
-  to an anim, but ambient interactions (wave/high-five/hug) are local. Server must
-  own the interaction outcome and echo it to all clients, or clients replay a shared
-  event log. Needs rate limiting (≤1 action/visitor/3 s).
+- **Phase 3 — Live avatar action sync (done).** Server accepts and broadcasts `action` in presence profile (rate-limited 3 s); client `setAction(type)` sends it; poll applies received actions to avatars with pose + bubble; tick plays action pose (wave/dance/photo/highfive/hug). `setAction` exposed on `window.Avatars`. *Remaining: wire `setAction` into life.js interactMenu and walk mode so player actions are actually broadcast.*
 - **Phase 4 — Shared AI assistant.** Today `sendToAssistant()` is private per visitor.
   Make assistant replies broadcast as a system chat line (or a dedicated `/api/assistant`
   shared thread) so everyone sees the same Q&A; tool calls that mutate orders stay
