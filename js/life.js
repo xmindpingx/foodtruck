@@ -7,7 +7,7 @@
 // Cost model: plans are a handful of numbers (no per-frame allocation); limbs are only posed while the
 // actor is within CROWD range of the camera, everyone else just advances along their path.
 import * as THREE from 'three';
-import * as People from './people.js?v=11';
+import * as People from './people.js?v=12';
 import * as Wear from './wear.js?v=4';
 let _rng = Math.random;   // seeded PRNG (set in init); shared clock drives determinism
 function makeRng(seed) { let a = (seed || 1) >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -89,14 +89,15 @@ export function init(o) {
     },
     can: () => { const c = pick(cans); if (!c) return null; const w = worldOf(c), a = rnd(0, 6.28); return {x: w.x + Math.cos(a) * .85, z: w.z + Math.sin(a) * .85, fx: w.x, fz: w.z}; },
   };
-  function freeSeat() {   // a bench slot at a table without the pre-seated eaters, world pos + facing
+  function freeSeat() {   // a bench slot at a table without the pre-seated eaters, world pos + facing (deterministic: first free seat sorted by key)
     const free = [];
     tables.forEach((t, ti) => {
       if (t.children.some(c => eaters.includes(c))) return;
       for (const sx of [-.42, .42]) for (const sz of [-.74, .74]) { const key = ti + ':' + sx + ':' + sz; if (!taken.has(key)) free.push({t, ti, sx, sz, key}); }
     });
     if (!free.length) return null;
-    const f = pick(free), w = worldOf(f.t, f.sx, 0, f.sz + Math.sign(f.sz) * .06), c = worldOf(f.t);
+    free.sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
+    const f = free[0], w = worldOf(f.t, f.sx, 0, f.sz + Math.sign(f.sz) * .06), c = worldOf(f.t);
     return {key: f.key, x: w.x, z: w.z, yaw: yawTo(w.x, w.z, c.x, c.z)};
   }
 
@@ -175,7 +176,7 @@ export function init(o) {
     else if (r < .5) { const p = poi.pit(); all((m, i) => [go(off(p, i, n)), wait(rnd(25, 55), 'watch', {fx: 8, fz: -70})]); }
     else if (r < .66) { const w = poi.wander(), d = rnd(9, 16); all((m, i) => [go(off(w, i, n)), wait(d, 'dance')]); }
     else if (r < .78) {
-      const q = poi.queue(Math.floor(_rng() * 4));
+      const q = poi.queue(u.members[0].id % 4);
       u.members.forEach((m, i) => { const food = pickFood(), emoji = foodEmoji(food); plans[i].push(go(off(q, i, n)), wait(rnd(6, 9), 'chat')); plans[i].push({k: 'do', fn: () => attachFood(m, emoji) }); const s = seatStep(m); if (s) { plans[i].push(s[0]); plans[i].push({k: 'do', fn: () => removeFood(m) }); plans[i].push(s[1]); plans[i].push(...trashSteps()); } else { plans[i].push({k: 'do', fn: () => removeFood(m) }); } });
     } else if (r < .9) { const w = poi.wander(); all((m, i) => [go(off(w, i, n)), wait(5, i === 0 ? 'photo' : 'pose'), wait(2, 'cheer')]); }
     else { const g = poi.game(); u.members.forEach((m, i) => { plans[i].push(go(off(g, i, n)), wait(rnd(12, 24), m.kid ? 'play' : 'chat', g)); const s = m.kid ? seatStep(m) : null; if (s) plans[i].push(...s, ...trashSteps()); }); }
@@ -516,19 +517,19 @@ export function init(o) {
     // remove any existing menu
     document.querySelectorAll('.eol-interact-menu').forEach(m => m.remove());
     const opts = [
-      {label: '👋 Wave', fn: () => { setMood(a, 'smile', 3); a.anim = 'wave'; pop('👋', a.root, 2.0); } },
-      {label: '✋ High-five', fn: () => { setMood(a, 'smile', 3); a.anim = 'highfive'; pop('✋', a.root, 2.0); if (o.onReact) o.onReact(a.name); } },
-      {label: '📸 Photo', fn: () => { a.anim = 'photo'; pop('📸', a.root, 2.0); } },
-      {label: '💃 Dance', fn: () => { a.anim = 'dance'; a.idle = false; setMood(a, 'smile', 4); } },
-      {label: '🤗 Hug', fn: () => { a.anim = 'hug'; setMood(a, 'smile', 4); pop('🤗', a.root, 2.0); } },
-      {label: '👏 Cheer', fn: () => { cheer(a, 3); pop('👏', a.root, 2.0); } },
-      {label: '🌱 Give sprout', fn: () => { dispatchEvent(new CustomEvent('eol:npc-gift', {detail: {npc: a.id, slot: pick(['collar', 'chest', 'chestL', 'chestR', 'shoulderL', 'shoulderR', 'hat', 'waist', 'hip', 'back', 'handL', 'handR']), cost: 0}})); } },
-      {label: '🚶 Follow me', fn: () => { if (a.staff) { pop('🙅', a.root, 2.0); return; } if (a.seat) release(a); a.plan = [{k: 'follow', t: 20, dist: 2.2}, wait(2, 'wave')]; a.step = null; a.idle = false; setMood(a, 'smile', 4); } },   // t = seconds to tag along (0 used to end it on the next frame)
-      {label: '🪢 Jump rope', fn: () => { a.anim = 'play'; a.idle = false; setMood(a, 'smile', 5); pop('🪢', a.root, 2.0); } },
-      {label: '💃 Salsa', fn: () => { a.anim = 'dance'; a.idle = false; setMood(a, 'smile', 5); pop('💃', a.root, 2.0); } },
-      {label: '🕺 Breakdance', fn: () => { a.anim = 'dance'; a.idle = false; setMood(a, 'smile', 6); pop('🕺', a.root, 2.0); } },
-      {label: '🎤 Sing', fn: () => { a.anim = 'chat'; a.idle = false; setMood(a, 'smile', 4); pop('🎤', a.root, 2.0); } },
-      {label: '🤸 Cartwheel', fn: () => { a.anim = 'play'; a.idle = false; setMood(a, 'smile', 4); pop('🤸', a.root, 2.0); } },
+      {label: '👋 Wave', fn: () => { setMood(a, 'smile', 3); a.anim = 'wave'; pop('👋', a.root, 2.0); if (window.Avatars && window.Avatars.setAction) window.Avatars.setAction('wave'); } },
+      {label: '✋ High-five', fn: () => { setMood(a, 'smile', 3); a.anim = 'highfive'; pop('✋', a.root, 2.0); if (o.onReact) o.onReact(a.name); if (window.Avatars && window.Avatars.setAction) window.Avatars.setAction('highfive'); } },
+      {label: '📸 Photo', fn: () => { a.anim = 'photo'; pop('📸', a.root, 2.0); if (window.Avatars && window.Avatars.setAction) window.Avatars.setAction('photo'); } },
+      {label: '💃 Dance', fn: () => { a.anim = 'dance'; a.idle = false; setMood(a, 'smile', 4); if (window.Avatars && window.Avatars.setAction) window.Avatars.setAction('dance'); } },
+      {label: '🤗 Hug', fn: () => { a.anim = 'hug'; setMood(a, 'smile', 4); pop('🤗', a.root, 2.0); if (window.Avatars && window.Avatars.setAction) window.Avatars.setAction('hug'); } },
+      {label: '👏 Cheer', fn: () => { cheer(a, 3); pop('👏', a.root, 2.0); if (window.Avatars && window.Avatars.setAction) window.Avatars.setAction('wave'); } },
+      {label: '🌱 Give sprout', fn: () => { dispatchEvent(new CustomEvent('eol:npc-gift', {detail: {npc: a.id, slot: pick(['collar', 'chest', 'chestL', 'chestR', 'shoulderL', 'shoulderR', 'hat', 'waist', 'hip', 'back', 'handL', 'handR']), cost: 0}})); if (window.Avatars && window.Avatars.setAction) window.Avatars.setAction('give'); } },
+      {label: '🚶 Follow me', fn: () => { if (a.staff) { pop('🙅', a.root, 2.0); return; } if (a.seat) release(a); a.plan = [{k: 'follow', t: 20, dist: 2.2}, wait(2, 'wave')]; a.step = null; a.idle = false; setMood(a, 'smile', 4); if (window.Avatars && window.Avatars.setAction) window.Avatars.setAction('wave'); } },   // t = seconds to tag along (0 used to end it on the next frame)
+      {label: '🪢 Jump rope', fn: () => { a.anim = 'play'; a.idle = false; setMood(a, 'smile', 5); pop('🪢', a.root, 2.0); if (window.Avatars && window.Avatars.setAction) window.Avatars.setAction('dance'); } },
+      {label: '💃 Salsa', fn: () => { a.anim = 'dance'; a.idle = false; setMood(a, 'smile', 5); pop('💃', a.root, 2.0); if (window.Avatars && window.Avatars.setAction) window.Avatars.setAction('dance'); } },
+      {label: '🕺 Breakdance', fn: () => { a.anim = 'dance'; a.idle = false; setMood(a, 'smile', 6); pop('🕺', a.root, 2.0); if (window.Avatars && window.Avatars.setAction) window.Avatars.setAction('dance'); } },
+      {label: '🎤 Sing', fn: () => { a.anim = 'chat'; a.idle = false; setMood(a, 'smile', 4); pop('🎤', a.root, 2.0); if (window.Avatars && window.Avatars.setAction) window.Avatars.setAction('wave'); } },
+      {label: '🤸 Cartwheel', fn: () => { a.anim = 'play'; a.idle = false; setMood(a, 'smile', 4); pop('🤸', a.root, 2.0); if (window.Avatars && window.Avatars.setAction) window.Avatars.setAction('dance'); } },
     ];
     // pick 4 random, dedup by label
     const shuffled = opts.slice().sort(() => _rng() - .5).slice(0, 4);
