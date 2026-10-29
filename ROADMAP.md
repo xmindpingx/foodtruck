@@ -112,7 +112,7 @@ standing next to each other see different crowd behaviour.
 - **Phase 4 — Shared AI assistant (done).** `sharedAssistantOn` setting (default off) gates broadcasting; when enabled, assistant replies are posted to CHAT as system messages ('🤖 Assistant') so everyone sees the same Q&A. Order mutations stay per-account. Admin toggle in Settings tab.
 - **Phase 5 — Ownership + safety (done).** Server-side bling ownership check: `/api/presence` keeps only bling ids present in the account's prizes (10-digit phone); without a phone, no bling. Max-worn (8) already enforced by `[:8]`. Smoke test verifies unowned bling is dropped.
 
-Recommended order: finish Phase 1, then Phase 2 (biggest visible payoff), then Phase 3.
+Recommended order: finish Phase 1 (generate remaining wearables). Phases 2–5 are done.
 
 ### 3D wearables (backbone shipped; the rest is this to-do)
 Backbone: `js/wear.js` (sockets -> shared-geometry props), `tools/wear_gen.py` (FLUX ref -> Hunyuan3D mv-turbo -> `models/wear/`),
