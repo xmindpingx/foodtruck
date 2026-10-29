@@ -98,6 +98,11 @@ assert sp == [{'slot': 'collar', 'item': 'sprout-tiny', 'from': 'A'}], sp
 r = urllib.request.Request(B + '/api/admin/restore', b'{}', {'Content-Type': 'application/json', 'Content-Length': '80000000'})
 try: urllib.request.urlopen(r, timeout=5); assert False
 except urllib.error.HTTPError as e: assert e.code == 401, e.code
+# bling ownership: no phone -> no bling; unknown bling id -> dropped
+post('/api/presence', {'id': 'smokebling', 'profile': {'hue': 1, 'bling': ['bling-crown', 'nope-id']}})
+others = json.load(urllib.request.urlopen(B + '/api/presence?id=other'))['others']
+sb = next(o for o in others if o['id'] == 'smokebling')['profile'].get('bling')
+assert sb == [], sb
 PYX
 
 want /models/impala.json 200

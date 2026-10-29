@@ -2942,12 +2942,23 @@ class H(SimpleHTTPRequestHandler):
                     except (TypeError, ValueError): pass
                     if prf.get('cap') in CAPS: prof['cap'] = prf.get('cap')
                     if prf.get('face') in FACES: prof['face'] = prf.get('face')
-                    if isinstance(prf.get('bling'), list):   # worn collectibles (cosmetic): known ids only, one per slot
+                    # 👑 bling ownership check (Phase 5): only keep bling the account actually owns
+                    _phone = ''.join(re.findall(r'\d', str(data.get('phone', ''))))[-10:]
+                    _owned = set()
+                    if len(_phone) == 10:
+                        with ACCOUNTS_LOCK:
+                            _acc = load('accounts.json', {}).get(_phone, {})
+                        for _pr in (_acc.get('prizes') or []):
+                            _owned.add(str(_pr.get('item', '')))
+                    if isinstance(prf.get('bling'), list):   # worn collectibles: known ids only, one per slot, ownership-checked
                         seen, wb = set(), []
                         for b in prf['bling'][:8]:
                             it = BLING_MAP.get(str(b))
-                            if it and it['slot'] not in seen: seen.add(it['slot']); wb.append(it['id'])
+                            if it and it['slot'] not in seen and len(_phone) == 10 and str(b) in _owned:
+                                seen.add(it['slot']); wb.append(it['id'])
                         prof['bling'] = wb
+                    else:
+                        prof['bling'] = []
                     # 🌱 sprouts clipped to this avatar ride along in the profile so everyone sees them
                     if isinstance(prf.get('sprouts'), list):
                         sp_ok = []

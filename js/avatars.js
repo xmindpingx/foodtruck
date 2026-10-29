@@ -250,7 +250,7 @@ async function heartbeat(ordered) {
   try {
     const r = await fetch('/api/presence', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({id: myId, ordered: !!ordered, menu: menuOpen, name: myName, profile: (function(){const p = Object.assign({}, myProfile || {}); if (myAction) p.action = {type: myAction, ts: myActionTs}; return p;})()}),
+      body: JSON.stringify({id: myId, ordered: !!ordered, menu: menuOpen, name: myName, phone: Account.phone || '', profile: (function(){const p = Object.assign({}, myProfile || {}); if (myAction) p.action = {type: myAction, ts: myActionTs}; return p;})()}),
     });
     const j = await r.json().catch(() => null);
     if (j && j.name) updateDockName(j.name);
