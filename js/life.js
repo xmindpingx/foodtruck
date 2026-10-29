@@ -20,7 +20,7 @@ const yawTo = (x0, z0, x1, z1) => Math.atan2(x1 - x0, z1 - z0);
 const lerpYaw = (a, b, k) => { let d = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; return a + d * Math.min(1, k); };
 
 export function init(o) {
-  const {S, cam, rig, tables, eaters, win, stage, truckBox, props, jukebox, lowriders, parkBounds, player, liveList, attachSprout, lite, phone: isPhone, canvas, extraObstacles, theme, menu, seed} = o;
+  const {S, cam, rig, tables, eaters, win, stage, truckBox, props, jukebox, lowriders, parkBounds, player, liveList, attachSprout, lite, phone: isPhone, canvas, extraObstacles, arcadeObstacles, theme, menu, seed} = o;
   _rng = makeRng(seed || 1);
   // Halloween outfits for the AI crowd: fetch catalog, filter halloween wearables, apply to all actors (and staff) when theme is halloween
   let halloweenWear = [];
@@ -349,6 +349,9 @@ export function init(o) {
       if (b && Number.isFinite(b.x0)) { out.push({x:(b.x0+b.x1)/2, z:(b.z0+b.z1)/2, r: Math.hypot((b.x1-b.x0)/2,(b.z1-b.z0)/2)+2}); }
       else if (wp.group) { out.push({x:-54, z:-3, r:31}); }
     }
+    // arcade props (claw, bbt, tag, board, pac, redeem, cards, uno, chess) — all impassable
+    const ab = typeof arcadeObstacles === 'function' ? (arcadeObstacles() || []) : (arcadeObstacles || []);
+    for (const b of (Array.isArray(ab) ? ab : [])) { if (b && Number.isFinite(b.x) && Number.isFinite(b.z)) out.push({x: b.x, z: b.z, r: b.r || 1.0}); }
     const extras = typeof o.extraObstacles === 'function' ? (o.extraObstacles()||[]) : (o.extraObstacles||[]);
     for (const e of (Array.isArray(extras)?extras:[])) {
       if (e && typeof e.getWorldPosition === 'function') { if (e.parent) { V.set(0,0,0); e.getWorldPosition(V); out.push({x:V.x,z:V.z,r:(e.userData&&e.userData.obstacleR)||1.4}); } }

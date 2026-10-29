@@ -9,7 +9,7 @@ import * as People from './people.js?v=12';
 const mergeStatic=People.mergeStatic;   // one mesh per material for static props (see people.js)
 import * as Themes from './themes.js?v=2';   // steampunk by default, a theme per big holiday around its date
 import * as FX from './themefx.js?v=6';       // re-skins everything but the truck + gears/lamps/airships or lights/bunting/confetti
-import * as Life from './life.js?v=38';        // ambient crowd life: eat, queue, play, wander, greet the player
+import * as Life from './life.js?v=40';        // ambient crowd life: eat, queue, play, wander, greet the player
 import * as Waterpark from './waterpark.js?v=6';
 import * as Gfx from './gfx.js?v=4';
 import * as Model from './model.js?v=3';   // ComfyUI-generated meshes (tools/model_gen.py -> models/)   // ComfyUI photo textures (gfx/*.jpg) on tagged materials
@@ -679,7 +679,7 @@ function buildLowriderImpala(){
   // (banks: front / back / left / right). Tap a switch to arm/disarm its bank, tap the car to make it hop.
   // Click wiring lives in the "interaction" block in scene.js. The stand is a child of the car so it rides
   // along in layout mode.
-  const remote=new THREE.Group(); remote.position.set(8.73,0,5.37); truckRig.add(remote);   // sibling of the car: stays planted, never hops with the hydraulics
+  const remote=new THREE.Group(); remote.position.set(8.73,0,5.37); remote.userData.obstacleR=1.2; truckRig.add(remote);   // sibling of the car: stays planted, never hops with the hydraulics
   const pole=new THREE.Mesh(new THREE.CylinderGeometry(.035,.045,.85,8),chrome); pole.position.set(0,.425,0); remote.add(pole);
   const base=new THREE.Mesh(new THREE.CylinderGeometry(.18,.22,.06,12),new THREE.MeshStandardMaterial({color:0x1a1a1e,roughness:.4,metalness:.6}));
   base.position.set(0,.03,0); remote.add(base);
@@ -702,7 +702,7 @@ function buildLowriderImpala(){
     led.position.set(sw.position.x,1.01,-.02);remote.add(led);leds.push(led);}
   remote.userData.switches=switches;remote.userData.switchLeds=leds;remote.userData.banks={front:true,back:false,left:false,right:false};
   car.userData.switches=switches;car.userData.switchLeds=leds;car.userData.banks={front:true,back:false,left:false,right:false};
-  car.userData.steamSkip=true;   // candy purple is the car's identity: holiday palettes never repaint it
+  car.userData.remote=remote; car.userData.steamSkip=true;   // candy purple is the car's identity: holiday palettes never repaint it
   car.traverse(o=>{o.castShadow=true;o.receiveShadow=true;});
   return car;
 }
@@ -1385,6 +1385,8 @@ if(CONFIG.ambientLifeOn!==false){
   life=Life.init({S,cam,rig:truckRig,tables:TABLE_HIT,eaters,win:{x1:WX1,z:BW/2},castMult:CONFIG.actorsAmount,interactMult:CONFIG.interactAmount,range:CONFIG.sceneLifeRange,theme:SCENE_THEME,menu:MENU,seed:window.__EOL_SEED||1,
     truckBox:{x0:TRUCK_CX-BL/2-.3,x1:TRUCK_CX+BL/2+.3,z0:-BW/2-.3,z1:BW/2+.3},
     props:()=>['claw','bbt','tag','pin','c4','ttt'].map(id=>Arcade.prop(id)),
+    arcadeObstacles:()=>Arcade.walkBalls(),
+    extraObstacles:()=>[lexus.userData.remote].filter(Boolean),
     jukebox:jukebox, lowriders:ALL_HYDRAULICS, stage:stageBack,
     vendors:()=> (typeof quests!=='undefined' && quests) ? (quests.vendors||[]) : [],
     waterpark:()=>wp,
