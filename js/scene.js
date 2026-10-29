@@ -1457,11 +1457,29 @@ R.setAnimationLoop(()=>{const dt=Math.min(clock.getDelta(),0.1),t=(window.__EOL_
       if(u.burstT>=1){u.burstT=0;u.burst=(u.burst||0)-1;}
       hop=Math.sin(Math.min(1,u.burstT)*Math.PI)*.42;}
     if(u.banks){
-      // armed banks idle out: pulses stop ~90s after the last tap/swipe, cue resumes on contact
-      const fresh=true;  // keep the car hopping (idle-out removed: owner wants it always moving)
-      const b=u.banks,pulse=i=>{const p=(t*1.15+seed+i*.62)%1.6;return Math.pow(Math.max(0,Math.sin(Math.min(1,p/1.6)*Math.PI)),2)*.28;};
-      const vF=u.burst>0||!fresh?0:(b.front?pulse(0):0),vB=u.burst>0||!fresh?0:(b.back?pulse(1):0),
-            vL=u.burst>0||!fresh?0:(b.left?pulse(2):0),vR=u.burst>0||!fresh?0:(b.right?pulse(3):0);
+      // when idle (not bursting): randomly move 1, 2 or 3 wheels instead of constant up/down hop
+      if(!u._idleTimer) u._idleTimer = 2 + Math.random()*3;
+      if(!u._idleWheels) u._idleWheels = ['front'];
+      u._idleTimer -= dt;
+      if(u._idleTimer <= 0){
+        const n = 1 + Math.floor(Math.random()*3);
+        const banks = ['front','back','left','right'];
+        const shuffled = banks.slice().sort(()=>Math.random()-.5);
+        u._idleWheels = shuffled.slice(0, n);
+        u._idleTimer = 2 + Math.random()*4;
+        u._idlePause = 1 + Math.random()*2;
+      }
+      const b = u.banks, pulse = i => {const p=(t*1.15+seed+i*.62)%1.6;return Math.pow(Math.max(0,Math.sin(Math.min(1,p/1.6)*Math.PI)),2)*.28;};
+      let vF=0,vB=0,vL=0,vR=0;
+      if((u._idlePause||0) <= 0){
+        const active = u._idleWheels || [];
+        if(active.includes('front') && b.front) vF = pulse(0);
+        if(active.includes('back') && b.back) vB = pulse(1);
+        if(active.includes('left') && b.left) vL = pulse(2);
+        if(active.includes('right') && b.right) vR = pulse(3);
+      } else {
+        u._idlePause -= dt;
+      }
       hop=Math.max(hop,vF,vB,vL,vR);
       tiltX=(vB-vF)*.5;tiltZ=(vL-vR)*.45;}
     car.position.y=base+hop;car.rotation.x=tiltX;car.rotation.z=tiltZ;   // the remote is now a sibling, so it never moves with the car
