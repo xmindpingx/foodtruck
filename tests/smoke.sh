@@ -185,6 +185,7 @@ ok = all(isinstance(d.get(k), (int, float)) and 0 <= d[k] <= 3 for k in ('crowdA
 ok = ok and all(isinstance(d.get(k), (int, float)) and 0 <= d[k] <= 200 for k in ('sceneCrowdRange', 'sceneLifeRange', 'sceneClutterNear', 'sceneClutterMid', 'scenePixelRatio'))
 ok = ok and d.get('sceneSmokePuffs') == 24 and d.get('scenePipeSmokers') == 35 and d.get('scenePipePuffs') == 3
 ok = ok and d.get('sceneShadows') == '' and d.get('sceneAntialias') is True
+ok = ok and isinstance(d.get('sharedAssistantOn'), bool)
 sys.exit(0 if ok else 1)" && ok "crowd knobs are public numbers" || bad "crowd knobs missing/non-numeric in /api/settings"
 
 echo "== order + cart math (whole cents, half-up tax)"

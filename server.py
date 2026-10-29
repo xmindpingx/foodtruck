@@ -308,6 +308,7 @@ DEFAULT_SETTINGS = {
     # --- AI order-taking chat assistant ---
     "aiAssistantEnabled": True,
     "aiAssistantModel": "qwen3:1.7b",
+    "sharedAssistantOn": False,   # 📢 broadcast assistant replies to everyone as system chat (Phase 4)
     # --- Games (Admin → Settings → Games): the 🎪 Midway arcade, each of its six minigames,
     # the 🌭 hot dog contest and the 🤖 trivia bot can all be switched off individually.
     # midwayOn is the master switch (props + panel + HIGH SCORES board); a per-game flag hides
@@ -406,7 +407,7 @@ DEFAULT_SETTINGS = {
 }
 
 PUBLIC_SETTINGS = ('businessName', 'tagline', 'brandLogo', 'copyrightLine', 'phone', 'email', 'social', 'location', 'hours',
-                   'taxRate', 'orderingOpen', 'orderNote', 'avatarChatEnabled', 'aiAssistantEnabled',
+                   'taxRate', 'orderingOpen', 'orderNote', 'avatarChatEnabled', 'aiAssistantEnabled', 'sharedAssistantOn',
                    'truckOffsetX', 'truckOffsetZ', 'truckRotation',
                    'bgMusicEnabled', 'bgMusicFile', 'tvEnabled', 'tvVideoFile',
                    # payments + promos + rewards are public-facing: the checkout needs them
@@ -2086,6 +2087,13 @@ def assistant_reply(s, vid, user_text, ip):
             if not tool_calls:
                 reply = resp.get('content', '').strip() or "Sorry, could you say that again?"
                 sess['messages'].append({'role': 'assistant', 'content': reply})
+                # 📢 Phase 4: broadcast the assistant's reply as a system chat line so everyone sees it
+                if s.get('sharedAssistantOn', False):
+                    with CHAT_LOCK:
+                        hue = PRESENCE.get(vid, {}).get('hue', character_hue(vid))
+                        msg = {'id': 'assistant', 'name': '🤖 Assistant', 'hue': hue, 'text': reply[:140], 'ts': time.time()}
+                        CHAT.append(msg)
+                        del CHAT[:-CHAT_MAX]
                 return {'reply': reply, 'cart': sess['cart'], 'name': sess['name'], 'phone': sess['phone']}
             for tc in tool_calls:
                 fn = tc.get('function', {})
@@ -2949,6 +2957,17 @@ class H(SimpleHTTPRequestHandler):
                             if not row or not row.get('sprout') or sp.get('slot') not in BLING_SLOTS: continue
                             sp_ok.append({'slot': sp['slot'], 'item': row['item'], 'from': _clean(str(sp.get('from') or ''))[:40]})
                         prof['sprouts'] = sp_ok
+                    # 🎭 action sync (Phase 3): broadcast what this avatar is doing so everyone sees it
+                    _act = prf.get('action')
+                    if isinstance(_act, dict) and _act.get('type') in ('wave','dance','photo','highfive','hug','give','idle'):
+                        try:
+                            _ts = float(_act.get('ts', 0))
+                        except (TypeError, ValueError):
+                            _ts = 0
+                        _last = (e.get('profile') or {}).get('action', {}).get('ts', 0) or e.get('_last_action', 0)
+                        if _ts > 0 and (now - float(_last or 0)) >= 3:   # rate limit: <=1 action per 3 s
+                            prof['action'] = {'type': _act['type'], 'ts': _ts}
+                            e['_last_action'] = _ts
                     if prof: e['profile'] = prof
                     elif 'profile' in e: e.pop('profile')   # emptied = back to the random character look
             name = _clean(NAME_RE.sub('', str(data.get('name', '')))).strip()[:24]   # 🧼 names are family-facing too
