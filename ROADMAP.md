@@ -110,8 +110,7 @@ standing next to each other see different crowd behaviour.
 - **Phase 2 — Deterministic ambient crowd (done).** `Math.random()` replaced with a seeded PRNG (mulberry32) in all 6 modules; `/api/time` endpoint added; `t` driven by shared clock; seed passed to all init functions; seats/queues use deterministic selection (first free seat sorted by key, queue by actor id). *Remaining: late-joiner replay (pure init of seed+t0) — needs state to be a function of t or expensive replay. Full byte-for-byte sync requires replay or stateless simulation.*
 - **Phase 3 — Live avatar action sync (done).** Server accepts and broadcasts `action` in presence profile (rate-limited 3 s); client `setAction(type)` sends it; poll applies received actions to avatars with pose + bubble; tick plays action pose; `setAction` wired into life.js interactMenu so every player interaction broadcasts to other visitors.
 - **Phase 4 — Shared AI assistant (done).** `sharedAssistantOn` setting (default off) gates broadcasting; when enabled, assistant replies are posted to CHAT as system messages ('🤖 Assistant') so everyone sees the same Q&A. Order mutations stay per-account. Admin toggle in Settings tab.
-- **Phase 5 — Ownership + safety.** Server-side bling ownership (T2) becomes more
-  important once wearables are universal and valuable; add max-worn (8) + seasonal filter.
+- **Phase 5 — Ownership + safety (done).** Server-side bling ownership check: `/api/presence` keeps only bling ids present in the account's prizes (10-digit phone); without a phone, no bling. Max-worn (8) already enforced by `[:8]`. Smoke test verifies unowned bling is dropped.
 
 Recommended order: finish Phase 1, then Phase 2 (biggest visible payoff), then Phase 3.
 
