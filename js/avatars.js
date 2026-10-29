@@ -26,6 +26,7 @@ if (!myId) {
 let myName = (() => { try { return localStorage.getItem(NAME_KEY) || ''; } catch (e) { return ''; } })();
 // visitor's own avatar look customization: shirt hue + skin tone + hat style. Kept in
 // localStorage and always sent with the presence heartbeat so anyone who joins sees it.
+let myAction = null, myActionTs = 0;   // Phase 3: current action being broadcast
 let myProfile = (() => {
   try { const p = JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null') || {}; return {
     hue: Number.isFinite(+p.hue) ? Math.max(0, Math.min(359, +p.hue | 0)) : null,
@@ -101,6 +102,12 @@ fetch('/bling/catalog.json').then(r => r.ok ? r.json() : null).then(j => {
 }).catch(() => {});
 export const blingCatalog = () => BLING;
 export const wornBling = () => (myProfile.bling || []).filter(id => BLING_BY[id]);
+export function setAction(type) {   // Phase 3: broadcast an action to all visitors
+  if (!type) return;
+  myAction = type; myActionTs = Date.now() / 1000;
+  if (myProfile) { myProfile.action = {type, ts: myActionTs}; }
+  heartbeat().catch(() => {});
+}
 export function toggleBling(id) {   // one piece per slot; saved in the profile so every browser sees it on your avatar
   const it = BLING_BY[id]; if (!it) return false;
   let cur = (myProfile.bling || []).filter(x => BLING_BY[x]);
@@ -243,7 +250,7 @@ async function heartbeat(ordered) {
   try {
     const r = await fetch('/api/presence', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({id: myId, ordered: !!ordered, menu: menuOpen, name: myName, profile: myProfile}),
+      body: JSON.stringify({id: myId, ordered: !!ordered, menu: menuOpen, name: myName, profile: (function(){const p = Object.assign({}, myProfile || {}); if (myAction) p.action = {type: myAction, ts: myActionTs}; return p;})()}),
     });
     const j = await r.json().catch(() => null);
     if (j && j.name) updateDockName(j.name);
@@ -397,6 +404,13 @@ async function poll() {
     setStatus(a, o.status, o.name);
     const bk = JSON.stringify((o.profile && o.profile.bling) || []);
     if (bk !== JSON.stringify(a.blingIds || [])) { a.blingIds = (o.profile && o.profile.bling) || []; applyBling(a.group, a.blingIds); }
+    // Phase 3: apply received action (wave/dance/etc.) if newer than last seen
+    const act = o.profile && o.profile.action;
+    if (act && act.type && act.ts && act.ts > (a.lastActionTs || 0)) {
+      a.lastActionTs = act.ts;
+      a.action = {type: act.type, until: performance.now() + 2200};
+      showBubble(a, ({wave:'👋',dance:'💃',photo:'📸',highfive:'✋',hug:'🤗',give:'🌱',idle:'🙂'})[act.type] || '✨', 1800);
+    }
   }
   for (const [id, a] of live) { if (!seen.has(id) && id !== myId) { despawn(a); live.delete(id); } }
 
@@ -709,13 +723,13 @@ export function tick(t, dt) {
     const d = a.target.clone().sub(g.position); d.y = 0;
     const dist = d.length();
     const moving = dist > 0.08;
+    const arms = g.userData.arms || [];
+    const legs = g.userData.legs || [];
     if (moving) {
       d.normalize(); g.position.addScaledVector(d, Math.min(dist, dt * 0.9));
       g.rotation.y = Math.atan2(d.x, d.z);
       g.position.y = FLOOR + Math.abs(Math.sin(t * 6 + a.phase)) * 0.03;   // walk bob
       const swing = Math.sin(t * 8 + a.phase) * 0.6;
-      const arms = g.userData.arms || [];
-      const legs = g.userData.legs || [];
       if (arms[0]) arms[0].rotation.x = swing;
       if (arms[1]) arms[1].rotation.x = -swing;
       if (legs[0]) legs[0].rotation.x = -swing * 0.5;
@@ -724,12 +738,20 @@ export function tick(t, dt) {
       a.wait -= dt;
       g.position.y = FLOOR + Math.sin(t * 1.6 + a.phase) * 0.01;   // idle breathing
       if (a.wait <= 0 && a.status !== 'ordering') { a.target = randSpot(); a.wait = 2 + Math.random() * 3; }
-      const arms = g.userData.arms || [];
-      const legs = g.userData.legs || [];
       if (arms[0]) arms[0].rotation.x = 0;
       if (arms[1]) arms[1].rotation.x = 0;
       if (legs[0]) legs[0].rotation.x = 0;
       if (legs[1]) legs[1].rotation.x = 0;
+    }
+    // Phase 3: play action pose if active
+    if (a.action && a.action.until > now) {
+      if (a.action.type === 'wave') { if (arms[1]) { arms[1].rotation.x = -1.2; arms[1].rotation.z = 0.4 + Math.sin(t * 8) * 0.2; } }
+      else if (a.action.type === 'dance') { g.position.y = FLOOR + Math.abs(Math.sin(t * 5.5 + a.phase)) * 0.08; if (arms[0]) arms[0].rotation.z = -2.0 + Math.sin(t*5.5+a.phase)*.3; if (arms[1]) arms[1].rotation.z = 2.0 - Math.sin(t*5.5+a.phase)*.3; }
+      else if (a.action.type === 'photo') { if (arms[0]) arms[0].rotation.x = -1.2; if (arms[1]) arms[1].rotation.x = -1.6; }
+      else if (a.action.type === 'highfive') { if (arms[1]) arms[1].rotation.x = -2.4; }
+      else if (a.action.type === 'hug') { if (arms[0]) arms[0].rotation.x = -1.35; if (arms[1]) arms[1].rotation.x = -1.35; }
+    } else if (a.action) {
+      a.action = null;
     }
     if (a.glow) { const gt = a.status === 'ordering' ? .55 : 0; a.glow.emissiveIntensity += (gt - a.glow.emissiveIntensity) * Math.min(1, dt * 4); }
     if (a.bubble && now > a.bubbleUntil) { a.bubbleAnchor.remove(a.bubble); a.bubble.material.map.dispose(); a.bubble.material.dispose(); a.bubble = null; }
@@ -909,4 +931,4 @@ function buildDock() {
 }
 
 // expose for cross-module use (account.js gift button, scene.js avatar clicks)
-window.Avatars = { openGiftPanel, liveAvatars, toggleBling, wornBling, blingCatalog, applyBling, attachSprout, setNpcLister };
+window.Avatars = { openGiftPanel, liveAvatars, toggleBling, wornBling, blingCatalog, applyBling, attachSprout, setNpcLister, setAction };
